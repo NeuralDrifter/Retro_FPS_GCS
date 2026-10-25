@@ -1,0 +1,319 @@
+@import "tailwindcss";
+
+/* ============================================================================
+ * PIE3D DESKTOP GAME ENGINE IDE THEME & CSS GRID SHELL
+ * (Godot / TrenchBroom / Unity Workstation Architecture)
+ * ============================================================================ */
+:root {
+  /* Core Palette */
+  --ide-bg-main: #1e1e1e;
+  --ide-bg-viewport: #141414;
+  --ide-bg-panel: #252526;
+  --ide-bg-header: #2d2d30;
+  --ide-bg-input: #181818;
+  --ide-bg-hover: #37373d;
+  --ide-bg-active: #094771;
+
+  /* 1px Solid Panel Borders & Dividers */
+  --ide-border: #3e3e42;
+  --ide-border-subtle: #333333;
+
+  /* Single Professional Accent Color (Godot Blue #478cbf) */
+  --ide-accent: #478cbf;
+  --ide-accent-hover: #5a9fd4;
+  --ide-accent-muted: rgba(71, 140, 191, 0.22);
+
+  /* Semantic Status Colors */
+  --ide-danger: #d14d41;
+  --ide-success: #4ec9b0;
+  --ide-warning: #ce9178;
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --ide-text: #cccccc;
+  --ide-text-bright: #ffffff;
+  --ide-text-muted: #858585;
+
+  /* Fixed Panel Dimensions */
+  --ide-menubar-height: 28px;
+  --ide-toolbar-width: 40px;
+  --ide-inspector-width: 280px;
+  --ide-statusbar-height: 24px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: var(--ide-bg-main);
+  color: var(--ide-text);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+code,
+pre,
+.font-mono,
+.tabular-nums {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================================
+ * MASTER APPLICATION SHELL (CSS GRID)
+ * ============================================================================ */
+.ide-shell {
+  display: grid;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--ide-bg-main);
+  grid-template-rows: var(--ide-menubar-height) 1fr var(--ide-statusbar-height);
+  grid-template-columns: var(--ide-toolbar-width) 1fr var(--ide-inspector-width);
+  grid-template-areas:
+    "menubar   menubar   menubar"
+    "toolbar   workspace inspector"
+    "statusbar statusbar statusbar";
+}
+
+/* Fullscreen Game Preview Override (when Play Game Window is toggled) */
+.ide-shell.ide-shell--play-fullscreen {
+  grid-template-columns: 0px 1fr 0px;
+}
+
+/* 1. Top Menu Bar (28px height) */
+.ide-menubar {
+  grid-area: menubar;
+  height: var(--ide-menubar-height);
+  background-color: var(--ide-bg-header);
+  border-bottom: 1px solid var(--ide-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  font-size: 12px;
+  z-index: 40;
+}
+
+/* 2. Left Vertical Tool Palette (40px wide) */
+.ide-toolbar {
+  grid-area: toolbar;
+  width: var(--ide-toolbar-width);
+  background-color: var(--ide-bg-panel);
+  border-right: 1px solid var(--ide-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0;
+  gap: 2px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* 3. Middle Workspace (Resizable Split Pane: 2D Map Editor + 3D Viewport) */
+.ide-workspace {
+  grid-area: workspace;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--ide-bg-main);
+}
+
+/* Interactive Vertical Resizer Bar between 2D Editor and 3D Viewport */
+.ide-splitter {
+  width: 4px;
+  background-color: var(--ide-bg-header);
+  border-left: 1px solid var(--ide-border);
+  border-right: 1px solid var(--ide-border);
+  cursor: col-resize;
+  flex-shrink: 0;
+  transition: background-color 0.1s ease;
+}
+
+.ide-splitter:hover,
+.ide-splitter.ide-splitter--dragging {
+  background-color: var(--ide-accent);
+}
+
+/* 4. Right Properties Inspector (280px wide) */
+.ide-inspector {
+  grid-area: inspector;
+  width: var(--ide-inspector-width);
+  background-color: var(--ide-bg-panel);
+  border-left: 1px solid var(--ide-border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 5. Bottom Status Bar (24px height) */
+.ide-statusbar {
+  grid-area: statusbar;
+  height: var(--ide-statusbar-height);
+  background-color: var(--ide-bg-panel);
+  border-top: 1px solid var(--ide-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  font-size: 11px;
+  color: var(--ide-text-muted);
+}
+
+/* ============================================================================
+ * REUSABLE DESKTOP IDE COMPONENTS (PANELS, BUTTONS, INPUTS)
+ * ============================================================================ */
+.ide-panel-header {
+  height: 24px;
+  background-color: var(--ide-bg-header);
+  border-bottom: 1px solid var(--ide-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ide-text);
+  flex-shrink: 0;
+}
+
+.ide-section-header {
+  height: 22px;
+  background-color: #2a2a2d;
+  border-top: 1px solid var(--ide-border-subtle);
+  border-bottom: 1px solid var(--ide-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ide-text);
+}
+
+.ide-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 7px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ide-text);
+  background-color: #313135;
+  border: 1px solid var(--ide-border);
+  border-radius: 2px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.08s ease, color 0.08s ease, border-color 0.08s ease;
+}
+
+.ide-btn:hover:not(:disabled) {
+  background-color: var(--ide-bg-hover);
+  color: var(--ide-text-bright);
+}
+
+.ide-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ide-btn--primary,
+.ide-btn--active {
+  background-color: var(--ide-accent);
+  border-color: var(--ide-accent);
+  color: var(--ide-text-bright);
+}
+
+.ide-btn--primary:hover:not(:disabled),
+.ide-btn--active:hover:not(:disabled) {
+  background-color: var(--ide-accent-hover);
+  border-color: var(--ide-accent-hover);
+}
+
+.ide-tool-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  background-color: transparent;
+  color: var(--ide-text);
+  cursor: pointer;
+  transition: background-color 0.08s ease, color 0.08s ease, border-color 0.08s ease;
+}
+
+.ide-tool-btn:hover {
+  background-color: var(--ide-bg-hover);
+  color: var(--ide-text-bright);
+}
+
+.ide-tool-btn--active {
+  background-color: var(--ide-accent-muted);
+  border-color: var(--ide-accent);
+  color: var(--ide-text-bright);
+}
+
+.ide-input,
+.ide-select {
+  height: 22px;
+  padding: 0 6px;
+  font-size: 11px;
+  color: var(--ide-text-bright);
+  background-color: var(--ide-bg-input);
+  border: 1px solid var(--ide-border-subtle);
+  border-radius: 2px;
+  outline: none;
+}
+
+.ide-input:focus,
+.ide-select:focus {
+  border-color: var(--ide-accent);
+}
+
+.ide-label {
+  font-size: 10px;
+  color: var(--ide-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Custom thin desktop scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--ide-bg-main);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #424245;
+  border-radius: 0px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555558;
+}
