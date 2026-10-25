@@ -1,0 +1,11 @@
+{
+  "_comment": "Place texture images in /public/assets/textures/ and .glb models in /public/assets/models/, then register them below (or drop files directly into /src/assets/textures/ and /src/assets/models/ for automatic zero-config discovery).",
+  "textures": [
+    {
+      "id": "folder-sample-brick",
+      "name": "Cyber Grid Tile (Folder SVG)",
+      "file": "/assets/textures/cyber_grid_tile.svg"
+    }
+  ],
+  "models": []
+}

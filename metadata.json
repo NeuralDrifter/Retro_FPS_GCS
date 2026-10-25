@@ -1,0 +1,6 @@
+{
+  "name": "Pie3D Game Creation System",
+  "description": "A modular no-code 3D Game Maker and first-person grid engine inspired by the mid-90s Pie in the Sky 3D Game Creation System.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,565 @@
+/**
+ * ============================================================================
+ * GRIDFORGE 3D STATE SERIALIZATION, V2->V3 MIGRATOR & SAVE/LOAD MANAGER
+ * ============================================================================
+ * Encapsulates level state packing, strict v2-to-v3 migration, `nextEntityId`
+ * monotonic allocation, `AssetRegistry` content-hash registration, and
+ * `validateLevelDataV3` verification on load.
+ */
+
+import {
+  ENGINE_CONFIG,
+  EntityArchetypeId,
+  LevelStateData,
+  PlacedEntity,
+  SkyboxThemeId,
+  TextureAsset,
+  createUniformTextureMatrix,
+} from '../types/engine';
+import {
+  EventDefinition,
+  LevelDataV3,
+  RegionDefinition,
+  SIM_CONFIG,
+  SimPlacedEntityV3,
+  VariableRegistrySpec,
+  bamToRadians,
+  radiansToBam,
+  validateLevelDataV3,
+} from './sim';
+import { AssetRegistry } from './AssetRegistry';
+
+/**
+ * Computes the next safe monotonic integer `nextEntityId` (>= 1) that is strictly
+ * greater than any numeric suffix in existing entity IDs (`ent-1`, `ent-starter-4`, etc.).
+ */
+export function computeNextEntityId(
+  entities: readonly { id: string }[],
+  explicitNextId?: number
+): number {
+  let maxSeen = 0;
+  for (const ent of entities) {
+    const match = /(\d+)$/.exec(ent.id);
+    if (match) {
+      const parsed = Number.parseInt(match[1], 10);
+      if (Number.isFinite(parsed) && parsed > maxSeen) {
+        maxSeen = parsed;
+      }
+    }
+  }
+  const candidate = maxSeen + 1;
+  if (
+    typeof explicitNextId === 'number' &&
+    Number.isInteger(explicitNextId) &&
+    explicitNextId > maxSeen
+  ) {
+    return Math.max(1, explicitNextId);
+  }
+  return Math.max(1, candidate);
+}
+
+export class LevelSerializer {
+  /**
+   * Packages the current editor state into a complete `LevelDataV3` object
+   * (strict integer-only, zero URLs, asset IDs resolved via `AssetRegistry`).
+   */
+  public static serializeLevelV3(params: {
+    grid: number[][];
+    wallTextures: string[][];
+    floorTextures: string[][];
+    ceilingTextures: string[][];
+    customTextures?: TextureAsset[];
+    entities: PlacedEntity[];
+    nextEntityId?: number;
+    rngSeed?: number;
+    spawn: { row: number; col: number; yaw: number };
+    skyboxTheme: SkyboxThemeId;
+    skyboxSeed: number;
+    showCeiling: boolean;
+    minimapEnabled: boolean;
+    cellTags?: number[][];
+    events?: EventDefinition[];
+    regions?: RegionDefinition[];
+    variables?: VariableRegistrySpec;
+    exportedAt?: string;
+    title?: string;
+  }): LevelDataV3 {
+    if (params.customTextures) {
+      for (const tex of params.customTextures) {
+        AssetRegistry.registerTexture(tex);
+      }
+    }
+
+    const v3Entities: SimPlacedEntityV3[] = params.entities.map((ent) => {
+      let modelAssetId = ent.modelAssetId;
+      if (!modelAssetId && ent.customGlbUrl) {
+        modelAssetId = AssetRegistry.registerCustomGlbUrl(
+          ent.customGlbUrl,
+          ent.name,
+          ent.isEnemy !== false
+        );
+      }
+
+      const speedMetersPerSec = ent.moveSpeed ?? (ent.isEnemy !== false ? 4.5 : 0);
+      const speedUnitsPerTick = Math.max(
+        0,
+        Math.round(
+          (speedMetersPerSec / ENGINE_CONFIG.CELL_SIZE) *
+            (SIM_CONFIG.CELL_UNITS / SIM_CONFIG.TICKS_PER_SECOND)
+        )
+      );
+
+      return {
+        id: ent.id,
+        row: Math.max(0, Math.min(9, Math.trunc(ent.row))),
+        col: Math.max(0, Math.min(9, Math.trunc(ent.col))),
+        blueprintId: ent.blueprintId,
+        ...(modelAssetId ? { modelAssetId } : {}),
+        name: ent.name,
+        yawBam: radiansToBam(ent.yaw || 0),
+        scalePct: Math.max(
+          10,
+          Math.min(500, Math.round((ent.scale || 1) * 100))
+        ),
+        isEnemy: ent.isEnemy !== false,
+        maxHealth: Math.max(1, Math.trunc(ent.maxHealth ?? 75)),
+        moveSpeedUnitsPerTick: speedUnitsPerTick,
+        attackDamage: Math.max(0, Math.trunc(ent.attackDamage ?? 12)),
+        ...(ent.tag !== undefined ? { tag: Math.trunc(ent.tag) } : {}),
+        ...(ent.patrol !== undefined ? { patrol: Boolean(ent.patrol) } : {}),
+        ...(ent.ambush !== undefined ? { ambush: Boolean(ent.ambush) } : {}),
+      };
+    });
+
+    const nextEntityId = computeNextEntityId(v3Entities, params.nextEntityId);
+
+    return {
+      formatVersion: 3,
+      gridSize: ENGINE_CONFIG.GRID_SIZE,
+      rngSeed: (Math.trunc(params.rngSeed ?? params.skyboxSeed ?? 1) >>> 0) || 1,
+      nextEntityId,
+      spawn: {
+        row: Math.max(0, Math.min(9, Math.trunc(params.spawn.row))),
+        col: Math.max(0, Math.min(9, Math.trunc(params.spawn.col))),
+        yawBam: radiansToBam(params.spawn.yaw || 0),
+      },
+      minimapEnabled: Boolean(params.minimapEnabled),
+      skybox: {
+        theme: params.skyboxTheme,
+        seed: Math.trunc(params.skyboxSeed) || 1,
+        showCeiling: Boolean(params.showCeiling),
+      },
+      grid: params.grid.map((row) => row.map((c) => Math.trunc(c))),
+      wallTextures: params.wallTextures.map((row) => [...row]),
+      floorTextures: params.floorTextures.map((row) => [...row]),
+      ceilingTextures: params.ceilingTextures.map((row) => [...row]),
+      ...(params.cellTags
+        ? {
+            cellTags: params.cellTags.map((row) =>
+              row.map((t) => Math.trunc(t))
+            ),
+          }
+        : {}),
+      entities: v3Entities,
+      regions: params.regions ? params.regions.map((r) => ({ ...r })) : [],
+      variables: params.variables
+        ? {
+            flags: { ...params.variables.flags },
+            counters: { ...params.variables.counters },
+            timers: [...params.variables.timers],
+          }
+        : { flags: {}, counters: {}, timers: [] },
+      events: params.events ? params.events.map((e) => ({ ...e })) : [],
+      ...(params.exportedAt || params.title
+        ? {
+            metadata: {
+              ...(params.title ? { title: params.title } : {}),
+              ...(params.exportedAt ? { exportedAt: params.exportedAt } : {}),
+            },
+          }
+        : {}),
+    };
+  }
+
+  /**
+   * Strict Migrator: Upgrades untrusted v1 (10x10 array) or v2 (`version: "2.0"`)
+   * or validates v3 (`formatVersion: 3`) into a validated `LevelDataV3`.
+   */
+  public static migrateToV3(
+    parsed: unknown,
+    rawJsonString?: string
+  ): { levelV3: LevelDataV3; customTextures: TextureAsset[] } {
+    // Case A: Already a pure LevelDataV3 document (not a v2 LevelStateData wrapper)
+    if (
+      parsed !== null &&
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed) &&
+      (parsed as Record<string, unknown>).formatVersion === 3 &&
+      !('version' in (parsed as Record<string, unknown>))
+    ) {
+      const allowlist = AssetRegistry.createAllowlist();
+      const validation = validateLevelDataV3(
+        parsed,
+        {
+          allowedTextureIds: allowlist.textureIds,
+          allowedModelIds: allowlist.modelIds,
+          allowedSoundIds: allowlist.soundIds,
+        },
+        rawJsonString
+      );
+      if (!validation.valid) {
+        throw new Error(
+          `Invalid LevelDataV3: ${validation.errors
+            .map((e) => `${e.path} (${e.code}): ${e.message}`)
+            .join('; ')}`
+        );
+      }
+      return {
+        levelV3: parsed as LevelDataV3,
+        customTextures: [],
+      };
+    }
+
+    // Case B: Legacy v1 array or v2 object
+    const obj = (
+      Array.isArray(parsed) ? { grid: parsed } : parsed
+    ) as Record<string, unknown> | null;
+
+    const rawGrid = obj?.grid;
+    if (
+      !Array.isArray(rawGrid) ||
+      rawGrid.length !== ENGINE_CONFIG.GRID_SIZE ||
+      !rawGrid.every(
+        (r: unknown) =>
+          Array.isArray(r) &&
+          r.length === ENGINE_CONFIG.GRID_SIZE &&
+          r.every(
+            (cell) =>
+              typeof cell === 'number' &&
+              Number.isInteger(cell) &&
+              cell >= 0 &&
+              cell <= 3
+          )
+      )
+    ) {
+      throw new Error(
+        `Invalid level JSON: 'grid' must be a ${ENGINE_CONFIG.GRID_SIZE}x${ENGINE_CONFIG.GRID_SIZE} 2D integer array (values 0..3).`
+      );
+    }
+
+    const isValidStringMatrix = (m: unknown): m is string[][] =>
+      Array.isArray(m) &&
+      m.length === ENGINE_CONFIG.GRID_SIZE &&
+      m.every(
+        (r: unknown) =>
+          Array.isArray(r) &&
+          r.length === ENGINE_CONFIG.GRID_SIZE &&
+          r.every((tid) => typeof tid === 'string' && tid.length > 0)
+      );
+
+    const wallTextures = isValidStringMatrix(obj?.wallTextures)
+      ? obj.wallTextures.map((r) => [...r])
+      : createUniformTextureMatrix('default-grid');
+
+    const floorTextures = isValidStringMatrix(obj?.floorTextures)
+      ? obj.floorTextures.map((r) => [...r])
+      : createUniformTextureMatrix('floor-obsidian');
+
+    const ceilingTextures = isValidStringMatrix(obj?.ceilingTextures)
+      ? obj.ceilingTextures.map((r) => [...r])
+      : createUniformTextureMatrix('ceiling-coffer');
+
+    // Register any customTextures in AssetRegistry and remap non-conforming IDs
+    const idRemap = new Map<string, string>();
+    const customTextures: TextureAsset[] = [];
+    if (Array.isArray(obj?.customTextures)) {
+      for (const rawTex of obj.customTextures) {
+        if (
+          rawTex &&
+          typeof rawTex === 'object' &&
+          typeof (rawTex as TextureAsset).id === 'string' &&
+          typeof (rawTex as TextureAsset).previewUrl === 'string'
+        ) {
+          const texAsset = rawTex as TextureAsset;
+          const registered = AssetRegistry.registerTexture(texAsset);
+          idRemap.set(texAsset.id, registered.id);
+          customTextures.push(registered);
+        }
+      }
+    }
+
+    // Collect all texture IDs referenced in the 3 matrices so custom texture IDs in tests pass allowlist
+    const referencedTexIds = new Set<string>();
+    const remapMatrix = (mat: string[][]) => {
+      for (let r = 0; r < ENGINE_CONFIG.GRID_SIZE; r++) {
+        for (let c = 0; c < ENGINE_CONFIG.GRID_SIZE; c++) {
+          const orig = mat[r][c];
+          const mapped = idRemap.get(orig) || orig;
+          mat[r][c] = mapped;
+          referencedTexIds.add(mapped);
+        }
+      }
+    };
+    remapMatrix(wallTextures);
+    remapMatrix(floorTextures);
+    remapMatrix(ceilingTextures);
+
+    const rawEntities = Array.isArray(obj?.entities) ? obj.entities : [];
+    const migratedEntities: PlacedEntity[] = rawEntities.map(
+      (rawEnt: unknown, idx: number) => {
+        const e = (rawEnt || {}) as Partial<PlacedEntity>;
+        return {
+          id:
+            typeof e.id === 'string' && /^[a-z0-9_-]+$/i.test(e.id)
+              ? e.id
+              : `ent-${idx + 1}`,
+          row:
+            typeof e.row === 'number'
+              ? Math.max(0, Math.min(9, Math.trunc(e.row)))
+              : 1,
+          col:
+            typeof e.col === 'number'
+              ? Math.max(0, Math.min(9, Math.trunc(e.col)))
+              : 1,
+          blueprintId: (e.blueprintId as EntityArchetypeId) || 'sentinel-bot',
+          modelAssetId: e.modelAssetId,
+          name: typeof e.name === 'string' ? e.name : 'Entity',
+          yaw: typeof e.yaw === 'number' && Number.isFinite(e.yaw) ? e.yaw : 0,
+          scale:
+            typeof e.scale === 'number' && Number.isFinite(e.scale)
+              ? e.scale
+              : 1,
+          customGlbUrl:
+            typeof e.customGlbUrl === 'string' ? e.customGlbUrl : undefined,
+          isEnemy: e.isEnemy !== false,
+          maxHealth: typeof e.maxHealth === 'number' ? e.maxHealth : 75,
+          moveSpeed: typeof e.moveSpeed === 'number' ? e.moveSpeed : 4.5,
+          attackDamage:
+            typeof e.attackDamage === 'number' ? e.attackDamage : 12,
+          ...(typeof e.tag === 'number' ? { tag: Math.trunc(e.tag) } : {}),
+          ...(typeof e.patrol === 'boolean' ? { patrol: e.patrol } : {}),
+          ...(typeof e.ambush === 'boolean' ? { ambush: e.ambush } : {}),
+        };
+      }
+    );
+
+    const rawSpawn = obj?.spawn as
+      | { row?: unknown; col?: unknown; yaw?: unknown }
+      | undefined;
+    const spawn =
+      rawSpawn &&
+      typeof rawSpawn.row === 'number' &&
+      typeof rawSpawn.col === 'number'
+        ? {
+            row: Math.max(0, Math.min(9, Math.trunc(rawSpawn.row))),
+            col: Math.max(0, Math.min(9, Math.trunc(rawSpawn.col))),
+            yaw: Number(rawSpawn.yaw) || 0,
+          }
+        : { row: 1, col: 1, yaw: Math.PI };
+
+    const rawSkybox = obj?.skybox as
+      | { theme?: unknown; seed?: unknown; showCeiling?: unknown }
+      | undefined;
+    const skyboxTheme =
+      (rawSkybox?.theme as SkyboxThemeId) || 'retro-nebula';
+    const skyboxSeed = Math.trunc(Number(rawSkybox?.seed) || 1);
+    const showCeiling = Boolean(rawSkybox?.showCeiling);
+    const minimapEnabled =
+      typeof obj?.minimapEnabled === 'boolean' ? obj.minimapEnabled : true;
+    const nextEntityId = computeNextEntityId(
+      migratedEntities,
+      typeof obj?.nextEntityId === 'number' ? obj.nextEntityId : undefined
+    );
+
+    const levelV3 = this.serializeLevelV3({
+      grid: rawGrid as number[][],
+      wallTextures,
+      floorTextures,
+      ceilingTextures,
+      customTextures,
+      entities: migratedEntities,
+      nextEntityId,
+      spawn,
+      skyboxTheme,
+      skyboxSeed,
+      showCeiling,
+      minimapEnabled,
+      events: Array.isArray(obj?.events)
+        ? (obj.events as EventDefinition[])
+        : undefined,
+      regions: Array.isArray(obj?.regions)
+        ? (obj.regions as RegionDefinition[])
+        : undefined,
+      variables:
+        obj?.variables && typeof obj.variables === 'object'
+          ? (obj.variables as VariableRegistrySpec)
+          : undefined,
+      exportedAt:
+        typeof obj?.timestamp === 'string' ? obj.timestamp : undefined,
+    });
+
+    const allowlist = AssetRegistry.createAllowlist({
+      textureIds: referencedTexIds,
+    });
+    const validation = validateLevelDataV3(
+      levelV3,
+      {
+        allowedTextureIds: allowlist.textureIds,
+        allowedModelIds: allowlist.modelIds,
+        allowedSoundIds: allowlist.soundIds,
+      },
+      rawJsonString
+    );
+    if (!validation.valid) {
+      throw new Error(
+        `Migrated level failed v3 validation: ${validation.errors
+          .map((e) => `${e.path} (${e.code}): ${e.message}`)
+          .join('; ')}`
+      );
+    }
+
+    return { levelV3, customTextures };
+  }
+
+  /**
+   * Packages the current editor state into a `LevelStateData` object.
+   */
+  public static serializeLevel(params: {
+    grid: number[][];
+    wallTextures: string[][];
+    floorTextures: string[][];
+    ceilingTextures: string[][];
+    customTextures: TextureAsset[];
+    entities: PlacedEntity[];
+    nextEntityId?: number;
+    spawn: { row: number; col: number; yaw: number };
+    skyboxTheme: SkyboxThemeId;
+    skyboxSeed: number;
+    showCeiling: boolean;
+    minimapEnabled: boolean;
+    events?: EventDefinition[];
+    regions?: RegionDefinition[];
+    variables?: VariableRegistrySpec;
+  }): LevelStateData {
+    const nextEntityId = computeNextEntityId(
+      params.entities,
+      params.nextEntityId
+    );
+    return {
+      engine: 'GridForge 3D Game Creation System',
+      version: '2.0',
+      formatVersion: 3,
+      timestamp: new Date().toISOString(),
+      gridSize: ENGINE_CONFIG.GRID_SIZE,
+      nextEntityId,
+      spawn: { ...params.spawn },
+      minimapEnabled: params.minimapEnabled,
+      skybox: {
+        theme: params.skyboxTheme,
+        seed: params.skyboxSeed,
+        showCeiling: params.showCeiling,
+      },
+      grid: params.grid.map((row) => [...row]),
+      wallTextures: params.wallTextures.map((row) => [...row]),
+      floorTextures: params.floorTextures.map((row) => [...row]),
+      ceilingTextures: params.ceilingTextures.map((row) => [...row]),
+      customTextures: [...params.customTextures],
+      entities: params.entities.map((ent) => ({ ...ent })),
+      ...(params.events ? { events: params.events.map((e) => ({ ...e })) } : {}),
+      ...(params.regions ? { regions: params.regions.map((r) => ({ ...r })) } : {}),
+      ...(params.variables ? { variables: { ...params.variables } } : {}),
+    };
+  }
+
+  /**
+   * Triggers a browser download of the serialized level state as a `.json` file.
+   */
+  public static downloadLevelJson(
+    state: LevelStateData,
+    filename?: string
+  ): void {
+    const jsonString = JSON.stringify(state, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download =
+      filename ||
+      `gridforge-level-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Parses, migrates to v3, and validates an uploaded JSON string into a normalized
+   * `LevelStateData` structure.
+   */
+  public static parseLevelJson(rawJson: string): LevelStateData {
+    const parsed = JSON.parse(rawJson);
+    const { levelV3, customTextures } = this.migrateToV3(parsed, rawJson);
+
+    const entities: PlacedEntity[] = levelV3.entities.map((e) => ({
+      id: e.id,
+      row: e.row,
+      col: e.col,
+      blueprintId: e.blueprintId,
+      modelAssetId: e.modelAssetId,
+      name: e.name,
+      yaw: bamToRadians(e.yawBam),
+      scale: e.scalePct / 100,
+      customGlbUrl: AssetRegistry.getCustomGlbUrlForModelId(e.modelAssetId),
+      isEnemy: e.isEnemy,
+      maxHealth: e.maxHealth,
+      moveSpeed: Number(
+        (
+          (e.moveSpeedUnitsPerTick *
+            SIM_CONFIG.TICKS_PER_SECOND *
+            ENGINE_CONFIG.CELL_SIZE) /
+          SIM_CONFIG.CELL_UNITS
+        ).toFixed(2)
+      ),
+      attackDamage: e.attackDamage,
+      tag: e.tag,
+      patrol: e.patrol,
+      ambush: e.ambush,
+    }));
+
+    return {
+      engine: 'GridForge 3D Game Creation System',
+      version: '2.0',
+      formatVersion: 3,
+      timestamp: levelV3.metadata?.exportedAt || new Date().toISOString(),
+      gridSize: levelV3.gridSize,
+      nextEntityId: levelV3.nextEntityId,
+      rngSeed: levelV3.rngSeed,
+      spawn: {
+        row: levelV3.spawn.row,
+        col: levelV3.spawn.col,
+        yaw:
+          parsed &&
+          typeof parsed === 'object' &&
+          !Array.isArray(parsed) &&
+          typeof parsed.spawn?.yaw === 'number'
+            ? parsed.spawn.yaw
+            : bamToRadians(levelV3.spawn.yawBam),
+      },
+      minimapEnabled: levelV3.minimapEnabled,
+      skybox: {
+        theme: levelV3.skybox.theme,
+        seed: levelV3.skybox.seed,
+        showCeiling: levelV3.skybox.showCeiling,
+      },
+      grid: levelV3.grid.map((r) => [...r]),
+      wallTextures: levelV3.wallTextures.map((r) => [...r]),
+      floorTextures: levelV3.floorTextures.map((r) => [...r]),
+      ceilingTextures: levelV3.ceilingTextures.map((r) => [...r]),
+      customTextures,
+      entities,
+      events: levelV3.events,
+      regions: levelV3.regions,
+      variables: levelV3.variables,
+    };
+  }
+}
