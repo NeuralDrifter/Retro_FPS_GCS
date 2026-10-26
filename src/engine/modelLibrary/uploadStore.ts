@@ -59,6 +59,23 @@ export async function uploadedModelId(bytes: ArrayBuffer): Promise<string> {
   return `glb-${hex.join('')}`;
 }
 
+/**
+ * Id for a second (third, ...) copy of a file already in the library, which
+ * the user chose to keep anyway: the content id plus the next free `-<n>`.
+ */
+export function duplicateModelId(contentId: string, existingIds: Set<string>): string {
+  let n = 2;
+  while (existingIds.has(`${contentId}-${n}`)) n++;
+  return `${contentId}-${n}`;
+}
+
+/** True when `id` is `contentId` or a numbered duplicate of it */
+function isIdForContent(id: string, contentId: string): boolean {
+  if (id === contentId) return true;
+  const suffix = id.startsWith(`${contentId}-`) ? id.slice(contentId.length + 1) : '';
+  return /^\d+$/.test(suffix);
+}
+
 /** The id a record should have under the current scheme (content hash, or URL hash) */
 async function currentRecordId(record: UploadedModelRecord): Promise<string> {
   if (record.blob) return uploadedModelId(await record.blob.arrayBuffer());
@@ -69,7 +86,7 @@ async function currentRecordId(record: UploadedModelRecord): Promise<string> {
 /**
  * Gives every stored record its current-scheme id. `renamed` maps each old id
  * to its new one; records that end up with the same id (the same file stored
- * twice) are kept once.
+ * twice under old ids) are kept once.
  */
 export async function rekeyUploadedRecords(records: UploadedModelRecord[]): Promise<{
   records: UploadedModelRecord[];
@@ -78,7 +95,9 @@ export async function rekeyUploadedRecords(records: UploadedModelRecord[]): Prom
   const byId = new Map<string, UploadedModelRecord>();
   const renamed: Record<string, string> = {};
   for (const record of records) {
-    const id = await currentRecordId(record);
+    const contentId = await currentRecordId(record);
+    // Duplicates the user chose to keep stay under their own numbered id
+    const id = isIdForContent(record.id, contentId) ? record.id : contentId;
     if (id !== record.id) renamed[record.id] = id;
     if (!byId.has(id)) byId.set(id, { ...record, id, meta: { ...record.meta, id } });
   }
