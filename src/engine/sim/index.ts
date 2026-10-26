@@ -5,3 +5,4 @@ export * from './raycast';
 export * from './hash';
 export * from './validator';
 export * from './executor';
+export * from './footprint';
