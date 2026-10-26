@@ -23,7 +23,10 @@ import {
   PlayerTransform,
   TextureAsset,
 } from '../types/engine';
-import { Code2, Square, RotateCcw, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import { Code2, Square, RotateCcw, ZoomIn, ZoomOut, Maximize, Layers } from 'lucide-react';
+import { getEntityRect } from '../engine/modelLibrary/placement';
+import { resolveEntityCategory } from '../engine/modelLibrary/categories';
+import { VARIANT_DRAG_TYPE } from './inspector/modelLibrary/UsedInLevelList';
 
 /** Pixel width of the X/Z coordinate rulers drawn along the canvas edges */
 const RULER_PX = 22;
@@ -73,6 +76,10 @@ interface MapEditor2DProps {
   spawn: { row: number; col: number; yaw: number };
   onClearGrid: () => void;
   onBorderWalls: () => void;
+  /** Places a copy with the settings of an already placed model (dragged from "Used in this level") */
+  onDropVariantOnCell: (row: number, col: number, sourceEntityId: string) => void;
+  allowOverlap: boolean;
+  onToggleAllowOverlap: () => void;
   collectedKeys: Set<string>;
   openDoors: Set<string>;
 }
@@ -95,6 +102,9 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
   spawn,
   onClearGrid,
   onBorderWalls,
+  onDropVariantOnCell,
+  allowOverlap,
+  onToggleAllowOverlap,
   collectedKeys,
   openDoors,
 }) => {
@@ -111,8 +121,6 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
   const texMap = new Map<string, TextureAsset>();
   textures.forEach((t) => texMap.set(t.id, t));
 
-  const entityByCell = new Map<string, PlacedEntity>();
-  entities.forEach((ent) => entityByCell.set(`${ent.row},${ent.col}`, ent));
 
   const gridSize = grid.length;
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -274,23 +282,6 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
           }
         }
 
-        const placedEntity = entityByCell.get(cellKey);
-        if (placedEntity && cellValue !== CellType.WALL) {
-          const inset = Math.max(1, cellPx * 0.08);
-          ctx.fillStyle =
-            placedEntity.isEnemy !== false ? CELL_COLORS.enemy : CELL_COLORS.object;
-          ctx.globalAlpha = 0.85;
-          ctx.fillRect(x + inset, y + inset, w - inset * 2, w - inset * 2);
-          ctx.globalAlpha = 1;
-          if (showGlyphs) {
-            const bp = DEFAULT_ENTITY_BLUEPRINTS.find(
-              (b) => b.id === placedEntity.blueprintId
-            );
-            ctx.fillStyle = '#ffffff';
-            ctx.fillText(bp ? bp.badgeText : 'GLB', cx, cy);
-          }
-        }
-
         if (spawn.row === r && spawn.col === c) {
           const inset = Math.max(1, cellPx * 0.08);
           ctx.strokeStyle = CELL_COLORS.spawn;
@@ -301,6 +292,40 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
             ctx.fillText('S', cx, cy);
           }
         }
+      }
+    }
+
+    // Placed models cover their whole footprint: solid ones filled, non-solid ones dashed
+    for (const ent of entities) {
+      const rect = getEntityRect(ent);
+      const inset = Math.max(1, cellPx * 0.08);
+      const x = RULER_PX + rect.col0 * cellPx + inset;
+      const y = RULER_PX + rect.row0 * cellPx + inset;
+      const w = (rect.col1 - rect.col0 + 1) * cellPx - gap - inset * 2;
+      const h = (rect.row1 - rect.row0 + 1) * cellPx - gap - inset * 2;
+      const isCharacter = resolveEntityCategory(ent) === 'characters';
+      const color =
+        isCharacter && ent.isEnemy !== false ? CELL_COLORS.enemy : CELL_COLORS.object;
+      if ((ent.collision ?? 'solid') === 'solid') {
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, w, h);
+        ctx.globalAlpha = 1;
+      } else {
+        ctx.setLineDash([Math.max(2, cellPx * 0.15), Math.max(2, cellPx * 0.1)]);
+      }
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x, y, w, h);
+      ctx.setLineDash([]);
+      if (showGlyphs) {
+        const bp = DEFAULT_ENTITY_BLUEPRINTS.find((b) => b.id === ent.blueprintId);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(
+          bp ? bp.badgeText : 'GLB',
+          RULER_PX + ent.col * cellPx + (cellPx - gap) / 2,
+          RULER_PX + ent.row * cellPx + (cellPx - gap) / 2
+        );
       }
     }
 
@@ -320,7 +345,7 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
     if (dragOverCell) {
       outlineCell(dragOverCell.row, dragOverCell.col, CELL_COLORS.dragTarget, 2);
     }
-    // texMap and entityByCell are rebuilt every render from these same props
+    // texMap is rebuilt every render from these same props
   }, [
     grid,
     wallTextures,
@@ -460,6 +485,12 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
     if (!cell) return;
     const { row, col } = cell;
 
+    const variantEntityId = e.dataTransfer.getData(VARIANT_DRAG_TYPE);
+    if (variantEntityId) {
+      onDropVariantOnCell(row, col, variantEntityId.trim());
+      return;
+    }
+
     const modelId = e.dataTransfer.getData('application/pie3d-model-id');
     if (modelId) {
       onDropModelOnCell(row, col, modelId.trim());
@@ -475,7 +506,9 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
     const plainPayload = e.dataTransfer.getData('text/plain')?.trim();
     if (!plainPayload) return;
 
-    if (plainPayload.startsWith('model:')) {
+    if (plainPayload.startsWith('variant:')) {
+      onDropVariantOnCell(row, col, plainPayload.slice('variant:'.length));
+    } else if (plainPayload.startsWith('model:')) {
       onDropModelOnCell(row, col, plainPayload.slice('model:'.length));
     } else if (plainPayload.startsWith('tex:')) {
       onDropTextureOnCell(row, col, plainPayload.slice('tex:'.length));
@@ -532,6 +565,21 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
             title="Fit Whole Map"
           >
             <Maximize className="w-2.5 h-2.5" />
+          </button>
+          <button
+            type="button"
+            onClick={onToggleAllowOverlap}
+            className={`ide-btn !h-[18px] !px-1.5 !text-[10px] ${
+              allowOverlap ? 'ide-btn--active' : ''
+            }`}
+            title={
+              allowOverlap
+                ? 'Overlap allowed: new models may cover walls, doors and other models'
+                : 'Overlap blocked: new models may not cover walls, doors or other models (existing ones are untouched)'
+            }
+          >
+            <Layers className="w-2.5 h-2.5" />
+            <span>Overlap {allowOverlap ? 'On' : 'Off'}</span>
           </button>
           <button
             type="button"

@@ -10,7 +10,11 @@ import {
 import { CellInspectorTab } from './inspector/CellInspectorTab';
 import { AssetLibraryTab } from './inspector/AssetLibraryTab';
 import { WorldSettingsTab } from './inspector/WorldSettingsTab';
-import type { ModelLibraryState, PlacementVariant } from '../types/modelLibrary';
+import type {
+  ModelLibraryState,
+  PlacementVariant,
+  ResolvedModelSettings,
+} from '../types/modelLibrary';
 import { Globe, ImagePlus, Sliders } from 'lucide-react';
 
 export interface PropertiesInspectorProps {
@@ -43,7 +47,8 @@ export interface PropertiesInspectorProps {
   onAddCustomModel3DAsset: (asset: Model3DAsset) => void;
   onUpdateEntity: (updated: PlacedEntity) => void;
   onPlaceEntityAtCell: (row: number, col: number) => void;
-  onRemoveEntityAtCell: (row: number, col: number) => void;
+  onRemoveEntity: (entityId: string) => void;
+  getLibrarySettings: (entity: PlacedEntity) => ResolvedModelSettings | null;
   skyboxTheme: SkyboxThemeId;
   onChangeSkyboxTheme: (theme: SkyboxThemeId) => void;
   skyboxSeed: number;
@@ -130,7 +135,8 @@ export const PropertiesInspector: React.FC<PropertiesInspectorProps> = (
             activeModelAsset={activeModelAsset}
             onUpdateEntity={props.onUpdateEntity}
             onPlaceEntityAtCell={props.onPlaceEntityAtCell}
-            onRemoveEntityAtCell={props.onRemoveEntityAtCell}
+            onRemoveEntity={props.onRemoveEntity}
+            getLibrarySettings={props.getLibrarySettings}
           />
         )}
 
