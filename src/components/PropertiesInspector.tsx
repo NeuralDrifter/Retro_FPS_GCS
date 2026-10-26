@@ -61,10 +61,10 @@ export interface PropertiesInspectorProps {
   onClearGrid: () => void;
   onResizeMap: (size: number) => void;
   libraryState: ModelLibraryState;
-  onLibraryChange: (next: ModelLibraryState) => void;
+  onLibraryChange: React.Dispatch<React.SetStateAction<ModelLibraryState>>;
   selectedVariantKey: string | null;
   onPickVariant: (variant: PlacementVariant) => void;
-  onModelFileUploaded: (file: File, asset: Model3DAsset) => void;
+  onModelAdded: (asset: Model3DAsset, file?: File) => void;
   onRemoveUploadedModel: (modelId: string) => void;
   onExportLibrary: () => void;
   onImportLibraryFile: (file: File) => void;
@@ -158,7 +158,7 @@ export const PropertiesInspector: React.FC<PropertiesInspectorProps> = (
             placedEntities={props.entities}
             selectedVariantKey={props.selectedVariantKey}
             onPickVariant={props.onPickVariant}
-            onModelFileUploaded={props.onModelFileUploaded}
+            onModelAdded={props.onModelAdded}
             onRemoveUploadedModel={props.onRemoveUploadedModel}
             onExportLibrary={props.onExportLibrary}
             onImportLibraryFile={props.onImportLibraryFile}

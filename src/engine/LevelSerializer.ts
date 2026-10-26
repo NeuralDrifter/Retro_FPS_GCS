@@ -152,7 +152,7 @@ export class LevelSerializer {
         name: ent.name,
         yawBam: radiansToBam(ent.yaw || 0),
         scalePct: Math.max(
-          10,
+          1,
           Math.min(500, Math.round((ent.scale || 1) * 100))
         ),
         isEnemy: ent.isEnemy !== false,

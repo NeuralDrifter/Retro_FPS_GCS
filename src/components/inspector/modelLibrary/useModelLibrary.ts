@@ -24,6 +24,7 @@ import {
   deleteUploadedModel,
   getAllUploadedModels,
   putUploadedModel,
+  recordToAsset,
 } from '../../../engine/modelLibrary/uploadStore';
 
 const STORAGE_WARNING =
@@ -68,24 +69,28 @@ export function useModelLibrary(params: {
     let active = true;
     getAllUploadedModels().then((records) => {
       if (!active || records.length === 0) return;
-      const restored = records.map((r) =>
-        AssetRegistry.registerModel({
-          ...(r.meta as Model3DAsset),
-          id: r.id,
-          name: r.meta.name ?? r.name,
-          customGlbUrl: URL.createObjectURL(r.blob),
-        })
-      );
-      onRestoredUploadsRef.current(restored);
+      const restored = records
+        .map((r) => recordToAsset(r, (blob) => URL.createObjectURL(blob)))
+        .filter((a): a is Model3DAsset => a !== null);
+      if (restored.length > 0) onRestoredUploadsRef.current(restored);
     });
     return () => {
       active = false;
     };
   }, []);
 
-  const handleModelFileUploaded = useCallback((file: File, asset: Model3DAsset) => {
-    const { customGlbUrl: _objectUrl, ...meta } = asset;
-    putUploadedModel({ id: asset.id, name: file.name, blob: file, meta }).then((ok) => {
+  // Every model the app knows about must be registered, or saved levels using it fail to load
+  useEffect(() => {
+    for (const m of models) AssetRegistry.registerModel(m);
+  }, [models]);
+
+  /** Keeps an uploaded file (or a URL-linked model's URL) so it survives reloads */
+  const handleModelAdded = useCallback((asset: Model3DAsset, file?: File) => {
+    const { customGlbUrl, ...meta } = asset;
+    const record = file
+      ? { id: asset.id, name: file.name, blob: file as Blob, meta }
+      : { id: asset.id, name: asset.name, blob: null, meta: { ...meta, customGlbUrl } };
+    putUploadedModel(record).then((ok) => {
       if (!ok) onLogRef.current(UPLOAD_WARNING);
     });
   }, []);
@@ -140,7 +145,7 @@ export function useModelLibrary(params: {
     setLibraryState,
     selectedVariant,
     setSelectedVariant,
-    handleModelFileUploaded,
+    handleModelAdded,
     handleRemoveUploadedModel,
     handleExportLibrary,
     handleImportLibraryFile,

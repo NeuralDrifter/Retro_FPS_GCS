@@ -823,11 +823,11 @@ export function validateLevelDataV3(
           message: `Entity '${String(ent.id)}' yawBam must be an integer in [0, 65535].`,
         });
       }
-      if (!isSafeInt(ent.scalePct) || ent.scalePct < 10 || ent.scalePct > 500) {
+      if (!isSafeInt(ent.scalePct) || ent.scalePct < 1 || ent.scalePct > 500) {
         errors.push({
           path: `${ePath}.scalePct`,
           code: 'INVALID_SCALE',
-          message: `Entity '${String(ent.id)}' scalePct must be an integer in [10, 500].`,
+          message: `Entity '${String(ent.id)}' scalePct must be an integer in [1, 500].`,
         });
       }
       validateEntityPlacement(ent, ePath, gridSize, errors);
@@ -840,7 +840,9 @@ export function validateLevelDataV3(
         errors.push({
           path: `${ePath}.modelAssetId`,
           code: 'UNREGISTERED_ASSET_ID',
-          message: `Entity modelAssetId '${String(ent.modelAssetId)}' is not registered.`,
+          message: `Model '${String(ent.modelAssetId)}' used by '${String(
+            ent.name ?? ent.id
+          )}' is not available in this browser. Add the model to the library (upload it again or put it in src/assets/models/), then reload the level.`,
         });
       }
     });
