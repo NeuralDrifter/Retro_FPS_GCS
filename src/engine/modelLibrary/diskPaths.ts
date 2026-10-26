@@ -49,3 +49,20 @@ export function parseModelDiskPath(globPath: string): {
   }
   return { category: 'decorations', folderPath: parts.join('/'), atRoot: true };
 }
+
+/**
+ * Library id for a model file in the models folder. It includes the folder
+ * path, so equal file names in different packs never collide; files directly
+ * in the models folder keep the id they always had.
+ */
+export function diskModelId(globPath: string): string {
+  const rel = globPath.startsWith(MODELS_ROOT)
+    ? globPath.slice(MODELS_ROOT.length)
+    : globPath.replace(/^\/+/, '');
+  const slug = rel
+    .replace(/\.[^/.]+$/, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `folder-glb-${slug}`;
+}

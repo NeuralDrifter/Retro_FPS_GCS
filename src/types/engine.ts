@@ -179,6 +179,8 @@ export interface Model3DAsset {
   footprintD?: number;
   /** Footprint in cells measured from the model's real size */
   measuredFootprint?: { w: number; d: number };
+  /** Real size in meters shipped with a project model (`models/model-sizes.json`), so it need not be loaded to be measured */
+  measuredSizeMeters?: { width: number; depth: number };
 }
 
 /**
