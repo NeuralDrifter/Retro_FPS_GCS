@@ -34,6 +34,8 @@ export const SIM_CONFIG = {
   MAX_FIRES_PER_EVENT_PER_TICK: 4,
   MAX_MOVERS: 1024, // Every door cell owns a mover, so large maps need headroom
   MAX_ENTITIES: 512,
+  MAX_STATIC_MODELS: 4096, // Decorations, items, buildings and vehicles placed in one level
+  MAX_FOOTPRINT_CELLS: 16, // Largest model footprint width or depth in cells
   MAX_FLAGS: 256,
   MAX_COUNTERS: 64,
   MAX_TIMERS: 64,
