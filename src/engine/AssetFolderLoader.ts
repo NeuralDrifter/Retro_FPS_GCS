@@ -85,6 +85,7 @@ function createDiscoveredModelAsset(params: {
   url: string;
   category: ModelCategoryId;
   folderPath: string | null;
+  folderAtRoot?: boolean;
   tags?: string[];
   isEnemy?: boolean;
   defaultHealth?: number;
@@ -107,6 +108,7 @@ function createDiscoveredModelAsset(params: {
     customGlbUrl: params.url,
     category: params.category,
     ...(params.folderPath ? { folderPath: params.folderPath } : {}),
+    ...(params.folderPath && params.folderAtRoot ? { folderAtRoot: true } : {}),
     ...(params.tags && params.tags.length > 0 ? { tags: params.tags } : {}),
   };
 }
@@ -132,13 +134,14 @@ export class AssetFolderLoader {
 
     const models: Model3DAsset[] = Object.entries(globModelUrls).map(
       ([filePath, resolvedUrl]) => {
-        const { category, folderPath } = parseModelDiskPath(filePath);
+        const { category, folderPath, atRoot } = parseModelDiskPath(filePath);
         return createDiscoveredModelAsset({
           id: `folder-glb-${slugifyPath(filePath)}`,
           name: `${formatFilenameToLabel(filePath)} (.glb)`,
           url: resolvedUrl,
           category,
           folderPath,
+          folderAtRoot: atRoot,
         });
       }
     );

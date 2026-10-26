@@ -274,3 +274,27 @@ export function filterModels(
     );
   });
 }
+
+/**
+ * Files models found in disk or manifest folders into matching library folders.
+ * Models the user already placed in a folder keep their placement, and running
+ * it again changes nothing.
+ */
+export function mergeDiscoveredFolders(
+  s: ModelLibraryState,
+  assets: Model3DAsset[]
+): ModelLibraryState {
+  let state = s;
+  for (const asset of assets) {
+    if (!asset.folderPath || state.modelFolder[asset.id]) continue;
+    const category =
+      asset.category ?? resolveEntityCategory({ isEnemy: asset.isEnemy });
+    const { state: withFolder, folderId } = ensureFolderPath(
+      state,
+      asset.folderAtRoot ? null : categoryFolderId(category),
+      asset.folderPath
+    );
+    state = moveModelToFolder(withFolder, asset.id, folderId);
+  }
+  return state;
+}

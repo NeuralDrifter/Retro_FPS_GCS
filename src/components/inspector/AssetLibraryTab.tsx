@@ -1,16 +1,39 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Model3DAsset,
+  PlacedEntity,
   SurfaceTarget,
   TextureAsset,
 } from '../../types/engine';
+import type {
+  ModelCategoryId,
+  ModelLibraryState,
+  PlacementVariant,
+} from '../../types/modelLibrary';
+import {
+  createFolder,
+  deleteFolder,
+  filterModels,
+  getFolderCategory,
+  moveModelToFolder,
+  renameFolder,
+  resolveModelFolder,
+  resolveModelSettings,
+  setModelTags,
+} from '../../engine/modelLibrary/libraryState';
+import { getCategoryInfo } from '../../engine/modelLibrary/categories';
+import { groupPlacementsIntoVariants } from '../../engine/modelLibrary/variants';
+import { ModelFolderTree } from './modelLibrary/ModelFolderTree';
+import { ModelLibraryFilters } from './modelLibrary/ModelLibraryFilters';
+import { UsedInLevelList } from './modelLibrary/UsedInLevelList';
+import { ModelTagEditor } from './modelLibrary/ModelTagEditor';
 import {
   AssetRegistry,
   computeDeterministicAssetId,
 } from '../../engine/AssetRegistry';
 import { Model3DThumbnailSvg } from './Model3DThumbnailSvg';
 import { uploadedModelId } from '../../engine/modelLibrary/uploadStore';
-import { Box, Check, GripVertical, PaintBucket, Upload } from 'lucide-react';
+import { Check, Download, GripVertical, PaintBucket, Trash2, Upload } from 'lucide-react';
 
 interface AssetLibraryTabProps {
   textures: TextureAsset[];
@@ -24,7 +47,21 @@ interface AssetLibraryTabProps {
   selectedModelAssetId: string;
   onSelectModelAsset: (assetId: string) => void;
   onAddCustomModel3DAsset: (asset: Model3DAsset) => void;
+  libraryState: ModelLibraryState;
+  onLibraryChange: (next: ModelLibraryState) => void;
+  placedEntities: PlacedEntity[];
+  selectedVariantKey: string | null;
+  onPickVariant: (variant: PlacementVariant) => void;
+  /** Called with the original file so it can be kept across reloads */
+  onModelFileUploaded: (file: File, asset: Model3DAsset) => void;
+  onRemoveUploadedModel: (modelId: string) => void;
+  onExportLibrary: () => void;
+  onImportLibraryFile: (file: File) => void;
 }
+
+/** Uploaded or URL-linked models (not built-ins or project folder files) can be removed */
+const isRemovableModel = (m: Model3DAsset): boolean =>
+  m.id.startsWith('glb-') && (m.sourceType === 'file' || m.sourceType === 'url');
 
 const DEFAULT_CUSTOM_ENEMY_HEALTH = 85;
 const DEFAULT_CUSTOM_PROP_HEALTH = 50;
@@ -42,24 +79,26 @@ function buildCustomModel3DAsset(params: {
   id: string;
   name: string;
   sourceType: 'file' | 'url';
-  isEnemy: boolean;
+  category: ModelCategoryId;
   customCount: number;
   customGlbUrl: string;
 }): Model3DAsset {
+  const isEnemy = params.category === 'characters';
   return {
     id: params.id,
     blueprintId: 'custom-glb',
     name: params.name,
     sourceType: params.sourceType,
-    isEnemy: params.isEnemy,
-    defaultHealth: params.isEnemy
+    isEnemy: isEnemy,
+    defaultHealth: isEnemy
       ? DEFAULT_CUSTOM_ENEMY_HEALTH
       : DEFAULT_CUSTOM_PROP_HEALTH,
-    moveSpeed: params.isEnemy ? DEFAULT_CUSTOM_ENEMY_SPEED : 0,
-    attackDamage: params.isEnemy ? DEFAULT_CUSTOM_ENEMY_DAMAGE : 0,
-    accentHex: params.isEnemy ? '#10B981' : '#38BDF8',
+    moveSpeed: isEnemy ? DEFAULT_CUSTOM_ENEMY_SPEED : 0,
+    attackDamage: isEnemy ? DEFAULT_CUSTOM_ENEMY_DAMAGE : 0,
+    accentHex: isEnemy ? '#10B981' : '#38BDF8',
     badgeText: `G${params.customCount}`,
     customGlbUrl: params.customGlbUrl,
+    category: params.category,
   };
 }
 
@@ -75,14 +114,26 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
   selectedModelAssetId,
   onSelectModelAsset,
   onAddCustomModel3DAsset,
+  libraryState,
+  onLibraryChange,
+  placedEntities,
+  selectedVariantKey,
+  onPickVariant,
+  onModelFileUploaded,
+  onRemoveUploadedModel,
+  onExportLibrary,
+  onImportLibraryFile,
 }) => {
   const [texFilter, setTexFilter] = useState<'all' | 'uploaded'>('all');
-  const [modelFilter, setModelFilter] = useState<'all' | 'uploaded'>('all');
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [modelSearch, setModelSearch] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [usedOnly, setUsedOnly] = useState(false);
+  const libraryFileInputRef = useRef<HTMLInputElement | null>(null);
   const [draggingTexId, setDraggingTexId] = useState<string | null>(null);
   const [draggingModelId, setDraggingModelId] = useState<string | null>(null);
   const [isTexFileDropOver, setIsTexFileDropOver] = useState(false);
   const [isGlbFileDropOver, setIsGlbFileDropOver] = useState(false);
-  const [newGlbAsEnemy, setNewGlbAsEnemy] = useState(true);
 
   const texFileInputRef = useRef<HTMLInputElement | null>(null);
   const glbFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -98,8 +149,50 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
   const uploadedModels = model3DAssets.filter(
     (m) => m.sourceType === 'file' || m.sourceType === 'url'
   );
-  const displayedModels =
-    modelFilter === 'uploaded' ? uploadedModels : model3DAssets;
+  const usedModelIds = useMemo(
+    () =>
+      new Set(
+        placedEntities.map((e) => e.modelAssetId ?? e.blueprintId)
+      ),
+    [placedEntities]
+  );
+  const variants = useMemo(
+    () => groupPlacementsIntoVariants(placedEntities),
+    [placedEntities]
+  );
+  const displayedModels = filterModels(model3DAssets, libraryState, {
+    folderId: selectedFolderId,
+    search: modelSearch,
+    tags: selectedTags,
+    usedModelIds: usedOnly ? usedModelIds : null,
+  });
+  const allTags = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const m of model3DAssets) {
+      for (const tag of libraryState.modelTags[m.id] ?? m.tags ?? []) {
+        if (!seen.has(tag.toLowerCase())) seen.set(tag.toLowerCase(), tag);
+      }
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }, [model3DAssets, libraryState.modelTags]);
+  const selectedModel = model3DAssets.find((m) => m.id === selectedModelAssetId);
+  // New uploads land in the open folder (or Decorations when viewing all models)
+  const uploadFolderId = selectedFolderId ?? 'cat:decorations';
+  const uploadCategory = getFolderCategory(libraryState, uploadFolderId);
+
+  const addModelToLibrary = (newModel: Model3DAsset) => {
+    onAddCustomModel3DAsset(newModel);
+    onLibraryChange(moveModelToFolder(libraryState, newModel.id, uploadFolderId));
+    onSelectModelAsset(newModel.id);
+  };
+
+  const applyLibraryEdit = (edit: () => ModelLibraryState) => {
+    try {
+      onLibraryChange(edit());
+    } catch {
+      // Invalid names and built-in folder edits are ignored
+    }
+  };
 
   const processUploadedImageFile = (file: File) => {
     if (!file.type.startsWith('image/')) return;
@@ -150,13 +243,13 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
         id: uploadedModelId(file.name, file.size),
         name: sanitizeAssetLabel(file.name, `Custom .glb #${customCount}`),
         sourceType: 'file',
-        isEnemy: newGlbAsEnemy,
+        category: uploadCategory,
         customCount,
         customGlbUrl: objectUrl,
       })
     );
-    onAddCustomModel3DAsset(newModel);
-    onSelectModelAsset(newModel.id);
+    addModelToLibrary(newModel);
+    onModelFileUploaded(file, newModel);
   };
 
   const handleGlbFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -176,13 +269,12 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
         id: computeDeterministicAssetId('glb', trimmed),
         name: sanitizeAssetLabel(trimmed, `Remote .glb #${customCount}`),
         sourceType: 'url',
-        isEnemy: newGlbAsEnemy,
+        category: uploadCategory,
         customCount,
         customGlbUrl: trimmed,
       })
     );
-    onAddCustomModel3DAsset(newModel);
-    onSelectModelAsset(newModel.id);
+    addModelToLibrary(newModel);
     setGlbUrlInput('');
   };
 
@@ -408,45 +500,56 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
         </div>
 
         <div className="p-2.5 space-y-2.5">
-          <div className="flex items-center justify-between gap-1">
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setModelFilter('all')}
-                className={`ide-btn !h-[18px] !px-2 !text-[10px] ${
-                  modelFilter === 'all' ? 'ide-btn--active' : ''
-                }`}
-              >
-                All ({model3DAssets.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setModelFilter('uploaded')}
-                className={`ide-btn !h-[18px] !px-2 !text-[10px] ${
-                  modelFilter === 'uploaded' ? 'ide-btn--active' : ''
-                }`}
-              >
-                Uploaded ({uploadedModels.length})
-              </button>
-            </div>
+          <ModelFolderTree
+            state={libraryState}
+            selectedFolderId={selectedFolderId}
+            onSelectFolder={setSelectedFolderId}
+            onCreateFolder={(name, parentId) =>
+              applyLibraryEdit(() => createFolder(libraryState, name, parentId).state)
+            }
+            onRenameFolder={(id, name) =>
+              applyLibraryEdit(() => renameFolder(libraryState, id, name))
+            }
+            onDeleteFolder={(id) => {
+              applyLibraryEdit(() => deleteFolder(libraryState, id));
+              if (selectedFolderId === id) setSelectedFolderId(null);
+            }}
+            onDropModel={(modelId, folderId) =>
+              onLibraryChange(moveModelToFolder(libraryState, modelId, folderId))
+            }
+          />
 
-            <button
-              type="button"
-              onClick={() => setNewGlbAsEnemy((prev) => !prev)}
-              className={`ide-btn !h-[18px] !px-2 !text-[10px] ${
-                newGlbAsEnemy ? 'ide-btn--active' : ''
-              }`}
-              title="Default AI classification for newly uploaded .glb models"
-            >
-              <Box className="w-2.5 h-2.5" />
-              <span>{newGlbAsEnemy ? 'New: Enemy AI' : 'New: Prop'}</span>
-            </button>
-          </div>
+          <ModelLibraryFilters
+            search={modelSearch}
+            onSearch={setModelSearch}
+            allTags={allTags}
+            selectedTags={selectedTags}
+            onToggleTag={(tag) =>
+              setSelectedTags((prev) =>
+                prev.some((t) => t.toLowerCase() === tag.toLowerCase())
+                  ? prev.filter((t) => t.toLowerCase() !== tag.toLowerCase())
+                  : [...prev, tag]
+              )
+            }
+            usedOnly={usedOnly}
+            onToggleUsedOnly={() => setUsedOnly((prev) => !prev)}
+          />
+
+          {usedOnly && (
+            <div className="space-y-1">
+              <span className="ide-label block">Placed in this level (variants)</span>
+              <UsedInLevelList
+                variants={variants}
+                selectedVariantKey={selectedVariantKey}
+                onPickVariant={onPickVariant}
+              />
+            </div>
+          )}
 
           {displayedModels.length === 0 ? (
             <div className="p-3 bg-[#181818] border border-dashed border-[#3e3e42] text-center text-[11px] text-[#858585]">
-              No custom 3D .glb models uploaded yet. Drop a .glb/.gltf file
-              below or switch to &ldquo;All&rdquo; to drag built-in 3D models.
+              No models here. Pick another folder, clear the search or tag
+              filters, or drop a .glb/.gltf file below.
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-1.5">
@@ -499,9 +602,13 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
                       )}
 
                       <span className="absolute bottom-1 left-1 right-1 px-1 py-0.5 bg-[#181818]/90 text-[9px] font-mono text-center truncate text-[#cccccc]">
-                        {model.isEnemy
-                          ? `ENEMY · ${model.defaultHealth}HP`
-                          : 'STATIC PROP'}
+                        {(() => {
+                          const resolved = resolveModelSettings(libraryState, model);
+                          const label = getCategoryInfo(resolved.category).label.toUpperCase();
+                          return resolved.isEnemy
+                            ? `${label} · ${resolved.maxHealth}HP`
+                            : label;
+                        })()}
                       </span>
                     </div>
 
@@ -518,6 +625,40 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {selectedModel && (
+            <div className="p-2 bg-[#181818] border border-[#333333] space-y-1.5">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[11px] font-medium text-[#cccccc] truncate">
+                  {selectedModel.name}
+                </span>
+                {isRemovableModel(selectedModel) && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveUploadedModel(selectedModel.id)}
+                    className="ide-btn !h-[18px] !px-1.5 !text-[10px] text-[#f48771]"
+                    title="Remove this model from the library (placed copies stay in the level)"
+                  >
+                    <Trash2 className="w-2.5 h-2.5" />
+                    <span>Remove</span>
+                  </button>
+                )}
+              </div>
+              <div className="font-mono text-[10px] text-[#858585]">
+                {getCategoryInfo(resolveModelSettings(libraryState, selectedModel).category).label}
+                {' · '}
+                {libraryState.folders.find(
+                  (f) => f.id === resolveModelFolder(libraryState, selectedModel)
+                )?.name ?? ''}
+              </div>
+              <ModelTagEditor
+                tags={libraryState.modelTags[selectedModel.id] ?? selectedModel.tags ?? []}
+                onChange={(tags) =>
+                  onLibraryChange(setModelTags(libraryState, selectedModel.id, tags))
+                }
+              />
             </div>
           )}
 
@@ -576,6 +717,38 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
               Add
             </button>
           </form>
+
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={onExportLibrary}
+              className="ide-btn flex-1"
+              title="Save folders, tags and model settings to a pie3d-library.json file"
+            >
+              <Download className="w-3 h-3" />
+              <span>Export Library</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => libraryFileInputRef.current?.click()}
+              className="ide-btn flex-1"
+              title="Load folders, tags and model settings from a pie3d-library.json file"
+            >
+              <Upload className="w-3 h-3" />
+              <span>Import Library</span>
+            </button>
+            <input
+              ref={libraryFileInputRef}
+              type="file"
+              accept=".json,application/json"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onImportLibraryFile(file);
+                e.target.value = '';
+              }}
+              className="hidden"
+            />
+          </div>
         </div>
       </div>
     </>

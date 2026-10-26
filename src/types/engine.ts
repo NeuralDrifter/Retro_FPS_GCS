@@ -168,6 +168,8 @@ export interface Model3DAsset {
   tags?: string[];
   /** Slash path of the custom folder the model was found in on disk or in the manifest */
   folderPath?: string;
+  /** True when `folderPath` starts at the library root instead of inside the category folder */
+  folderAtRoot?: boolean;
   collision?: ModelCollision;
   footprintW?: number;
   footprintD?: number;
