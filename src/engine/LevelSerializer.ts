@@ -59,6 +59,36 @@ export function computeNextEntityId(
   return Math.max(1, candidate);
 }
 
+/** Copies the optional placement fields that are present, leaving absent ones absent */
+function pickPlacementFields(src: {
+  category?: unknown;
+  collision?: unknown;
+  footprintW?: unknown;
+  footprintD?: unknown;
+  footprintOverride?: unknown;
+}): Pick<
+  PlacedEntity,
+  'category' | 'collision' | 'footprintW' | 'footprintD' | 'footprintOverride'
+> {
+  return {
+    ...(src.category !== undefined
+      ? { category: src.category as PlacedEntity['category'] }
+      : {}),
+    ...(src.collision !== undefined
+      ? { collision: src.collision as PlacedEntity['collision'] }
+      : {}),
+    ...(typeof src.footprintW === 'number'
+      ? { footprintW: Math.trunc(src.footprintW) }
+      : {}),
+    ...(typeof src.footprintD === 'number'
+      ? { footprintD: Math.trunc(src.footprintD) }
+      : {}),
+    ...(typeof src.footprintOverride === 'boolean'
+      ? { footprintOverride: src.footprintOverride }
+      : {}),
+  };
+}
+
 export class LevelSerializer {
   /**
    * Packages the current editor state into a complete `LevelDataV3` object
@@ -132,6 +162,7 @@ export class LevelSerializer {
         ...(ent.tag !== undefined ? { tag: Math.trunc(ent.tag) } : {}),
         ...(ent.patrol !== undefined ? { patrol: Boolean(ent.patrol) } : {}),
         ...(ent.ambush !== undefined ? { ambush: Boolean(ent.ambush) } : {}),
+        ...pickPlacementFields(ent),
       };
     });
 
@@ -346,6 +377,7 @@ export class LevelSerializer {
           ...(typeof e.tag === 'number' ? { tag: Math.trunc(e.tag) } : {}),
           ...(typeof e.patrol === 'boolean' ? { patrol: e.patrol } : {}),
           ...(typeof e.ambush === 'boolean' ? { ambush: e.ambush } : {}),
+          ...pickPlacementFields(e),
         };
       }
     );
@@ -531,6 +563,7 @@ export class LevelSerializer {
       tag: e.tag,
       patrol: e.patrol,
       ambush: e.ambush,
+      ...pickPlacementFields(e),
     }));
 
     return {

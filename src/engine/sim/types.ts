@@ -558,6 +558,12 @@ export interface SimPlacedEntityV3 {
   tag?: number;
   patrol?: boolean;
   ambush?: boolean;
+  /** Placement settings (absent on legacy entities) */
+  category?: 'characters' | 'decorations' | 'items' | 'buildings' | 'vehicles';
+  collision?: 'solid' | 'nonSolid';
+  footprintW?: number;
+  footprintD?: number;
+  footprintOverride?: boolean;
 }
 
 export interface LevelMetadataSpec {
