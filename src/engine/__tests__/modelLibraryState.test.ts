@@ -26,7 +26,7 @@ import {
   remapEntityModelIds,
   removeModelCopies,
 } from '../modelLibrary/placement';
-import { parseModelDiskPath } from '../modelLibrary/diskPaths';
+import { diskModelId, parseModelDiskPath } from '../modelLibrary/diskPaths';
 import {
   LIBRARY_STORAGE_KEY,
   exportLibraryJson,
@@ -218,6 +218,18 @@ describe('Model library state, filtering & variants', () => {
         [4, 'solid', 'ent-1'],
         [1, 'nonSolid', 'ent-5'],
       ]
+    );
+  });
+
+  it('diskModelId keeps root ids and adds the folder path so packs with equal file names do not collide', () => {
+    assert.equal(diskModelId('/src/assets/models/zombie_guard.glb'), 'folder-glb-zombie-guard');
+    assert.equal(
+      diskModelId('/src/assets/models/decorations/Dungeon/Barrel.glb'),
+      'folder-glb-decorations-dungeon-barrel'
+    );
+    assert.notEqual(
+      diskModelId('/src/assets/models/decorations/Dungeon/Barrel.glb'),
+      diskModelId('/src/assets/models/decorations/Fantasy Props/Barrel.glb')
     );
   });
 
@@ -459,6 +471,15 @@ describe('Model library state, filtering & variants', () => {
     assert.deepEqual([at(2).footprintW, at(2).footprintD], [5, 3]);
     assert.deepEqual(measuredFootprintAtScale({ measuredSizeMeters: { width: 9, depth: 4.1 } }, 0.5), { w: 2, d: 1 });
     assert.equal(measuredFootprintAtScale({}, 1), null);
+  });
+
+  it('resolveModelSettings uses a size shipped with the model when the library has not measured it', () => {
+    const shipped = asset('glb-tower', { category: 'buildings', measuredSizeMeters: { width: 9, depth: 4.1 } });
+    const s = resolveModelSettings(createEmptyLibraryState(), shipped);
+    assert.deepEqual([s.footprintW, s.footprintD], [3, 2]);
+    assert.deepEqual(s.measuredSizeMeters, { width: 9, depth: 4.1 });
+    const scaled = resolveModelSettings(setModelSettings(createEmptyLibraryState(), 'glb-tower', { scale: 2 }), shipped);
+    assert.deepEqual([scaled.footprintW, scaled.footprintD], [5, 3]);
   });
 
   it('recordToAsset hands uploaded files to keepFile without a link and keeps URL models on their URL', () => {

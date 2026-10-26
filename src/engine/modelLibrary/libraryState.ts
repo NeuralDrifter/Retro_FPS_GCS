@@ -256,8 +256,9 @@ export function resolveModelSettings(
     resolveEntityCategory(asset);
   const info = getCategoryInfo(category);
   const scale = stored.scale ?? 1;
+  const measuredSizeMeters = stored.measuredSizeMeters ?? asset.measuredSizeMeters;
   const measured =
-    measuredFootprintAtScale(stored, scale) ??
+    measuredFootprintAtScale({ measuredSizeMeters }, scale) ??
     stored.measuredFootprint ??
     asset.measuredFootprint;
   const footprint =
@@ -274,6 +275,7 @@ export function resolveModelSettings(
     footprintW: footprint.w,
     footprintD: footprint.d,
     ...(measured ? { measuredFootprint: measured } : {}),
+    ...(measuredSizeMeters ? { measuredSizeMeters } : {}),
     scale,
     isEnemy: isCharacter ? stored.isEnemy ?? asset.isEnemy : false,
     maxHealth: stored.maxHealth ?? asset.defaultHealth,

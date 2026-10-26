@@ -20,7 +20,7 @@
 import { Model3DAsset, TextureAsset } from '../types/engine';
 import type { ModelCategoryId } from '../types/modelLibrary';
 import { isModelCategoryId } from './modelLibrary/categories';
-import { parseModelDiskPath } from './modelLibrary/diskPaths';
+import { diskModelId, parseModelDiskPath } from './modelLibrary/diskPaths';
 import { parseTextureDiskPath } from './textureLibrary';
 
 export interface PublicAssetManifest {
@@ -61,6 +61,11 @@ const globModelUrls = import.meta.glob('/src/assets/models/**/*.{glb,gltf}', {
   import: 'default',
 }) as Record<string, string>;
 
+// Real sizes of the shipped models, written when they were converted (path under models/ -> meters)
+const shippedModelSizes = (Object.values(
+  import.meta.glob('/src/assets/models/model-sizes.json', { eager: true, import: 'default' })
+)[0] ?? {}) as Record<string, { width: number; depth: number }>;
+
 function formatFilenameToLabel(filePath: string): string {
   const base = filePath.split('/').pop() || filePath;
   const withoutExt = base.replace(/\.[^/.]+$/, '');
@@ -93,6 +98,7 @@ function createDiscoveredModelAsset(params: {
   defaultHealth?: number;
   moveSpeed?: number;
   attackDamage?: number;
+  measuredSizeMeters?: { width: number; depth: number };
 }): Model3DAsset {
   const isCharacter = params.category === 'characters';
   const isEnemy = isCharacter && params.isEnemy !== false;
@@ -112,6 +118,7 @@ function createDiscoveredModelAsset(params: {
     ...(params.folderPath ? { folderPath: params.folderPath } : {}),
     ...(params.folderPath && params.folderAtRoot ? { folderAtRoot: true } : {}),
     ...(params.tags && params.tags.length > 0 ? { tags: params.tags } : {}),
+    ...(params.measuredSizeMeters ? { measuredSizeMeters: params.measuredSizeMeters } : {}),
   };
 }
 
@@ -143,7 +150,8 @@ export class AssetFolderLoader {
       ([filePath, resolvedUrl]) => {
         const { category, folderPath, atRoot } = parseModelDiskPath(filePath);
         return createDiscoveredModelAsset({
-          id: `folder-glb-${slugifyPath(filePath)}`,
+          id: diskModelId(filePath),
+          measuredSizeMeters: shippedModelSizes[filePath.replace('/src/assets/models/', '')],
           name: `${formatFilenameToLabel(filePath)} (.glb)`,
           url: resolvedUrl,
           category,
