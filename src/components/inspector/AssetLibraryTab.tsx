@@ -34,7 +34,10 @@ import {
   computeDeterministicAssetId,
 } from '../../engine/AssetRegistry';
 import { Model3DThumbnailSvg } from './Model3DThumbnailSvg';
-import { uploadedModelId } from '../../engine/modelLibrary/uploadStore';
+import {
+  duplicateModelId,
+  uploadedModelId,
+} from '../../engine/modelLibrary/uploadStore';
 import { Check, Download, GripVertical, PaintBucket, Trash2, Upload } from 'lucide-react';
 
 interface AssetLibraryTabProps {
@@ -141,6 +144,12 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
   const glbFileInputRef = useRef<HTMLInputElement | null>(null);
   const [urlInput, setUrlInput] = useState('');
   const [glbUrlInput, setGlbUrlInput] = useState('');
+  // Uploads whose file is already in the library, waiting for "Upload anyway" or "Skip"
+  const [pendingDuplicates, setPendingDuplicates] = useState<
+    { file: File; contentId: string; existingName: string }[]
+  >([]);
+  // Ids taken by uploads that are not in `model3DAssets` yet (several files dropped at once)
+  const claimedModelIdsRef = useRef<Set<string>>(new Set());
 
   const uploadedTextures = textures.filter(
     (t) => t.sourceType === 'file' || t.sourceType === 'url'
@@ -238,14 +247,46 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
     setUrlInput('');
   };
 
+  const takenModelIds = () => {
+    const ids = new Set(model3DAssets.map((m) => m.id));
+    // A claim ends once the library lists the model, so removing it later frees the id
+    for (const id of claimedModelIdsRef.current) {
+      if (ids.has(id)) claimedModelIdsRef.current.delete(id);
+      else ids.add(id);
+    }
+    return ids;
+  };
+
   const processUploadedGlbFile = async (file: File) => {
-    const id = await uploadedModelId(await file.arrayBuffer());
+    const contentId = await uploadedModelId(await file.arrayBuffer());
+    if (takenModelIds().has(contentId)) {
+      const existing = model3DAssets.find((m) => m.id === contentId);
+      setPendingDuplicates((prev) => [
+        ...prev,
+        { file, contentId, existingName: existing?.name ?? file.name },
+      ]);
+      return;
+    }
+    addUploadedGlbFile(file, contentId);
+  };
+
+  /** Keeps an identical file as a separate model with its own numbered id */
+  const uploadDuplicateAnyway = () => {
+    const [next, ...rest] = pendingDuplicates;
+    if (!next) return;
+    setPendingDuplicates(rest);
+    const id = duplicateModelId(next.contentId, takenModelIds());
+    addUploadedGlbFile(next.file, id, ` (${id.slice(next.contentId.length + 1)})`);
+  };
+
+  const addUploadedGlbFile = (file: File, id: string, nameSuffix = '') => {
+    claimedModelIdsRef.current.add(id);
     const objectUrl = URL.createObjectURL(file);
     const customCount = uploadedModels.length + 1;
     const newModel = AssetRegistry.registerModel(
       buildCustomModel3DAsset({
         id,
-        name: sanitizeAssetLabel(file.name, `Custom .glb #${customCount}`),
+        name: sanitizeAssetLabel(file.name, `Custom .glb #${customCount}`) + nameSuffix,
         sourceType: 'file',
         category: uploadCategory,
         customCount,
@@ -698,7 +739,9 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
               if (e.dataTransfer.files?.length) {
                 e.preventDefault();
                 setIsGlbFileDropOver(false);
-                Array.from(e.dataTransfer.files).forEach(processUploadedGlbFile);
+                Array.from(e.dataTransfer.files).forEach(
+                  (file) => void processUploadedGlbFile(file)
+                );
               }
             }}
             onClick={() => glbFileInputRef.current?.click()}
@@ -716,6 +759,37 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
               Click to browse or drop .glb / .gltf files here
             </div>
           </div>
+
+          {pendingDuplicates.length > 0 && (
+            <div
+              role="alert"
+              className="p-2 border border-[#cca700] bg-[#352a05] rounded-[2px] text-[10px] text-[#cccccc] space-y-1.5"
+            >
+              <div>
+                '{pendingDuplicates[0].file.name}' is already in the library as '
+                {pendingDuplicates[0].existingName}'. Uploading it anyway gives it a new id,
+                so the library will have two copies of the same model with different ids.
+                {pendingDuplicates.length > 1 &&
+                  ` (${pendingDuplicates.length - 1} more duplicate file(s) waiting.)`}
+              </div>
+              <div className="flex gap-1.5 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setPendingDuplicates((prev) => prev.slice(1))}
+                  className="ide-btn !h-[18px] !px-1.5 !text-[10px]"
+                >
+                  Skip
+                </button>
+                <button
+                  type="button"
+                  onClick={uploadDuplicateAnyway}
+                  className="ide-btn ide-btn--active !h-[18px] !px-1.5 !text-[10px]"
+                >
+                  Upload anyway
+                </button>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleApplyGlbUrl} className="flex gap-1">
             <input

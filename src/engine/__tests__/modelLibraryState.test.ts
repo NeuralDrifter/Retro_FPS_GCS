@@ -37,6 +37,7 @@ import {
   deleteUploadedModel,
   getAllUploadedModels,
   putUploadedModel,
+  duplicateModelId,
   recordToAsset,
   rekeyUploadedRecords,
   uploadedModelId,
@@ -301,6 +302,24 @@ describe('Model library state, filtering & variants', () => {
       'glb-oldcopy0000000': fileId,
     });
     assert.deepEqual(records.map((r) => r.id), [fileId, urlId]);
+  });
+
+  it('duplicateModelId gives a kept duplicate the next free numbered id', () => {
+    assert.equal(duplicateModelId('glb-abc', new Set(['glb-abc'])), 'glb-abc-2');
+    assert.equal(
+      duplicateModelId('glb-abc', new Set(['glb-abc', 'glb-abc-2', 'glb-abc-3'])),
+      'glb-abc-4'
+    );
+  });
+
+  it('rekeyUploadedRecords keeps a duplicate copy under its own numbered id', async () => {
+    const fileId = await uploadedModelId(await new Blob(['tower-a']).arrayBuffer());
+    const { records, renamed } = await rekeyUploadedRecords([
+      { id: fileId, name: 'tower.glb', blob: new Blob(['tower-a']), meta: {} },
+      { id: `${fileId}-2`, name: 'tower.glb', blob: new Blob(['tower-a']), meta: {} },
+    ]);
+    assert.deepEqual(renamed, {});
+    assert.deepEqual(records.map((r) => r.id), [fileId, `${fileId}-2`]);
   });
 
   it('remapLibraryModelIds moves folder, tags and settings to the new ids', () => {
