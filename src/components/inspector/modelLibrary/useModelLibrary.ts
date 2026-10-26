@@ -99,7 +99,7 @@ export function useModelLibrary(params: {
       .then((records) => {
         if (!active || records.length === 0) return;
         const restored = records
-          .map((r) => recordToAsset(r, (blob) => URL.createObjectURL(blob)))
+          .map((r) => recordToAsset(r, (id, file) => AssetRegistry.registerModelFile(id, file)))
           .filter((a): a is Model3DAsset => a !== null);
         if (restored.length > 0) onRestoredUploadsRef.current(restored);
       })

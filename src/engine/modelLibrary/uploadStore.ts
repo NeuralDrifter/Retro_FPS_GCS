@@ -23,18 +23,24 @@ export interface UploadedModelRecord {
   meta: Partial<Model3DAsset>;
 }
 
-/** Rebuilds a library model from a stored record, or null when it has no file or URL */
+/**
+ * Rebuilds a library model from a stored record, or null when it has no file
+ * or URL. An uploaded file goes to `keepFile` rather than into a link, so it
+ * only takes memory while the 3D view loads it.
+ */
 export function recordToAsset(
   record: UploadedModelRecord,
-  createObjectUrl: (blob: Blob) => string
+  keepFile: (modelId: string, file: Blob) => void
 ): Model3DAsset | null {
-  const url = record.blob ? createObjectUrl(record.blob) : record.meta.customGlbUrl;
-  if (!url) return null;
+  const url = record.blob ? undefined : record.meta.customGlbUrl;
+  if (!record.blob && !url) return null;
+  if (record.blob) keepFile(record.id, record.blob);
+  const { customGlbUrl: _savedLink, ...meta } = record.meta;
   return {
-    ...(record.meta as Model3DAsset),
+    ...(meta as Model3DAsset),
     id: record.id,
     name: record.meta.name ?? record.name,
-    customGlbUrl: url,
+    ...(url ? { customGlbUrl: url } : {}),
   };
 }
 

@@ -285,6 +285,10 @@ export default function App() {
   }, []);
   const handleRemoveModelAsset = useCallback((modelId: string) => {
     setCustomModel3DAssets((prev) => prev.filter((m) => m.id !== modelId));
+    // Copies still placed in the level keep drawing from the file until they are deleted
+    if (!currentDesignRef.current.entities.some((e) => e.modelAssetId === modelId)) {
+      AssetRegistry.removeModelFile(modelId);
+    }
   }, []);
   // Placed copies (and undo / redo steps) follow stored models that moved to new ids
   const handleModelIdsRenamed = useCallback((renamed: Record<string, string>) => {
@@ -315,7 +319,7 @@ export default function App() {
     for (const asset of allModel3DAssets) {
       if (
         asset.blueprintId !== 'custom-glb' ||
-        !asset.customGlbUrl ||
+        (!asset.customGlbUrl && !AssetRegistry.getModelFile(asset.id)) ||
         measuredAttemptsRef.current.has(asset.id)
       ) {
         continue;
@@ -325,7 +329,7 @@ export default function App() {
         continue;
       }
       measuredAttemptsRef.current.add(asset.id);
-      EntityLoader.measureModelSize(asset.customGlbUrl).then((size) => {
+      EntityLoader.measureModelSize(asset).then((size) => {
         if (!size) return;
         setLibraryState((prev) =>
           setModelSettings(prev, asset.id, {

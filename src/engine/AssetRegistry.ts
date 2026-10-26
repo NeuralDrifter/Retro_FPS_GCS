@@ -68,6 +68,8 @@ export class AssetRegistry {
   private static texturesById = new Map<string, TextureAsset>();
   private static modelsById = new Map<string, Model3DAsset>();
   private static extraSoundIds = new Set<string>();
+  // Uploaded .glb files by model id; browsers keep File / IndexedDB blobs on disk, not in memory
+  private static modelFilesById = new Map<string, Blob>();
 
   /**
    * Registers a texture asset into the runtime registry and returns its canonical ID.
@@ -135,6 +137,19 @@ export class AssetRegistry {
 
   public static getModel(id: string): Model3DAsset | undefined {
     return this.modelsById.get(id);
+  }
+
+  /** Keeps an uploaded model's file; the 3D view makes a short-lived link from it when loading */
+  public static registerModelFile(modelId: string, file: Blob): void {
+    this.modelFilesById.set(modelId, file);
+  }
+
+  public static getModelFile(modelId?: string): Blob | undefined {
+    return modelId ? this.modelFilesById.get(modelId) : undefined;
+  }
+
+  public static removeModelFile(modelId: string): void {
+    this.modelFilesById.delete(modelId);
   }
 
   public static getCustomGlbUrlForModelId(
