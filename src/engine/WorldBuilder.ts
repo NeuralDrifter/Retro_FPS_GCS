@@ -2,11 +2,15 @@
  * ============================================================================
  * PIE3D WORLD BUILDER & PER-CELL TEXTURE / ENTITY EXTRUDER (PHASE 2 & 3)
  * ============================================================================
- * Parses the 10x10 2D Grid Array along with:
- *  - `wallTextures[10][10]`    : Per-cell Wall Texture Asset IDs
- *  - `floorTextures[10][10]`   : Per-cell Floor Tile Texture Asset IDs
- *  - `ceilingTextures[10][10]` : Per-cell Ceiling Tile Texture Asset IDs
- *  - `entities[]`              : Placed 3D `.glb` Enemy AI & Object coordinates
+ * Parses the level's square 2D Grid Array (up to 128x128) along with:
+ *  - `wallTextures[row][col]`    : Per-cell Wall Texture Asset IDs
+ *  - `floorTextures[row][col]`   : Per-cell Floor Tile Texture Asset IDs
+ *  - `ceilingTextures[row][col]` : Per-cell Ceiling Tile Texture Asset IDs
+ *  - `entities[]`                : Placed 3D `.glb` Enemy AI & Object coordinates
+ *
+ * Floors, ceilings, and static walls are batched into chunked `InstancedMesh`es
+ * (one per chunk and material) so large maps stay at a few hundred draw calls.
+ * A wall cell only becomes a standalone mesh when a pushwall needs to move it.
  *
  * Phase 3 Enhancements:
  *  - Collects `wallMeshes` for accurate Line-of-Sight and Weapon `Raycaster`
@@ -27,14 +31,131 @@ import { TextureGenerator } from './TextureGenerator';
 import { EntityLoader } from './EntityLoader';
 import { EnemyAISystem } from './EnemyAISystem';
 
+/** Cells per side of one batched chunk; chunks keep frustum culling and raycasts local */
+const CHUNK_CELLS = 16;
+
+interface InstanceSlot {
+  mesh: THREE.InstancedMesh;
+  index: number;
+  x: number;
+  z: number;
+  yOffset: number;
+}
+
+/**
+ * One batched cell surface (floor tiles, ceiling tiles, wall cubes, or wall trim).
+ * Each cell sits at height `baseY` and contributes one instance per entry in `yOffsets`.
+ */
+export class InstancedCellLayer {
+  public readonly meshes: THREE.InstancedMesh[] = [];
+  private readonly slots = new Map<string, InstanceSlot[]>();
+  private readonly pending = new Map<
+    string,
+    { material: THREE.Material; cells: { cellKey: string; x: number; z: number }[] }
+  >();
+  private readonly rotation: THREE.Quaternion;
+  private readonly matrix = new THREE.Matrix4();
+  private readonly position = new THREE.Vector3();
+  private static readonly UNIT_SCALE = new THREE.Vector3(1, 1, 1);
+  private static readonly ZERO_SCALE = new THREE.Vector3(0, 0, 0);
+
+  constructor(
+    private readonly geometry: THREE.BufferGeometry,
+    rotationX: number,
+    private readonly baseY: number,
+    private readonly yOffsets: number[],
+    private readonly shadows: { cast: boolean; receive: boolean }
+  ) {
+    this.rotation = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(rotationX, 0, 0)
+    );
+  }
+
+  public add(
+    row: number,
+    col: number,
+    x: number,
+    z: number,
+    material: THREE.Material
+  ): void {
+    const chunkKey = `${Math.floor(row / CHUNK_CELLS)},${Math.floor(
+      col / CHUNK_CELLS
+    )}|${material.uuid}`;
+    let group = this.pending.get(chunkKey);
+    if (!group) {
+      group = { material, cells: [] };
+      this.pending.set(chunkKey, group);
+    }
+    group.cells.push({ cellKey: `${row},${col}`, x, z });
+  }
+
+  /** Creates the instanced meshes for every queued cell and adds them to `parent`. */
+  public build(parent: THREE.Object3D, maxCellTravel: number): void {
+    this.pending.forEach(({ material, cells }) => {
+      const mesh = new THREE.InstancedMesh(
+        this.geometry,
+        material,
+        cells.length * this.yOffsets.length
+      );
+      mesh.castShadow = this.shadows.cast;
+      mesh.receiveShadow = this.shadows.receive;
+      let index = 0;
+      for (const cell of cells) {
+        const cellSlots: InstanceSlot[] = [];
+        for (const yOffset of this.yOffsets) {
+          const slot = { mesh, index, x: cell.x, z: cell.z, yOffset };
+          this.writeSlot(slot, this.baseY, InstancedCellLayer.UNIT_SCALE);
+          cellSlots.push(slot);
+          index++;
+        }
+        this.slots.set(cell.cellKey, cellSlots);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      // Pad the bounds so cells raised or lowered later are not culled early
+      mesh.computeBoundingSphere();
+      if (mesh.boundingSphere) mesh.boundingSphere.radius += maxCellTravel;
+      parent.add(mesh);
+      this.meshes.push(mesh);
+    });
+    this.pending.clear();
+  }
+
+  /** Moves a cell's base to height `y` (world meters). */
+  public setCellY(cellKey: string, y: number): void {
+    const cellSlots = this.slots.get(cellKey);
+    if (!cellSlots) return;
+    for (const slot of cellSlots) {
+      this.writeSlot(slot, y, InstancedCellLayer.UNIT_SCALE);
+      slot.mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  /** Collapses a cell's instances to zero scale so they no longer render or block rays. */
+  public hideCell(cellKey: string): void {
+    const cellSlots = this.slots.get(cellKey);
+    if (!cellSlots) return;
+    for (const slot of cellSlots) {
+      this.writeSlot(slot, 0, InstancedCellLayer.ZERO_SCALE);
+      slot.mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  private writeSlot(slot: InstanceSlot, y: number, scale: THREE.Vector3): void {
+    this.position.set(slot.x, y + slot.yOffset, slot.z);
+    this.matrix.compose(this.position, this.rotation, scale);
+    slot.mesh.setMatrixAt(slot.index, this.matrix);
+  }
+}
+
 export interface WorldBuildResult {
   worldGroup: THREE.Group;
   wallMeshes: THREE.Object3D[];
-  wallBlockGroups: Map<string, THREE.Group>;
+  /** Returns a movable standalone wall block for a pushwall cell, detaching it from its batch. */
+  getWallBlockGroup: (cellKey: string) => THREE.Group | undefined;
   doorMeshes: Map<string, THREE.Group>;
   keyMeshes: Map<string, THREE.Group>;
-  floorMeshes: Map<string, THREE.Mesh>;
-  ceilingMeshes: Map<string, THREE.Mesh>;
+  floorLayer: InstancedCellLayer;
+  ceilingLayer: InstancedCellLayer | null;
   enemyAI: EnemyAISystem;
   wallCount: number;
 }
@@ -65,12 +186,10 @@ export class WorldBuilder {
     const worldGroup = new THREE.Group();
     worldGroup.name = 'Pie3D_ExtrudedWorld_Phase3';
 
+    const gridSize = grid.length;
     const wallMeshes: THREE.Object3D[] = [];
-    const wallBlockGroups = new Map<string, THREE.Group>();
     const doorMeshes = new Map<string, THREE.Group>();
     const keyMeshes = new Map<string, THREE.Group>();
-    const floorMeshes = new Map<string, THREE.Mesh>();
-    const ceilingMeshes = new Map<string, THREE.Mesh>();
 
     const lootContainer = new THREE.Group();
     lootContainer.name = 'Pie3D_AmmoLootContainer';
@@ -168,69 +287,63 @@ export class WorldBuilder {
 
     let wallCount = 0;
 
+    const floorLayer = new InstancedCellLayer(tileGeo, -Math.PI / 2, 0, [0], {
+      cast: false,
+      receive: true,
+    });
+    const ceilingLayer = options.showCeiling
+      ? new InstancedCellLayer(tileGeo, Math.PI / 2, wallHeight, [0], {
+          cast: false,
+          receive: false,
+        })
+      : null;
+    const wallCubeLayer = new InstancedCellLayer(
+      mainWallGeo,
+      0,
+      0,
+      [wallHeight / 2],
+      { cast: true, receive: true }
+    );
+    const wallTrimLayer = new InstancedCellLayer(
+      plinthGeo,
+      0,
+      0,
+      [0.12, wallHeight - 0.12],
+      { cast: false, receive: false }
+    );
+    const wallTexByCell = new Map<string, string>();
+
     // ------------------------------------------------------------------------
-    // 1. PARSE 10x10 GRID FOR PER-CELL FLOORS, CEILINGS, WALLS, DOORS & KEYS
+    // 1. PARSE GRID FOR PER-CELL FLOORS, CEILINGS, WALLS, DOORS & KEYS
     // ------------------------------------------------------------------------
-    for (let row = 0; row < ENGINE_CONFIG.GRID_SIZE; row++) {
-      for (let col = 0; col < ENGINE_CONFIG.GRID_SIZE; col++) {
+    for (let row = 0; row < gridSize; row++) {
+      for (let col = 0; col < gridSize; col++) {
         const cellType = grid[row]?.[col] ?? CellType.EMPTY;
-        const { x, z } = CollisionSystem.gridToWorld(row, col);
+        const { x, z } = CollisionSystem.gridToWorld(row, col, gridSize);
         const cellKey = `${row},${col}`;
 
         // A. Per-Cell Floor Tile
         const floorTexId = floorTextures[row]?.[col] || 'floor-obsidian';
-        const floorTile = new THREE.Mesh(
-          tileGeo,
-          getFloorMaterial(floorTexId)
-        );
-        floorTile.rotation.x = -Math.PI / 2;
-        floorTile.position.set(x, 0, z);
-        floorTile.receiveShadow = true;
-        worldGroup.add(floorTile);
-        floorMeshes.set(cellKey, floorTile);
+        floorLayer.add(row, col, x, z, getFloorMaterial(floorTexId));
 
         // B. Optional Per-Cell Ceiling Tile
-        if (options.showCeiling) {
+        if (ceilingLayer) {
           const ceilingTexId =
             ceilingTextures[row]?.[col] || 'ceiling-coffer';
-          const ceilingTile = new THREE.Mesh(
-            tileGeo,
-            getCeilingMaterial(ceilingTexId)
-          );
-          ceilingTile.rotation.x = Math.PI / 2;
-          ceilingTile.position.set(x, wallHeight, z);
-          worldGroup.add(ceilingTile);
-          ceilingMeshes.set(cellKey, ceilingTile);
+          ceilingLayer.add(row, col, x, z, getCeilingMaterial(ceilingTexId));
         }
 
-        // C. Extruded Solid Wall Block
+        // C. Extruded Solid Wall Block (batched; detached on demand for pushwalls)
         if (cellType === CellType.WALL) {
           wallCount++;
           const wallTexId = wallTextures[row]?.[col] || 'default-grid';
-          const wallBlockGroup = new THREE.Group();
-          wallBlockGroup.position.set(x, 0, z);
+          wallTexByCell.set(cellKey, wallTexId);
+          wallCubeLayer.add(row, col, x, z, getWallMaterial(wallTexId));
+          wallTrimLayer.add(row, col, x, z, trimMat);
+          continue;
+        }
 
-          const cubeMesh = new THREE.Mesh(
-            mainWallGeo,
-            getWallMaterial(wallTexId)
-          );
-          cubeMesh.position.y = wallHeight / 2;
-          cubeMesh.castShadow = true;
-          cubeMesh.receiveShadow = true;
-          wallBlockGroup.add(cubeMesh);
-          wallMeshes.push(cubeMesh);
-
-          const basePlinth = new THREE.Mesh(plinthGeo, trimMat);
-          basePlinth.position.y = 0.12;
-          wallBlockGroup.add(basePlinth);
-
-          const topCornice = new THREE.Mesh(plinthGeo, trimMat);
-          topCornice.position.y = wallHeight - 0.12;
-          wallBlockGroup.add(topCornice);
-
-          worldGroup.add(wallBlockGroup);
-          wallBlockGroups.set(cellKey, wallBlockGroup);
-        } else if (cellType === CellType.DOOR) {
+        if (cellType === CellType.DOOR) {
           // D. Interactive Bulkhead Door
           const doorGroup = new THREE.Group();
           doorGroup.position.set(x, 0, z);
@@ -313,6 +426,47 @@ export class WorldBuilder {
       }
     }
 
+    floorLayer.build(worldGroup, wallHeight);
+    ceilingLayer?.build(worldGroup, wallHeight);
+    wallCubeLayer.build(worldGroup, 0);
+    wallTrimLayer.build(worldGroup, 0);
+    wallMeshes.push(...wallCubeLayer.meshes);
+
+    const detachedWallBlocks = new Map<string, THREE.Group>();
+    const getWallBlockGroup = (cellKey: string): THREE.Group | undefined => {
+      const existing = detachedWallBlocks.get(cellKey);
+      if (existing) return existing;
+      const wallTexId = wallTexByCell.get(cellKey);
+      if (wallTexId === undefined) return undefined;
+
+      wallCubeLayer.hideCell(cellKey);
+      wallTrimLayer.hideCell(cellKey);
+
+      const [row, col] = cellKey.split(',').map(Number);
+      const { x, z } = CollisionSystem.gridToWorld(row, col, gridSize);
+      const wallBlockGroup = new THREE.Group();
+      wallBlockGroup.position.set(x, 0, z);
+
+      const cubeMesh = new THREE.Mesh(mainWallGeo, getWallMaterial(wallTexId));
+      cubeMesh.position.y = wallHeight / 2;
+      cubeMesh.castShadow = true;
+      cubeMesh.receiveShadow = true;
+      wallBlockGroup.add(cubeMesh);
+      wallMeshes.push(cubeMesh);
+
+      const basePlinth = new THREE.Mesh(plinthGeo, trimMat);
+      basePlinth.position.y = 0.12;
+      wallBlockGroup.add(basePlinth);
+
+      const topCornice = new THREE.Mesh(plinthGeo, trimMat);
+      topCornice.position.y = wallHeight - 0.12;
+      wallBlockGroup.add(topCornice);
+
+      worldGroup.add(wallBlockGroup);
+      detachedWallBlocks.set(cellKey, wallBlockGroup);
+      return wallBlockGroup;
+    };
+
     // ------------------------------------------------------------------------
     // 2. SPAWN 3D .GLB ENTITIES & REGISTER WITH ENEMY AI SYSTEM
     // ------------------------------------------------------------------------
@@ -323,7 +477,11 @@ export class WorldBuilder {
     entities.forEach((entity) => {
       if (grid[entity.row]?.[entity.col] === CellType.WALL) return;
 
-      const worldPos = CollisionSystem.gridToWorld(entity.row, entity.col);
+      const worldPos = CollisionSystem.gridToWorld(
+        entity.row,
+        entity.col,
+        gridSize
+      );
       EntityLoader.loadEntityInstance(
         entity,
         worldPos,
@@ -339,7 +497,8 @@ export class WorldBuilder {
     // ------------------------------------------------------------------------
     const spawnPos = CollisionSystem.gridToWorld(
       options.spawn.row,
-      options.spawn.col
+      options.spawn.col,
+      gridSize
     );
     const spawnPadGroup = new THREE.Group();
     spawnPadGroup.position.set(spawnPos.x, 0.025, spawnPos.z);
@@ -358,11 +517,11 @@ export class WorldBuilder {
     return {
       worldGroup,
       wallMeshes,
-      wallBlockGroups,
+      getWallBlockGroup,
       doorMeshes,
       keyMeshes,
-      floorMeshes,
-      ceilingMeshes,
+      floorLayer,
+      ceilingLayer,
       enemyAI,
       wallCount,
     };
@@ -375,6 +534,9 @@ export class WorldBuilder {
   public static disposeWorldGroup(group: THREE.Group | null): void {
     if (!group) return;
     group.traverse((obj) => {
+      if ((obj as THREE.InstancedMesh).isInstancedMesh) {
+        (obj as THREE.InstancedMesh).dispose();
+      }
       if ((obj as THREE.Mesh).isMesh) {
         const mesh = obj as THREE.Mesh;
         mesh.geometry?.dispose();

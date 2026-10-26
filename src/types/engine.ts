@@ -18,12 +18,13 @@ import type {
   RegionDefinition,
   VariableRegistrySpec,
 } from '../engine/sim/types';
+import { SIM_CONFIG } from '../engine/sim/types';
 
 export enum CellType {
   EMPTY = 0, // Walkable corridor / floor space
   WALL = 1,  // Solid extruded 3D wall block (collidable)
   DOOR = 2,  // Interactive bulkhead door (opens when player has key or presses E)
-  KEY = 3,   // Collectible keycard pickup (triggers "Touch Key -> Open Door" event)
+  KEY = 3,   // Collectible keycard pickup (unlocks doors; the player still opens them)
 }
 
 /**
@@ -164,7 +165,7 @@ export interface Model3DAsset {
 }
 
 /**
- * Instance of an Entity placed on the 10x10 Grid
+ * Instance of an Entity placed on the Grid
  */
 export interface PlacedEntity {
   id: string;
@@ -284,19 +285,19 @@ export interface LevelStateData {
     seed: number;
     showCeiling: boolean;
   };
-  /** 10x10 numeric layout array (0=Empty, 1=Wall, 2=Door, 3=Key) */
+  /** gridSize x gridSize numeric layout array (0=Empty, 1=Wall, 2=Door, 3=Key) */
   grid: number[][];
-  /** 10x10 per-cell wall texture asset IDs */
+  /** Per-cell wall texture asset IDs */
   wallTextures: string[][];
-  /** 10x10 per-cell floor texture asset IDs */
+  /** Per-cell floor texture asset IDs */
   floorTextures: string[][];
-  /** 10x10 per-cell ceiling texture asset IDs */
+  /** Per-cell ceiling texture asset IDs */
   ceilingTextures: string[][];
   /** Custom user-uploaded or URL texture definitions */
   customTextures: TextureAsset[];
   /** Placed 3D entities (.glb Enemies and Objects) */
   entities: PlacedEntity[];
-  /** Optional 10x10 per-cell tag numbers for event triggers */
+  /** Optional per-cell tag numbers for event triggers */
   cellTags?: number[][];
   /** Optional declarative regions, variables, and events */
   regions?: RegionDefinition[];
@@ -305,7 +306,9 @@ export interface LevelStateData {
 }
 
 export const ENGINE_CONFIG = {
-  GRID_SIZE: 10,
+  GRID_SIZE: 10, // Default size for new levels; each level's size is its grid's length
+  MIN_GRID_SIZE: SIM_CONFIG.MIN_GRID_SIZE,
+  MAX_GRID_SIZE: SIM_CONFIG.MAX_GRID_SIZE,
   CELL_SIZE: 4.0,
   WALL_HEIGHT: 4.0,
   PLAYER_EYE_HEIGHT: 1.75,
@@ -809,10 +812,29 @@ export const MAP_PRESETS: MapPreset[] = [
 ];
 
 /**
- * Helper to create a 10x10 2D string matrix filled with a default texture ID
+ * Helper to create a size x size 2D string matrix filled with a default texture ID
  */
-export function createUniformTextureMatrix(defaultId: string): string[][] {
-  return Array.from({ length: ENGINE_CONFIG.GRID_SIZE }, () =>
-    Array.from({ length: ENGINE_CONFIG.GRID_SIZE }, () => defaultId)
+export function createUniformTextureMatrix(
+  defaultId: string,
+  size: number
+): string[][] {
+  return Array.from({ length: size }, () =>
+    Array.from({ length: size }, () => defaultId)
+  );
+}
+
+/**
+ * Returns a copy of a square per-cell matrix resized to size x size, anchored at
+ * the top-left [X:0, Z:0] corner. Cropped cells are dropped and new cells get `fill`.
+ */
+export function resizeSquareMatrix<T>(
+  matrix: T[][],
+  size: number,
+  fill: T
+): T[][] {
+  return Array.from({ length: size }, (_, r) =>
+    Array.from({ length: size }, (__, c) =>
+      r < matrix.length && c < (matrix[r]?.length ?? 0) ? matrix[r][c] : fill
+    )
   );
 }

@@ -29,6 +29,7 @@ import {
   SurfaceTarget,
   TextureAsset,
   createUniformTextureMatrix,
+  resizeSquareMatrix,
 } from './types/engine';
 import { CollisionSystem } from './engine/CollisionSystem';
 import { TextureGenerator } from './engine/TextureGenerator';
@@ -66,19 +67,22 @@ export default function App() {
   const workspaceRef = useRef<HTMLDivElement | null>(null);
 
   // --------------------------------------------------------------------------
-  // 1. PRIMARY 10x10 GRID & PER-CELL TEXTURE ASSIGNMENT MATRICES
+  // 1. PRIMARY GRID & PER-CELL TEXTURE ASSIGNMENT MATRICES (SIZE = grid.length)
   // --------------------------------------------------------------------------
   const [grid, setGrid] = useState<number[][]>(() =>
     initialPreset.grid.map((row) => [...row])
   );
   const [wallTextures, setWallTextures] = useState<string[][]>(() =>
-    createUniformTextureMatrix(initialPreset.defaultWallTex || 'default-grid')
+    createUniformTextureMatrix(
+      initialPreset.defaultWallTex || 'default-grid',
+      initialPreset.grid.length
+    )
   );
   const [floorTextures, setFloorTextures] = useState<string[][]>(() =>
-    createUniformTextureMatrix('floor-obsidian')
+    createUniformTextureMatrix('floor-obsidian', initialPreset.grid.length)
   );
   const [ceilingTextures, setCeilingTextures] = useState<string[][]>(() =>
-    createUniformTextureMatrix('ceiling-coffer')
+    createUniformTextureMatrix('ceiling-coffer', initialPreset.grid.length)
   );
 
   // --------------------------------------------------------------------------
@@ -185,6 +189,16 @@ export default function App() {
     col: number;
   } | null>(null);
 
+  // Keep the selection on the map when it shrinks (resize, undo/redo, preset or file load)
+  useEffect(() => {
+    const maxIdx = grid.length - 1;
+    setSelectedCell((prev) =>
+      prev.row > maxIdx || prev.col > maxIdx
+        ? { row: Math.min(prev.row, maxIdx), col: Math.min(prev.col, maxIdx) }
+        : prev
+    );
+  }, [grid.length]);
+
   // Resizable split pane percentage for 2D Map Editor (default 40%)
   const [splitRatioPct, setSplitRatioPct] = useState<number>(40);
   const [isDraggingSplitter, setIsDraggingSplitter] = useState<boolean>(false);
@@ -206,10 +220,17 @@ export default function App() {
     const initialV3 = LevelSerializer.serializeLevelV3({
       grid: initialPreset.grid,
       wallTextures: createUniformTextureMatrix(
-        initialPreset.defaultWallTex || 'default-grid'
+        initialPreset.defaultWallTex || 'default-grid',
+        initialPreset.grid.length
       ),
-      floorTextures: createUniformTextureMatrix('floor-obsidian'),
-      ceilingTextures: createUniformTextureMatrix('ceiling-coffer'),
+      floorTextures: createUniformTextureMatrix(
+        'floor-obsidian',
+        initialPreset.grid.length
+      ),
+      ceilingTextures: createUniformTextureMatrix(
+        'ceiling-coffer',
+        initialPreset.grid.length
+      ),
       entities: initialPreset.entities || [],
       nextEntityId: computeNextEntityId(initialPreset.entities || []),
       spawn: initialPreset.spawn,
@@ -411,7 +432,8 @@ export default function App() {
   // --------------------------------------------------------------------------
   const initialWorld = CollisionSystem.gridToWorld(
     initialPreset.spawn.row,
-    initialPreset.spawn.col
+    initialPreset.spawn.col,
+    initialPreset.grid.length
   );
   const [playerTransform, setPlayerTransform] = useState<PlayerTransform>({
     x: initialWorld.x,
@@ -524,11 +546,13 @@ export default function App() {
     (surface: SurfaceTarget, texId: string) => {
       recordHistorySnapshot(`Fill all ${surface}s with '${texId}'`);
       if (surface === 'wall') {
-        setWallTextures(createUniformTextureMatrix(texId));
+        setWallTextures((prev) => createUniformTextureMatrix(texId, prev.length));
       } else if (surface === 'floor') {
-        setFloorTextures(createUniformTextureMatrix(texId));
+        setFloorTextures((prev) => createUniformTextureMatrix(texId, prev.length));
       } else if (surface === 'ceiling') {
-        setCeilingTextures(createUniformTextureMatrix(texId));
+        setCeilingTextures((prev) =>
+          createUniformTextureMatrix(texId, prev.length)
+        );
         setShowCeiling(true);
       }
       setEngineLog(`Assets: Applied texture '${texId}' to all ${surface} cells.`);
@@ -788,10 +812,17 @@ export default function App() {
       recordHistorySnapshot(`Load Preset '${found.name}'`);
       const nextGrid = found.grid.map((r) => [...r]);
       const nextWallTex = createUniformTextureMatrix(
-        found.defaultWallTex || 'default-grid'
+        found.defaultWallTex || 'default-grid',
+        nextGrid.length
       );
-      const nextFloorTex = createUniformTextureMatrix('floor-obsidian');
-      const nextCeilTex = createUniformTextureMatrix('ceiling-coffer');
+      const nextFloorTex = createUniformTextureMatrix(
+        'floor-obsidian',
+        nextGrid.length
+      );
+      const nextCeilTex = createUniformTextureMatrix(
+        'ceiling-coffer',
+        nextGrid.length
+      );
       const nextEnts = found.entities
         ? found.entities.map((e) => ({ ...e }))
         : [];
@@ -1004,16 +1035,41 @@ export default function App() {
   );
 
   const handleClearGrid = useCallback(() => {
-    recordHistorySnapshot('Clear 10x10 Grid');
-    setGrid(
-      Array.from({ length: ENGINE_CONFIG.GRID_SIZE }, () =>
-        Array.from({ length: ENGINE_CONFIG.GRID_SIZE }, () => CellType.EMPTY)
-      )
-    );
+    recordHistorySnapshot('Clear Grid');
+    setGrid((prev) => prev.map((row) => row.map(() => CellType.EMPTY)));
     setEntities([]);
     setResetSignal((n) => n + 1);
-    setEngineLog('Editor: Cleared 10x10 grid and removed all entities.');
+    setEngineLog('Editor: Cleared grid and removed all entities.');
   }, [recordHistorySnapshot]);
+
+  const handleResizeMap = useCallback(
+    (requestedSize: number) => {
+      const size = Math.max(
+        ENGINE_CONFIG.MIN_GRID_SIZE,
+        Math.min(ENGINE_CONFIG.MAX_GRID_SIZE, Math.trunc(requestedSize))
+      );
+      if (!Number.isFinite(size) || size === grid.length) return;
+      recordHistorySnapshot(`Resize Map to ${size}x${size}`);
+      const maxIdx = size - 1;
+      setGrid((prev) => resizeSquareMatrix(prev, size, CellType.EMPTY as number));
+      setWallTextures((prev) => resizeSquareMatrix(prev, size, 'default-grid'));
+      setFloorTextures((prev) =>
+        resizeSquareMatrix(prev, size, 'floor-obsidian')
+      );
+      setCeilingTextures((prev) =>
+        resizeSquareMatrix(prev, size, 'ceiling-coffer')
+      );
+      setEntities((prev) => prev.filter((e) => e.row <= maxIdx && e.col <= maxIdx));
+      setSpawn((prev) => ({
+        ...prev,
+        row: Math.min(prev.row, maxIdx),
+        col: Math.min(prev.col, maxIdx),
+      }));
+      setResetSignal((n) => n + 1);
+      setEngineLog(`Editor: Resized map to ${size}x${size}.`);
+    },
+    [grid.length, recordHistorySnapshot]
+  );
 
   const handleBorderWalls = useCallback(() => {
     recordHistorySnapshot('Build Perimeter Walls');
@@ -1022,14 +1078,14 @@ export default function App() {
         row.map((val, cIdx) => {
           const isEdge =
             rIdx === 0 ||
-            rIdx === ENGINE_CONFIG.GRID_SIZE - 1 ||
+            rIdx === prev.length - 1 ||
             cIdx === 0 ||
-            cIdx === ENGINE_CONFIG.GRID_SIZE - 1;
+            cIdx === prev.length - 1;
           return isEdge ? CellType.WALL : val;
         })
       )
     );
-    setEngineLog('Editor: Generated perimeter walls around 10x10 boundary.');
+    setEngineLog('Editor: Generated perimeter walls around map boundary.');
   }, [recordHistorySnapshot]);
 
   const handleRotateSpawn = useCallback(() => {
@@ -1042,9 +1098,9 @@ export default function App() {
 
   const wallCount = useMemo(() => {
     let count = 0;
-    for (let r = 0; r < ENGINE_CONFIG.GRID_SIZE; r++) {
-      for (let c = 0; c < ENGINE_CONFIG.GRID_SIZE; c++) {
-        if (grid[r][c] === CellType.WALL) count++;
+    for (const row of grid) {
+      for (const cell of row) {
+        if (cell === CellType.WALL) count++;
       }
     }
     return count;
@@ -1250,6 +1306,7 @@ export default function App() {
           onToggleMinimap={() => setMinimapEnabled((prev) => !prev)}
           onBorderWalls={handleBorderWalls}
           onClearGrid={handleClearGrid}
+          onResizeMap={handleResizeMap}
         />
       )}
 
@@ -1271,8 +1328,8 @@ export default function App() {
         onImportLevelState={handleRestoreLevelState}
       />
 
-      {/* Phase 4 Visual Event & Trigger Authoring IDE Modal */}
-      <EventTriggerEditorModal
+      {/* Phase 4 Visual Event & Trigger Authoring IDE Modal (mounted only while open so each open starts from fresh level data) */}
+      {isEventEditorOpen && <EventTriggerEditorModal
         isOpen={isEventEditorOpen}
         onClose={() => setIsEventEditorOpen(false)}
         events={simState.events}
@@ -1283,9 +1340,9 @@ export default function App() {
           timers: Object.keys(simState.timers),
         }}
         grid={grid}
-        gridSize={ENGINE_CONFIG.GRID_SIZE}
+        gridSize={grid.length}
         onSaveLevelData={handleSaveLevelDataFromEditor}
-      />
+      />}
     </div>
   );
 }

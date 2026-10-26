@@ -55,7 +55,7 @@ export const CellInspectorTab: React.FC<CellInspectorTabProps> = ({
 }) => {
   const { row, col } = selectedCell;
   const cellType = grid[row]?.[col] ?? CellType.EMPTY;
-  const worldPos = CollisionSystem.gridToWorld(row, col);
+  const worldPos = CollisionSystem.gridToWorld(row, col, grid.length);
   const isSpawnCell = spawn.row === row && spawn.col === col;
 
   const cellWallTex = wallTextures[row]?.[col] || 'default-grid';

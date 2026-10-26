@@ -41,7 +41,7 @@ import {
 import { LevelSerializer } from '../engine/LevelSerializer';
 import { TextureGenerator } from '../engine/TextureGenerator';
 import { CollisionSystem } from '../engine/CollisionSystem';
-import { WorldBuilder } from '../engine/WorldBuilder';
+import { InstancedCellLayer, WorldBuilder } from '../engine/WorldBuilder';
 import { EnemyAISystem } from '../engine/EnemyAISystem';
 import { CombatSystem } from '../engine/CombatSystem';
 import { SoundEffects } from '../engine/SoundEffects';
@@ -169,11 +169,13 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   const hemiLightRef = useRef<THREE.HemisphereLight | null>(null);
   const worldGroupRef = useRef<THREE.Group | null>(null);
   const wallMeshesRef = useRef<THREE.Object3D[]>([]);
-  const wallBlockGroupsRef = useRef<Map<string, THREE.Group>>(new Map());
+  const getWallBlockGroupRef = useRef<
+    (cellKey: string) => THREE.Group | undefined
+  >(() => undefined);
   const doorMeshesRef = useRef<Map<string, THREE.Group>>(new Map());
   const keyMeshesRef = useRef<Map<string, THREE.Group>>(new Map());
-  const floorMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
-  const ceilingMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
+  const floorLayerRef = useRef<InstancedCellLayer | null>(null);
+  const ceilingLayerRef = useRef<InstancedCellLayer | null>(null);
   const enemyAIRef = useRef<EnemyAISystem | null>(null);
   const combatSystemRef = useRef<CombatSystem | null>(null);
 
@@ -339,11 +341,11 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
 
     worldGroupRef.current = built.worldGroup;
     wallMeshesRef.current = built.wallMeshes;
-    wallBlockGroupsRef.current = built.wallBlockGroups;
+    getWallBlockGroupRef.current = built.getWallBlockGroup;
     doorMeshesRef.current = built.doorMeshes;
     keyMeshesRef.current = built.keyMeshes;
-    floorMeshesRef.current = built.floorMeshes;
-    ceilingMeshesRef.current = built.ceilingMeshes;
+    floorLayerRef.current = built.floorLayer;
+    ceilingLayerRef.current = built.ceilingLayer;
     enemyAIRef.current = built.enemyAI;
     scene.add(built.worldGroup);
   }, [
@@ -390,7 +392,11 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
 
     const cam = cameraRef.current;
     if (cam) {
-      const { x, z } = CollisionSystem.gridToWorld(spawn.row, spawn.col);
+      const { x, z } = CollisionSystem.gridToWorld(
+        spawn.row,
+        spawn.col,
+        grid.length
+      );
       cam.position.set(x, ENGINE_CONFIG.PLAYER_EYE_HEIGHT, z);
       eulerRef.current.set(0, spawn.yaw, 0, 'YXZ');
       cam.quaternion.setFromEuler(eulerRef.current);
@@ -429,6 +435,9 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     showCeiling,
     minimapEnabled,
   ]);
+
+  const teleportToSpawnRef = useRef(teleportToSpawn);
+  teleportToSpawnRef.current = teleportToSpawn;
 
   const handleFullRespawn = useCallback(() => {
     teleportToSpawn();
@@ -646,7 +655,11 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     });
     resizeObserver.observe(container);
 
-    const initialWorld = CollisionSystem.gridToWorld(spawn.row, spawn.col);
+    const initialWorld = CollisionSystem.gridToWorld(
+      spawn.row,
+      spawn.col,
+      grid.length
+    );
     camera.position.set(
       initialWorld.x,
       ENGINE_CONFIG.PLAYER_EYE_HEIGHT,
@@ -863,20 +876,8 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           UNITS_TO_METERS *
           SIM_CONFIG.TICKS_PER_SECOND;
 
-        const playerCellRow = Math.max(
-          0,
-          Math.min(
-            ENGINE_CONFIG.GRID_SIZE - 1,
-            Math.floor(interpZUnits / SIM_CONFIG.CELL_UNITS)
-          )
-        );
-        const playerCellCol = Math.max(
-          0,
-          Math.min(
-            ENGINE_CONFIG.GRID_SIZE - 1,
-            Math.floor(interpXUnits / SIM_CONFIG.CELL_UNITS)
-          )
-        );
+        const playerCellRow = currP.gridRow;
+        const playerCellCol = currP.gridCol;
         const prevFloorH =
           prevSim.floorHeights?.[playerCellRow]?.[playerCellCol] ?? 0;
         const currFloorH =
@@ -1008,7 +1009,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         if (!currMover || currMover.kind !== 'pushwall') continue;
 
         const cellKey = `${currMover.row},${currMover.col}`;
-        const wallGroup = wallBlockGroupsRef.current.get(cellKey);
+        const wallGroup = getWallBlockGroupRef.current(cellKey);
         if (!wallGroup) continue;
 
         const prevProg = prevSim.movers[mKey]?.progress ?? 0;
@@ -1032,7 +1033,8 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         const distCells = currMover.distanceCells ?? 2;
         const baseWorld = CollisionSystem.gridToWorld(
           currMover.row,
-          currMover.col
+          currMover.col,
+          curSim.gridSize
         );
 
         wallGroup.position.x =
@@ -1050,31 +1052,33 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         }
       }
 
-      // Interpolate moving floor platform heights from simulation state
-      floorMeshesRef.current.forEach((floorMesh, cKey) => {
-        const [rStr, cStr] = cKey.split(',');
-        const r = Number(rStr);
-        const c = Number(cStr);
-        const prevH = prevSim.floorHeights?.[r]?.[c] ?? 0;
-        const currH = curSim.floorHeights?.[r]?.[c] ?? 0;
-        if (prevH !== 0 || currH !== 0) {
-          const interpH = prevH + (currH - prevH) * alpha;
-          floorMesh.position.y = interpH * UNITS_TO_METERS;
+      // Interpolate moving floor platform and ceiling/crusher heights from simulation state
+      const floorLayer = floorLayerRef.current;
+      const ceilingLayer = ceilingLayerRef.current;
+      const defaultCeilH = SIM_CONFIG.DEFAULT_CEILING_HEIGHT_UNITS;
+      for (let r = 0; r < curSim.gridSize; r++) {
+        const prevFloorRow = prevSim.floorHeights?.[r];
+        const currFloorRow = curSim.floorHeights?.[r];
+        const prevCeilRow = prevSim.ceilingHeights?.[r];
+        const currCeilRow = curSim.ceilingHeights?.[r];
+        for (let c = 0; c < curSim.gridSize; c++) {
+          const prevH = prevFloorRow?.[c] ?? 0;
+          const currH = currFloorRow?.[c] ?? 0;
+          if (floorLayer && (prevH !== 0 || currH !== 0)) {
+            const interpH = prevH + (currH - prevH) * alpha;
+            floorLayer.setCellY(`${r},${c}`, interpH * UNITS_TO_METERS);
+          }
+          const prevCeilH = prevCeilRow?.[c] ?? defaultCeilH;
+          const currCeilH = currCeilRow?.[c] ?? defaultCeilH;
+          if (
+            ceilingLayer &&
+            (prevCeilH !== defaultCeilH || currCeilH !== defaultCeilH)
+          ) {
+            const interpH = prevCeilH + (currCeilH - prevCeilH) * alpha;
+            ceilingLayer.setCellY(`${r},${c}`, interpH * UNITS_TO_METERS);
+          }
         }
-      });
-
-      // Interpolate moving ceiling/crusher heights from simulation state
-      ceilingMeshesRef.current.forEach((ceilingMesh, cKey) => {
-        const [rStr, cStr] = cKey.split(',');
-        const r = Number(rStr);
-        const c = Number(cStr);
-        const prevH = prevSim.ceilingHeights?.[r]?.[c] ?? 1000;
-        const currH = curSim.ceilingHeights?.[r]?.[c] ?? 1000;
-        if (prevH !== 1000 || currH !== 1000) {
-          const interpH = prevH + (currH - prevH) * alpha;
-          ceilingMesh.position.y = interpH * UNITS_TO_METERS;
-        }
-      });
+      }
 
       if (elapsedSec - lastHudSyncTime > 0.05 && currP) {
         lastHudSyncTime = elapsedSec;
@@ -1106,6 +1110,11 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           );
         }
       }
+
+      // Keep the shadow camera's fixed-size box centered on the player so large maps get shadows everywhere
+      dirLight.position.set(camera.position.x + 14, 28, camera.position.z + 12);
+      dirLight.target.position.set(camera.position.x, 0, camera.position.z);
+      dirLight.target.updateMatrixWorld();
 
       renderer.render(scene, camera);
 
@@ -1161,9 +1170,15 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   // Keep simulation grid/movers synced when editor sculpts cells
   useEffect(() => {
     const cur = currSimStateRef.current;
+    if (grid.length !== cur.gridSize) {
+      // Map was resized (or a resize was undone): rebuild the simulation at the new size
+      rebuild3DWorld();
+      teleportToSpawnRef.current();
+      return;
+    }
     cur.grid = grid.map((r) => [...r]);
-    for (let r = 0; r < SIM_CONFIG.GRID_SIZE; r++) {
-      for (let c = 0; c < SIM_CONFIG.GRID_SIZE; c++) {
+    for (let r = 0; r < grid.length; r++) {
+      for (let c = 0; c < grid.length; c++) {
         const mKey = `door:${r},${c}`;
         if (grid[r]?.[c] === 2 && !cur.movers[mKey]) {
           cur.movers[mKey] = {

@@ -455,14 +455,19 @@ export function validateLevelDataV3(
     });
   }
 
-  const gridSize = isSafeInt(input.gridSize)
-    ? input.gridSize
+  const isGridSizeValid =
+    isSafeInt(input.gridSize) &&
+    input.gridSize >= SIM_CONFIG.MIN_GRID_SIZE &&
+    input.gridSize <= SIM_CONFIG.MAX_GRID_SIZE;
+  // An out-of-range size falls back to the default so later checks stay bounded
+  const gridSize = isGridSizeValid
+    ? (input.gridSize as number)
     : SIM_CONFIG.GRID_SIZE;
-  if (!isSafeInt(input.gridSize) || gridSize !== SIM_CONFIG.GRID_SIZE) {
+  if (!isGridSizeValid) {
     errors.push({
       path: '$.gridSize',
       code: 'INVALID_GRID_SIZE',
-      message: `gridSize must be integer ${SIM_CONFIG.GRID_SIZE}.`,
+      message: `gridSize must be an integer from ${SIM_CONFIG.MIN_GRID_SIZE} to ${SIM_CONFIG.MAX_GRID_SIZE}.`,
     });
   }
 

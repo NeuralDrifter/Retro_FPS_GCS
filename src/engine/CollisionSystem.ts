@@ -20,11 +20,15 @@ export class CollisionSystem {
    * position.
    *
    * Coordinate Mapping:
-   *  - Grid origin (0, 0) is top-left of the 10x10 editor.
-   *  - World center (0, 0, 0) corresponds to the center of the 10x10 map.
+   *  - Grid origin (0, 0) is top-left of the 2D editor.
+   *  - World center (0, 0, 0) corresponds to the center of the map.
    */
-  public static gridToWorld(row: number, col: number): { x: number; z: number } {
-    const halfWorld = (ENGINE_CONFIG.GRID_SIZE * ENGINE_CONFIG.CELL_SIZE) / 2;
+  public static gridToWorld(
+    row: number,
+    col: number,
+    gridSize: number
+  ): { x: number; z: number } {
+    const halfWorld = (gridSize * ENGINE_CONFIG.CELL_SIZE) / 2;
     const x =
       col * ENGINE_CONFIG.CELL_SIZE - halfWorld + ENGINE_CONFIG.CELL_SIZE / 2;
     const z =
@@ -35,13 +39,13 @@ export class CollisionSystem {
   /**
    * Converts a 3D world (X, Z) coordinate back into 2D grid indices (row, col).
    */
-  public static worldToGrid(x: number, z: number): GridCoord {
-    const halfWorld = (ENGINE_CONFIG.GRID_SIZE * ENGINE_CONFIG.CELL_SIZE) / 2;
+  public static worldToGrid(x: number, z: number, gridSize: number): GridCoord {
+    const halfWorld = (gridSize * ENGINE_CONFIG.CELL_SIZE) / 2;
     const col = Math.floor((x + halfWorld) / ENGINE_CONFIG.CELL_SIZE);
     const row = Math.floor((z + halfWorld) / ENGINE_CONFIG.CELL_SIZE);
     return {
-      row: Math.max(0, Math.min(ENGINE_CONFIG.GRID_SIZE - 1, row)),
-      col: Math.max(0, Math.min(ENGINE_CONFIG.GRID_SIZE - 1, col)),
+      row: Math.max(0, Math.min(gridSize - 1, row)),
+      col: Math.max(0, Math.min(gridSize - 1, col)),
     };
   }
 
@@ -56,12 +60,7 @@ export class CollisionSystem {
     col: number,
     openDoors: Set<string>
   ): boolean {
-    if (
-      row < 0 ||
-      row >= ENGINE_CONFIG.GRID_SIZE ||
-      col < 0 ||
-      col >= ENGINE_CONFIG.GRID_SIZE
-    ) {
+    if (row < 0 || row >= grid.length || col < 0 || col >= grid.length) {
       return true; // Out-of-bounds world perimeter acts as solid barrier
     }
     const cell = grid[row]?.[col] ?? CellType.WALL;
@@ -83,7 +82,8 @@ export class CollisionSystem {
     grid: number[][],
     openDoors: Set<string>
   ): boolean {
-    const halfWorld = (ENGINE_CONFIG.GRID_SIZE * ENGINE_CONFIG.CELL_SIZE) / 2;
+    const gridSize = grid.length;
+    const halfWorld = (gridSize * ENGINE_CONFIG.CELL_SIZE) / 2;
     const worldLimit = halfWorld - radius;
 
     // Keep player inside outer world boundary
@@ -96,7 +96,7 @@ export class CollisionSystem {
       return true;
     }
 
-    const centerCell = this.worldToGrid(worldX, worldZ);
+    const centerCell = this.worldToGrid(worldX, worldZ, gridSize);
     const halfCell = ENGINE_CONFIG.CELL_SIZE / 2;
 
     // Inspect 3x3 neighboring grid squares around the player
@@ -104,7 +104,7 @@ export class CollisionSystem {
       for (let c = centerCell.col - 1; c <= centerCell.col + 1; c++) {
         if (!this.isCellSolid(grid, r, c, openDoors)) continue;
 
-        const cellCenter = this.gridToWorld(r, c);
+        const cellCenter = this.gridToWorld(r, c, gridSize);
         const minX = cellCenter.x - halfCell;
         const maxX = cellCenter.x + halfCell;
         const minZ = cellCenter.z - halfCell;

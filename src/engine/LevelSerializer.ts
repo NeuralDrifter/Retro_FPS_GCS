@@ -15,6 +15,7 @@ import {
   SkyboxThemeId,
   TextureAsset,
   createUniformTextureMatrix,
+  resizeSquareMatrix,
 } from '../types/engine';
 import {
   EventDefinition,
@@ -90,6 +91,9 @@ export class LevelSerializer {
       }
     }
 
+    const gridSize = params.grid.length;
+    const maxIdx = gridSize - 1;
+
     const v3Entities: SimPlacedEntityV3[] = params.entities.map((ent) => {
       let modelAssetId = ent.modelAssetId;
       if (!modelAssetId && ent.customGlbUrl) {
@@ -111,8 +115,8 @@ export class LevelSerializer {
 
       return {
         id: ent.id,
-        row: Math.max(0, Math.min(9, Math.trunc(ent.row))),
-        col: Math.max(0, Math.min(9, Math.trunc(ent.col))),
+        row: Math.max(0, Math.min(maxIdx, Math.trunc(ent.row))),
+        col: Math.max(0, Math.min(maxIdx, Math.trunc(ent.col))),
         blueprintId: ent.blueprintId,
         ...(modelAssetId ? { modelAssetId } : {}),
         name: ent.name,
@@ -135,12 +139,12 @@ export class LevelSerializer {
 
     return {
       formatVersion: 3,
-      gridSize: ENGINE_CONFIG.GRID_SIZE,
+      gridSize,
       rngSeed: (Math.trunc(params.rngSeed ?? params.skyboxSeed ?? 1) >>> 0) || 1,
       nextEntityId,
       spawn: {
-        row: Math.max(0, Math.min(9, Math.trunc(params.spawn.row))),
-        col: Math.max(0, Math.min(9, Math.trunc(params.spawn.col))),
+        row: Math.max(0, Math.min(maxIdx, Math.trunc(params.spawn.row))),
+        col: Math.max(0, Math.min(maxIdx, Math.trunc(params.spawn.col))),
         yawBam: radiansToBam(params.spawn.yaw || 0),
       },
       minimapEnabled: Boolean(params.minimapEnabled),
@@ -155,8 +159,9 @@ export class LevelSerializer {
       ceilingTextures: params.ceilingTextures.map((row) => [...row]),
       ...(params.cellTags
         ? {
-            cellTags: params.cellTags.map((row) =>
-              row.map((t) => Math.trunc(t))
+            // Tags may come from before a map resize, so fit them to the grid
+            cellTags: resizeSquareMatrix(params.cellTags, gridSize, 0).map(
+              (row) => row.map((t) => Math.trunc(t))
             ),
           }
         : {}),
@@ -182,7 +187,7 @@ export class LevelSerializer {
   }
 
   /**
-   * Strict Migrator: Upgrades untrusted v1 (10x10 array) or v2 (`version: "2.0"`)
+   * Strict Migrator: Upgrades untrusted v1 (square grid array) or v2 (`version: "2.0"`)
    * or validates v3 (`formatVersion: 3`) into a validated `LevelDataV3`.
    */
   public static migrateToV3(
@@ -226,13 +231,15 @@ export class LevelSerializer {
     ) as Record<string, unknown> | null;
 
     const rawGrid = obj?.grid;
+    const gridSize = Array.isArray(rawGrid) ? rawGrid.length : 0;
     if (
       !Array.isArray(rawGrid) ||
-      rawGrid.length !== ENGINE_CONFIG.GRID_SIZE ||
+      gridSize < ENGINE_CONFIG.MIN_GRID_SIZE ||
+      gridSize > ENGINE_CONFIG.MAX_GRID_SIZE ||
       !rawGrid.every(
         (r: unknown) =>
           Array.isArray(r) &&
-          r.length === ENGINE_CONFIG.GRID_SIZE &&
+          r.length === gridSize &&
           r.every(
             (cell) =>
               typeof cell === 'number' &&
@@ -243,31 +250,31 @@ export class LevelSerializer {
       )
     ) {
       throw new Error(
-        `Invalid level JSON: 'grid' must be a ${ENGINE_CONFIG.GRID_SIZE}x${ENGINE_CONFIG.GRID_SIZE} 2D integer array (values 0..3).`
+        `Invalid level JSON: 'grid' must be a square 2D integer array (values 0..3) from ${ENGINE_CONFIG.MIN_GRID_SIZE}x${ENGINE_CONFIG.MIN_GRID_SIZE} to ${ENGINE_CONFIG.MAX_GRID_SIZE}x${ENGINE_CONFIG.MAX_GRID_SIZE}.`
       );
     }
 
     const isValidStringMatrix = (m: unknown): m is string[][] =>
       Array.isArray(m) &&
-      m.length === ENGINE_CONFIG.GRID_SIZE &&
+      m.length === gridSize &&
       m.every(
         (r: unknown) =>
           Array.isArray(r) &&
-          r.length === ENGINE_CONFIG.GRID_SIZE &&
+          r.length === gridSize &&
           r.every((tid) => typeof tid === 'string' && tid.length > 0)
       );
 
     const wallTextures = isValidStringMatrix(obj?.wallTextures)
       ? obj.wallTextures.map((r) => [...r])
-      : createUniformTextureMatrix('default-grid');
+      : createUniformTextureMatrix('default-grid', gridSize);
 
     const floorTextures = isValidStringMatrix(obj?.floorTextures)
       ? obj.floorTextures.map((r) => [...r])
-      : createUniformTextureMatrix('floor-obsidian');
+      : createUniformTextureMatrix('floor-obsidian', gridSize);
 
     const ceilingTextures = isValidStringMatrix(obj?.ceilingTextures)
       ? obj.ceilingTextures.map((r) => [...r])
-      : createUniformTextureMatrix('ceiling-coffer');
+      : createUniformTextureMatrix('ceiling-coffer', gridSize);
 
     // Register any customTextures in AssetRegistry and remap non-conforming IDs
     const idRemap = new Map<string, string>();
@@ -291,8 +298,8 @@ export class LevelSerializer {
     // Collect all texture IDs referenced in the 3 matrices so custom texture IDs in tests pass allowlist
     const referencedTexIds = new Set<string>();
     const remapMatrix = (mat: string[][]) => {
-      for (let r = 0; r < ENGINE_CONFIG.GRID_SIZE; r++) {
-        for (let c = 0; c < ENGINE_CONFIG.GRID_SIZE; c++) {
+      for (let r = 0; r < gridSize; r++) {
+        for (let c = 0; c < gridSize; c++) {
           const orig = mat[r][c];
           const mapped = idRemap.get(orig) || orig;
           mat[r][c] = mapped;
@@ -315,11 +322,11 @@ export class LevelSerializer {
               : `ent-${idx + 1}`,
           row:
             typeof e.row === 'number'
-              ? Math.max(0, Math.min(9, Math.trunc(e.row)))
+              ? Math.max(0, Math.min(gridSize - 1, Math.trunc(e.row)))
               : 1,
           col:
             typeof e.col === 'number'
-              ? Math.max(0, Math.min(9, Math.trunc(e.col)))
+              ? Math.max(0, Math.min(gridSize - 1, Math.trunc(e.col)))
               : 1,
           blueprintId: (e.blueprintId as EntityArchetypeId) || 'sentinel-bot',
           modelAssetId: e.modelAssetId,
@@ -351,8 +358,8 @@ export class LevelSerializer {
       typeof rawSpawn.row === 'number' &&
       typeof rawSpawn.col === 'number'
         ? {
-            row: Math.max(0, Math.min(9, Math.trunc(rawSpawn.row))),
-            col: Math.max(0, Math.min(9, Math.trunc(rawSpawn.col))),
+            row: Math.max(0, Math.min(gridSize - 1, Math.trunc(rawSpawn.row))),
+            col: Math.max(0, Math.min(gridSize - 1, Math.trunc(rawSpawn.col))),
             yaw: Number(rawSpawn.yaw) || 0,
           }
         : { row: 1, col: 1, yaw: Math.PI };
@@ -450,7 +457,7 @@ export class LevelSerializer {
       version: '2.0',
       formatVersion: 3,
       timestamp: new Date().toISOString(),
-      gridSize: ENGINE_CONFIG.GRID_SIZE,
+      gridSize: params.grid.length,
       nextEntityId,
       spawn: { ...params.spawn },
       minimapEnabled: params.minimapEnabled,

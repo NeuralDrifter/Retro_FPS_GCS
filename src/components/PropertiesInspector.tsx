@@ -53,6 +53,7 @@ export interface PropertiesInspectorProps {
   onToggleMinimap: () => void;
   onBorderWalls: () => void;
   onClearGrid: () => void;
+  onResizeMap: (size: number) => void;
 }
 
 type InspectorTabId = 'inspector' | 'assets' | 'world';
@@ -152,6 +153,8 @@ export const PropertiesInspector: React.FC<PropertiesInspectorProps> = (
             onToggleMinimap={props.onToggleMinimap}
             onBorderWalls={props.onBorderWalls}
             onClearGrid={props.onClearGrid}
+            gridSize={props.grid.length}
+            onResizeMap={props.onResizeMap}
           />
         )}
       </div>
