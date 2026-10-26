@@ -8,6 +8,7 @@ import {
   ensureFolderPath,
   filterModels,
   getFolderCategory,
+  mergeDiscoveredFolders,
   moveModelToFolder,
   renameFolder,
   resolveModelFolder,
@@ -209,13 +210,14 @@ describe('Model library state, filtering & variants', () => {
 
   it('parseModelDiskPath classifies category folders, custom folders and legacy root files', () => {
     const p = (rel: string) => parseModelDiskPath(`/src/assets/models/${rel}`);
-    assert.deepEqual(p('vehicles/cars/truck.glb'), { category: 'vehicles', folderPath: 'cars' });
-    assert.deepEqual(p('buildings/house.glb'), { category: 'buildings', folderPath: null });
-    assert.deepEqual(p('props/lamps/lamp.glb'), { category: 'decorations', folderPath: 'props/lamps' });
+    assert.deepEqual(p('vehicles/cars/truck.glb'), { category: 'vehicles', folderPath: 'cars', atRoot: false });
+    assert.deepEqual(p('buildings/house.glb'), { category: 'buildings', folderPath: null, atRoot: false });
+    assert.deepEqual(p('props/lamps/lamp.glb'), { category: 'decorations', folderPath: 'props/lamps', atRoot: true });
+    assert.deepEqual(p('decorations/props/lamp.glb'), { category: 'decorations', folderPath: 'props', atRoot: false });
     for (const file of ['prop_pillar.glb', 'crate_x.glb', 'static_x.glb', 'prop-x.glb']) {
-      assert.deepEqual(p(file), { category: 'decorations', folderPath: null }, file);
+      assert.deepEqual(p(file), { category: 'decorations', folderPath: null, atRoot: false }, file);
     }
-    assert.deepEqual(p('zombie_guard.glb'), { category: 'characters', folderPath: null });
+    assert.deepEqual(p('zombie_guard.glb'), { category: 'characters', folderPath: null, atRoot: false });
   });
 
   it('loadLibraryState falls back to an empty library when storage throws, holds bad JSON or a wrong version', () => {
@@ -271,5 +273,26 @@ describe('Model library state, filtering & variants', () => {
     assert.match(id, /^glb-[0-9a-f]{16}$/);
     assert.equal(uploadedModelId('tower.glb', 2048), id);
     assert.notEqual(uploadedModelId('tower.glb', 2049), id);
+  });
+
+  it('mergeDiscoveredFolders files disk models into category or root folders without overriding user moves', () => {
+    const assets = [
+      asset('glb-truck', { category: 'vehicles', folderPath: 'cars' }),
+      asset('glb-lamp', { category: 'decorations', folderPath: 'props/lamps', folderAtRoot: true }),
+      asset('glb-moved', { category: 'buildings', folderPath: 'town' }),
+      asset('glb-plain', { category: 'items' }),
+    ];
+    const start = moveModelToFolder(createEmptyLibraryState(), 'glb-moved', 'cat:vehicles');
+    const s = mergeDiscoveredFolders(start, assets);
+    const folder = (id: string) => s.folders.find((f) => f.id === s.modelFolder[id]);
+    assert.equal(folder('glb-truck')?.name, 'cars');
+    assert.equal(folder('glb-truck')?.parentId, 'cat:vehicles');
+    const lamps = folder('glb-lamp');
+    assert.equal(lamps?.name, 'lamps');
+    const props = s.folders.find((f) => f.id === lamps?.parentId);
+    assert.equal(props?.parentId, null);
+    assert.equal(s.modelFolder['glb-moved'], 'cat:vehicles');
+    assert.equal(s.modelFolder['glb-plain'], undefined);
+    assert.deepEqual(mergeDiscoveredFolders(s, assets), s);
   });
 });

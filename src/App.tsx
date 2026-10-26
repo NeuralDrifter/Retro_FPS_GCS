@@ -61,6 +61,7 @@ import { EventTriggerEditorModal } from './components/EventTriggerEditorModal';
 import { TopMenuBar } from './components/ide/TopMenuBar';
 import { LeftToolPalette } from './components/ide/LeftToolPalette';
 import { BottomStatusBar } from './components/ide/BottomStatusBar';
+import { useModelLibrary } from './components/inspector/modelLibrary/useModelLibrary';
 
 export default function App() {
   const initialPreset = MAP_PRESETS[0];
@@ -260,6 +261,23 @@ export default function App() {
   const [engineLog, setEngineLog] = useState<string>(
     'Ready — Click 2D grid to sculpt level (Ctrl+Z Undo / Ctrl+Y Redo) or click 3D viewport to fire.'
   );
+
+  // Global model library (folders, tags, per-model settings) shared by every level
+  const handleRestoredUploads = useCallback((restored: Model3DAsset[]) => {
+    setCustomModel3DAssets((prev) => {
+      const restoredIds = new Set(restored.map((m) => m.id));
+      return [...prev.filter((m) => !restoredIds.has(m.id)), ...restored];
+    });
+  }, []);
+  const handleRemoveModelAsset = useCallback((modelId: string) => {
+    setCustomModel3DAssets((prev) => prev.filter((m) => m.id !== modelId));
+  }, []);
+  const modelLibrary = useModelLibrary({
+    models: allModel3DAssets,
+    onLog: setEngineLog,
+    onRestoredUploads: handleRestoredUploads,
+    onRemoveModel: handleRemoveModelAsset,
+  });
 
   // --------------------------------------------------------------------------
   // 5. GLOBAL HISTORY MANAGEMENT SYSTEM (UNDO / REDO STACKS)
@@ -1274,7 +1292,10 @@ export default function App() {
             setToolMode('entity');
           }}
           onAddCustomModel3DAsset={(asset) => {
-            setCustomModel3DAssets((prev) => [...prev, asset]);
+            setCustomModel3DAssets((prev) => [
+              ...prev.filter((m) => m.id !== asset.id),
+              asset,
+            ]);
             setSelectedModelAssetId(asset.id);
             setToolMode('entity');
             setEngineLog(
@@ -1302,6 +1323,18 @@ export default function App() {
           onBorderWalls={handleBorderWalls}
           onClearGrid={handleClearGrid}
           onResizeMap={handleResizeMap}
+          libraryState={modelLibrary.libraryState}
+          onLibraryChange={modelLibrary.setLibraryState}
+          selectedVariantKey={modelLibrary.selectedVariant?.key ?? null}
+          onPickVariant={(variant) => {
+            modelLibrary.setSelectedVariant(variant);
+            setSelectedModelAssetId(variant.modelAssetId);
+            setToolMode('entity');
+          }}
+          onModelFileUploaded={modelLibrary.handleModelFileUploaded}
+          onRemoveUploadedModel={modelLibrary.handleRemoveUploadedModel}
+          onExportLibrary={modelLibrary.handleExportLibrary}
+          onImportLibraryFile={modelLibrary.handleImportLibraryFile}
         />
       )}
 

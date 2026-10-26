@@ -10,6 +10,7 @@ import {
 import { CellInspectorTab } from './inspector/CellInspectorTab';
 import { AssetLibraryTab } from './inspector/AssetLibraryTab';
 import { WorldSettingsTab } from './inspector/WorldSettingsTab';
+import type { ModelLibraryState, PlacementVariant } from '../types/modelLibrary';
 import { Globe, ImagePlus, Sliders } from 'lucide-react';
 
 export interface PropertiesInspectorProps {
@@ -54,6 +55,14 @@ export interface PropertiesInspectorProps {
   onBorderWalls: () => void;
   onClearGrid: () => void;
   onResizeMap: (size: number) => void;
+  libraryState: ModelLibraryState;
+  onLibraryChange: (next: ModelLibraryState) => void;
+  selectedVariantKey: string | null;
+  onPickVariant: (variant: PlacementVariant) => void;
+  onModelFileUploaded: (file: File, asset: Model3DAsset) => void;
+  onRemoveUploadedModel: (modelId: string) => void;
+  onExportLibrary: () => void;
+  onImportLibraryFile: (file: File) => void;
 }
 
 type InspectorTabId = 'inspector' | 'assets' | 'world';
@@ -138,6 +147,15 @@ export const PropertiesInspector: React.FC<PropertiesInspectorProps> = (
             selectedModelAssetId={props.selectedModelAssetId}
             onSelectModelAsset={props.onSelectModelAsset}
             onAddCustomModel3DAsset={props.onAddCustomModel3DAsset}
+            libraryState={props.libraryState}
+            onLibraryChange={props.onLibraryChange}
+            placedEntities={props.entities}
+            selectedVariantKey={props.selectedVariantKey}
+            onPickVariant={props.onPickVariant}
+            onModelFileUploaded={props.onModelFileUploaded}
+            onRemoveUploadedModel={props.onRemoveUploadedModel}
+            onExportLibrary={props.onExportLibrary}
+            onImportLibraryFile={props.onImportLibraryFile}
           />
         )}
 

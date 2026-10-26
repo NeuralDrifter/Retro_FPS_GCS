@@ -17,9 +17,11 @@ import { isModelCategoryId } from './categories';
 const MODELS_ROOT = '/src/assets/models/';
 const LEGACY_PROP_PREFIXES = ['prop_', 'prop-', 'crate_', 'static_'];
 
+/** `atRoot` is true when `folderPath` is a custom folder at the library root, not inside a category */
 export function parseModelDiskPath(globPath: string): {
   category: ModelCategoryId;
   folderPath: string | null;
+  atRoot: boolean;
 } {
   const rel = globPath.startsWith(MODELS_ROOT)
     ? globPath.slice(MODELS_ROOT.length)
@@ -29,7 +31,11 @@ export function parseModelDiskPath(globPath: string): {
 
   if (parts.length === 0) {
     const isProp = LEGACY_PROP_PREFIXES.some((p) => fileName.startsWith(p));
-    return { category: isProp ? 'decorations' : 'characters', folderPath: null };
+    return {
+      category: isProp ? 'decorations' : 'characters',
+      folderPath: null,
+      atRoot: false,
+    };
   }
 
   const [first, ...rest] = parts;
@@ -38,7 +44,8 @@ export function parseModelDiskPath(globPath: string): {
     return {
       category: firstLower,
       folderPath: rest.length > 0 ? rest.join('/') : null,
+      atRoot: false,
     };
   }
-  return { category: 'decorations', folderPath: parts.join('/') };
+  return { category: 'decorations', folderPath: parts.join('/'), atRoot: true };
 }
