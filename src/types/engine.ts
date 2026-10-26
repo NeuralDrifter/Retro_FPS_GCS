@@ -19,6 +19,7 @@ import type {
   VariableRegistrySpec,
 } from '../engine/sim/types';
 import { SIM_CONFIG } from '../engine/sim/types';
+import type { ModelCategoryId, ModelCollision } from './modelLibrary';
 
 export enum CellType {
   EMPTY = 0, // Walkable corridor / floor space
@@ -162,6 +163,16 @@ export interface Model3DAsset {
   accentHex: string;
   badgeText: string;
   customGlbUrl?: string;
+  /** World-building category (absent on legacy assets: resolved from isEnemy) */
+  category?: ModelCategoryId;
+  tags?: string[];
+  /** Slash path of the custom folder the model was found in on disk or in the manifest */
+  folderPath?: string;
+  collision?: ModelCollision;
+  footprintW?: number;
+  footprintD?: number;
+  /** Footprint in cells measured from the model's real size */
+  measuredFootprint?: { w: number; d: number };
 }
 
 /**
@@ -185,6 +196,13 @@ export interface PlacedEntity {
   tag?: number;
   patrol?: boolean;
   ambush?: boolean;
+  /** Resolved placement settings (absent on legacy entities) */
+  category?: ModelCategoryId;
+  collision?: ModelCollision;
+  footprintW?: number;
+  footprintD?: number;
+  /** True when the footprint was set by hand instead of measured */
+  footprintOverride?: boolean;
 }
 
 /**
