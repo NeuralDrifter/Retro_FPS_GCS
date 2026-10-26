@@ -1,0 +1,16 @@
+{
+  "name": "GridForge 3D Game Creation System",
+  "short_name": "GridForge 3D",
+  "description": "A modular no-code 3D Game Maker and deterministic first-person grid engine.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e1e1e",
+  "theme_color": "#0e639c",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
