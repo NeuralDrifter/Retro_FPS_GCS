@@ -39,12 +39,50 @@ export function recordToAsset(
 }
 
 /**
- * Library id for an uploaded file. It is derived from the file's name and size
- * (never from its temporary object URL), so levels keep resolving the model
- * after a reload restores it from this store.
+ * Library id for an uploaded file: `glb-` plus the first 16 hex digits of the
+ * SHA-256 of its contents. It never depends on the temporary object URL, so
+ * levels keep resolving the model after a reload restores it from this store,
+ * and two different files can not share an id.
  */
-export function uploadedModelId(fileName: string, fileSize: number): string {
-  return computeDeterministicAssetId('glb', `${fileName}:${fileSize}`);
+export async function uploadedModelId(bytes: ArrayBuffer): Promise<string> {
+  // Pages served over plain http on a LAN address have no crypto.subtle; hash the bytes as text instead
+  if (!globalThis.crypto?.subtle) {
+    const view = new Uint8Array(bytes);
+    let text = '';
+    for (let i = 0; i < view.length; i += 0x8000) {
+      text += String.fromCharCode(...view.subarray(i, i + 0x8000));
+    }
+    return computeDeterministicAssetId('glb', text);
+  }
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+  const hex = Array.from(digest.slice(0, 8), (b) => b.toString(16).padStart(2, '0'));
+  return `glb-${hex.join('')}`;
+}
+
+/** The id a record should have under the current scheme (content hash, or URL hash) */
+async function currentRecordId(record: UploadedModelRecord): Promise<string> {
+  if (record.blob) return uploadedModelId(await record.blob.arrayBuffer());
+  const url = record.meta.customGlbUrl;
+  return url ? computeDeterministicAssetId('glb', url) : record.id;
+}
+
+/**
+ * Gives every stored record its current-scheme id. `renamed` maps each old id
+ * to its new one; records that end up with the same id (the same file stored
+ * twice) are kept once.
+ */
+export async function rekeyUploadedRecords(records: UploadedModelRecord[]): Promise<{
+  records: UploadedModelRecord[];
+  renamed: Record<string, string>;
+}> {
+  const byId = new Map<string, UploadedModelRecord>();
+  const renamed: Record<string, string> = {};
+  for (const record of records) {
+    const id = await currentRecordId(record);
+    if (id !== record.id) renamed[record.id] = id;
+    if (!byId.has(id)) byId.set(id, { ...record, id, meta: { ...record.meta, id } });
+  }
+  return { records: [...byId.values()], renamed };
 }
 
 function openDb(): Promise<IDBDatabase | null> {
@@ -60,9 +98,19 @@ function openDb(): Promise<IDBDatabase | null> {
           request.result.createObjectStore(STORE_NAME, { keyPath: 'id' });
         }
       };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => resolve(null);
-      request.onblocked = () => resolve(null);
+      // A blocked open can still succeed later; that late connection is closed, not leaked
+      let settled = false;
+      const settle = (db: IDBDatabase | null) => {
+        if (settled) {
+          db?.close();
+          return;
+        }
+        settled = true;
+        resolve(db);
+      };
+      request.onsuccess = () => settle(request.result);
+      request.onerror = () => settle(null);
+      request.onblocked = () => settle(null);
     } catch {
       resolve(null);
     }

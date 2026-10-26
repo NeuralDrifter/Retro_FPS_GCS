@@ -105,6 +105,35 @@ describe('Model library & multi-cell placement', () => {
     );
   });
 
+  it('resolveEntityCategory puts the uncategorized supply crate in Items', () => {
+    assert.equal(
+      resolveEntityCategory({ blueprintId: 'supply-crate', isEnemy: false }),
+      'items'
+    );
+    assert.equal(
+      resolveEntityCategory({ blueprintId: 'supply-crate', category: 'buildings' }),
+      'buildings'
+    );
+  });
+
+  it('a character with a 3x2 footprint starts at the footprint center, where the 3D view draws it', () => {
+    const level = walkingLevel([
+      staticModel('ent-1', 3, 4, {
+        category: 'characters',
+        isEnemy: true,
+        footprintW: 3,
+        footprintD: 2,
+      }),
+    ]);
+    const ent = createInitialSimulationState(level, [0]).entities?.['ent-1'];
+    const anchor = gridToWorldUnits(3, 4, 16);
+    assert.equal(ent?.xUnits, anchor.xUnits + 1000);
+    assert.equal(ent?.zUnits, anchor.zUnits + 500);
+    assert.equal(ent?.row, 3);
+    assert.equal(ent?.col, 5);
+    assertNoFloatsInState(createInitialSimulationState(level, [0]));
+  });
+
   it('isStaticModel is false for legacy, characters and the supply crate', () => {
     assert.equal(isStaticModel({ blueprintId: 'custom-glb' }), false);
     assert.equal(

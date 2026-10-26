@@ -10,6 +10,8 @@
  */
 
 import { BAM_FULL_TURN, BAM_QUARTER_TURN } from './trigTable';
+import { gridToWorldUnits } from './raycast';
+import { SIM_CONFIG } from './types';
 
 export interface FootprintSource {
   row: number;
@@ -51,6 +53,27 @@ export function getFootprintRect(src: FootprintSource): {
   const row0 = Math.trunc(src.row);
   const col0 = Math.trunc(src.col);
   return { row0, col0, row1: row0 + d - 1, col1: col0 + w - 1 };
+}
+
+/**
+ * Center of `src`'s footprint in world units, plus the cell holding that
+ * center (the lower-index middle cell for even sizes). The 3D view draws
+ * every model at this point, so the simulation spawns characters here too.
+ */
+export function getFootprintCenter(
+  src: FootprintSource,
+  gridSize: number
+): { row: number; col: number; xUnits: number; zUnits: number } {
+  const rect = getFootprintRect(src);
+  const anchor = gridToWorldUnits(rect.row0, rect.col0, gridSize);
+  const spanRows = rect.row1 - rect.row0;
+  const spanCols = rect.col1 - rect.col0;
+  return {
+    row: rect.row0 + Math.trunc(spanRows / 2),
+    col: rect.col0 + Math.trunc(spanCols / 2),
+    xUnits: anchor.xUnits + Math.trunc((spanCols * SIM_CONFIG.CELL_UNITS) / 2),
+    zUnits: anchor.zUnits + Math.trunc((spanRows * SIM_CONFIG.CELL_UNITS) / 2),
+  };
 }
 
 /**

@@ -197,12 +197,41 @@ export function setModelSettings(
   };
 }
 
+/**
+ * Moves each model's folder, tags and settings from its old id to its new one
+ * (`renamed` maps old id to new). Returns `s` itself when nothing moves.
+ */
+export function remapLibraryModelIds(
+  s: ModelLibraryState,
+  renamed: Record<string, string>
+): ModelLibraryState {
+  const oldIds = Object.keys(renamed).filter(
+    (id) => id in s.modelFolder || id in s.modelTags || id in s.modelSettings
+  );
+  if (oldIds.length === 0) return s;
+  const move = <T>(byId: Record<string, T>): Record<string, T> => {
+    const out = { ...byId };
+    for (const oldId of oldIds) {
+      if (!(oldId in out)) continue;
+      if (!(renamed[oldId] in out)) out[renamed[oldId]] = out[oldId];
+      delete out[oldId];
+    }
+    return out;
+  };
+  return {
+    ...s,
+    modelFolder: move(s.modelFolder),
+    modelTags: move(s.modelTags),
+    modelSettings: move(s.modelSettings),
+  };
+}
+
 /** Folder a model shows in: stored placement, else its category, else its legacy category */
 export function resolveModelFolder(s: ModelLibraryState, asset: Model3DAsset): string {
   const stored = s.modelFolder[asset.id];
   if (stored && s.folders.some((f) => f.id === stored)) return stored;
   const category =
-    asset.category ?? resolveEntityCategory({ isEnemy: asset.isEnemy });
+    asset.category ?? resolveEntityCategory(asset);
   return categoryFolderId(category);
 }
 
@@ -224,7 +253,7 @@ export function resolveModelSettings(
   const category =
     stored.category ??
     asset.category ??
-    resolveEntityCategory({ isEnemy: asset.isEnemy });
+    resolveEntityCategory(asset);
   const info = getCategoryInfo(category);
   const scale = stored.scale ?? 1;
   const measured =
@@ -303,7 +332,7 @@ export function mergeDiscoveredFolders(
   for (const asset of assets) {
     if (!asset.folderPath || state.modelFolder[asset.id]) continue;
     const category =
-      asset.category ?? resolveEntityCategory({ isEnemy: asset.isEnemy });
+      asset.category ?? resolveEntityCategory(asset);
     const { state: withFolder, folderId } = ensureFolderPath(
       state,
       asset.folderAtRoot ? null : categoryFolderId(category),

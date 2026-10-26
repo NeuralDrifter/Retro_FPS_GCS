@@ -75,3 +75,21 @@ export function entitiesFittingGrid(
 ): PlacedEntity[] {
   return entities.filter((e) => rectFits(getEntityRect(e), gridSize));
 }
+
+/**
+ * Points placed copies at their model's new id (`renamed` maps old id to new).
+ * Returns `entities` itself when no copy uses a renamed model.
+ */
+export function remapEntityModelIds(
+  entities: PlacedEntity[],
+  renamed: Record<string, string>
+): PlacedEntity[] {
+  let changed = false;
+  const next = entities.map((e) => {
+    const newId = e.modelAssetId ? renamed[e.modelAssetId] : undefined;
+    if (!newId) return e;
+    changed = true;
+    return { ...e, modelAssetId: newId };
+  });
+  return changed ? next : entities;
+}

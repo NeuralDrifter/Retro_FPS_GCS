@@ -11,6 +11,7 @@ import {
   measuredFootprintAtScale,
   mergeDiscoveredFolders,
   moveModelToFolder,
+  remapLibraryModelIds,
   renameFolder,
   resolveModelFolder,
   resolveModelSettings,
@@ -22,6 +23,7 @@ import {
   entitiesFittingGrid,
   findPlacementConflicts,
   getEntitiesCoveringCell,
+  remapEntityModelIds,
 } from '../modelLibrary/placement';
 import { parseModelDiskPath } from '../modelLibrary/diskPaths';
 import {
@@ -36,8 +38,10 @@ import {
   getAllUploadedModels,
   putUploadedModel,
   recordToAsset,
+  rekeyUploadedRecords,
   uploadedModelId,
 } from '../modelLibrary/uploadStore';
+import { computeDeterministicAssetId } from '../AssetRegistry';
 
 function asset(id: string, extra: Partial<Model3DAsset> = {}): Model3DAsset {
   return {
@@ -275,11 +279,71 @@ describe('Model library state, filtering & variants', () => {
     assert.equal(await deleteUploadedModel('glb-a'), false);
   });
 
-  it('uploadedModelId depends only on the file name and size, so it is stable across reloads', () => {
-    const id = uploadedModelId('tower.glb', 2048);
+  it('uploadedModelId hashes the file contents, so same-size files with one name still differ', async () => {
+    const bytes = (text: string) => new TextEncoder().encode(text).buffer as ArrayBuffer;
+    const id = await uploadedModelId(bytes('tower-a'));
     assert.match(id, /^glb-[0-9a-f]{16}$/);
-    assert.equal(uploadedModelId('tower.glb', 2048), id);
-    assert.notEqual(uploadedModelId('tower.glb', 2049), id);
+    assert.equal(await uploadedModelId(bytes('tower-a')), id);
+    assert.notEqual(await uploadedModelId(bytes('tower-b')), id);
+  });
+
+  it('rekeyUploadedRecords moves records stored under old ids to their content ids', async () => {
+    const blob = new Blob(['tower-a']);
+    const fileId = await uploadedModelId(await blob.arrayBuffer());
+    const urlId = computeDeterministicAssetId('glb', 'https://x.test/car.glb');
+    const { records, renamed } = await rekeyUploadedRecords([
+      { id: 'glb-oldname0000000', name: 'tower.glb', blob, meta: {} },
+      { id: 'glb-oldcopy0000000', name: 'copy.glb', blob: new Blob(['tower-a']), meta: {} },
+      { id: urlId, name: 'car', blob: null, meta: { customGlbUrl: 'https://x.test/car.glb' } },
+    ]);
+    assert.deepEqual(renamed, {
+      'glb-oldname0000000': fileId,
+      'glb-oldcopy0000000': fileId,
+    });
+    assert.deepEqual(records.map((r) => r.id), [fileId, urlId]);
+  });
+
+  it('remapLibraryModelIds moves folder, tags and settings to the new ids', () => {
+    let s = moveModelToFolder(createEmptyLibraryState(), 'glb-old', 'cat:vehicles');
+    s = setModelTags(s, 'glb-old', ['red']);
+    s = setModelSettings(s, 'glb-old', { scale: 2 });
+    const next = remapLibraryModelIds(s, { 'glb-old': 'glb-new' });
+    assert.equal(next.modelFolder['glb-new'], 'cat:vehicles');
+    assert.deepEqual(next.modelTags['glb-new'], ['red']);
+    assert.equal(next.modelSettings['glb-new']?.scale, 2);
+    assert.equal(next.modelFolder['glb-old'], undefined);
+    assert.equal(remapLibraryModelIds(s, {}), s);
+  });
+
+  it('remapEntityModelIds points placed copies at the new ids and keeps others untouched', () => {
+    const ents = [placed('a', { modelAssetId: 'glb-old' }), placed('b')];
+    const next = remapEntityModelIds(ents, { 'glb-old': 'glb-new' });
+    assert.equal(next[0].modelAssetId, 'glb-new');
+    assert.equal(next[1], ents[1]);
+    assert.equal(remapEntityModelIds(ents, { 'glb-zzz': 'glb-new' }), ents);
+  });
+
+  it('a database open that is blocked and then succeeds closes the late connection', async () => {
+    let closed = 0;
+    const g = globalThis as { indexedDB?: unknown };
+    const previous = g.indexedDB;
+    g.indexedDB = {
+      open() {
+        const request: Record<string, unknown> = {};
+        queueMicrotask(() => {
+          (request.onblocked as () => void)();
+          request.result = { close: () => (closed += 1) };
+          (request.onsuccess as () => void)();
+        });
+        return request;
+      },
+    };
+    try {
+      assert.deepEqual(await getAllUploadedModels(), []);
+      assert.equal(closed, 1);
+    } finally {
+      g.indexedDB = previous;
+    }
   });
 
   it('mergeDiscoveredFolders files disk models into category or root folders without overriding user moves', () => {

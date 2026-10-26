@@ -4,7 +4,8 @@
  * ============================================================================
  * Built-in world-building categories and the defaults each one gives a model.
  * Entities saved before categories existed have no `category`; they resolve to
- * 'characters' (or 'decorations' when not an enemy) and keep legacy behavior.
+ * 'characters' (or 'decorations' when not an enemy, 'items' for the supply
+ * crate) and keep legacy behavior.
  */
 
 import type {
@@ -62,8 +63,10 @@ export function getCategoryInfo(id: ModelCategoryId): ModelCategoryInfo {
 export function resolveEntityCategory(e: {
   category?: ModelCategoryId;
   isEnemy?: boolean;
+  blueprintId?: string;
 }): ModelCategoryId {
   if (e.category) return e.category;
+  if (e.blueprintId === 'supply-crate') return 'items';
   return e.isEnemy === false ? 'decorations' : 'characters';
 }
 

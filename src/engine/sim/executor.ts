@@ -45,7 +45,11 @@ import {
   worldUnitsToGrid,
 } from './raycast';
 import { normalizeEventsToIntegerTicks } from './validator';
-import { buildSolidFootprintGrid, isStaticFootprintSource } from './footprint';
+import {
+  buildSolidFootprintGrid,
+  getFootprintCenter,
+  isStaticFootprintSource,
+} from './footprint';
 
 interface QueuedTriggerEvent {
   type: EventDefinition['trigger']['type'];
@@ -293,7 +297,8 @@ export function createInitialSimulationState(
     for (const ent of level.entities) {
       // Static models only affect the world through their footprint
       if (isStaticFootprintSource(ent)) continue;
-      const world = gridToWorldUnits(ent.row, ent.col, gridSize);
+      // Characters wider than one cell stand at their footprint's center
+      const center = getFootprintCenter(ent, gridSize);
       entities[ent.id] = {
         id: ent.id,
         blueprintId: ent.blueprintId,
@@ -305,11 +310,11 @@ export function createInitialSimulationState(
             : ent.blueprintId === 'turret-guardian'
             ? 'Heavy Mech Stalker'
             : 'Supply Crate'),
-        row: Math.trunc(ent.row),
-        col: Math.trunc(ent.col),
-        xUnits: world.xUnits,
-        zUnits: world.zUnits,
-        yUnits: floorHeights[ent.row]?.[ent.col] ?? 0,
+        row: center.row,
+        col: center.col,
+        xUnits: center.xUnits,
+        zUnits: center.zUnits,
+        yUnits: floorHeights[center.row]?.[center.col] ?? 0,
         yawBam: normalizeBam(ent.yawBam || 0),
         health: Math.max(1, Math.trunc(ent.maxHealth ?? 75)),
         maxHealth: Math.max(1, Math.trunc(ent.maxHealth ?? 75)),
