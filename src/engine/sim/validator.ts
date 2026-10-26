@@ -24,6 +24,11 @@ import {
 } from './types';
 import { findFloatPaths } from './hash';
 import {
+  FootprintSource,
+  getFootprintRect,
+  isStaticFootprintSource,
+} from './footprint';
+import {
   BUILTIN_MODEL_IDS,
   BUILTIN_SOUND_IDS,
   BUILTIN_TEXTURE_IDS,
@@ -418,6 +423,80 @@ export function normalizeEventsToIntegerTicks(
 /**
  * Validates a `LevelDataV3` object (or parsed JSON) against the strict schema.
  */
+const ENTITY_CATEGORIES = new Set([
+  'characters',
+  'decorations',
+  'items',
+  'buildings',
+  'vehicles',
+]);
+
+/** Checks an entity's optional category, collision and footprint fields */
+function validateEntityPlacement(
+  ent: Record<string, unknown>,
+  ePath: string,
+  gridSize: number,
+  errors: ValidationErrorItem[]
+): void {
+  if (ent.category !== undefined && !ENTITY_CATEGORIES.has(ent.category as string)) {
+    errors.push({
+      path: `${ePath}.category`,
+      code: 'INVALID_CATEGORY',
+      message: `Entity '${String(ent.id)}' category '${String(ent.category)}' is not a known category.`,
+    });
+  }
+  if (
+    ent.collision !== undefined &&
+    ent.collision !== 'solid' &&
+    ent.collision !== 'nonSolid'
+  ) {
+    errors.push({
+      path: `${ePath}.collision`,
+      code: 'INVALID_COLLISION',
+      message: `Entity '${String(ent.id)}' collision must be 'solid' or 'nonSolid'.`,
+    });
+  }
+  if (ent.footprintOverride !== undefined && typeof ent.footprintOverride !== 'boolean') {
+    errors.push({
+      path: `${ePath}.footprintOverride`,
+      code: 'INVALID_FOOTPRINT',
+      message: `Entity '${String(ent.id)}' footprintOverride must be a boolean.`,
+    });
+  }
+
+  let footprintValid = true;
+  for (const key of ['footprintW', 'footprintD'] as const) {
+    const v = ent[key];
+    if (v === undefined) continue;
+    if (!isSafeInt(v) || v < 1 || v > SIM_CONFIG.MAX_FOOTPRINT_CELLS) {
+      footprintValid = false;
+      errors.push({
+        path: `${ePath}.${key}`,
+        code: 'INVALID_FOOTPRINT',
+        message: `Entity '${String(ent.id)}' ${key} must be an integer in [1, ${SIM_CONFIG.MAX_FOOTPRINT_CELLS}].`,
+      });
+    }
+  }
+
+  if (footprintValid && isSafeInt(ent.row) && isSafeInt(ent.col)) {
+    const rect = getFootprintRect({
+      row: ent.row as number,
+      col: ent.col as number,
+      footprintW: ent.footprintW as number | undefined,
+      footprintD: ent.footprintD as number | undefined,
+      yawBam: isSafeInt(ent.yawBam) ? (ent.yawBam as number) : 0,
+      blueprintId: String(ent.blueprintId),
+    });
+    if (rect.row1 >= gridSize || rect.col1 >= gridSize) {
+      errors.push({
+        path: ePath,
+        code: 'OUT_OF_RANGE_FOOTPRINT',
+        message: `Entity '${String(ent.id)}' footprint extends past the map edge.`,
+      });
+    }
+  }
+}
+
 export function validateLevelDataV3(
   input: unknown,
   options: ValidatorOptions = {},
@@ -649,11 +728,25 @@ export function validateLevelDataV3(
       message: 'entities must be an array.',
     });
   } else {
-    if (input.entities.length > SIM_CONFIG.MAX_ENTITIES) {
+    // Static models (decorations, items, buildings, vehicles) have their own, larger budget
+    const staticCount = input.entities.filter(
+      (ent) =>
+        isPlainObject(ent) &&
+        isStaticFootprintSource(ent as unknown as FootprintSource)
+    ).length;
+    const characterCount = input.entities.length - staticCount;
+    if (characterCount > SIM_CONFIG.MAX_ENTITIES) {
       errors.push({
         path: '$.entities',
         code: 'BUDGET_EXCEEDED',
-        message: `entities count (${input.entities.length}) exceeds MAX_ENTITIES (${SIM_CONFIG.MAX_ENTITIES}).`,
+        message: `character entities count (${characterCount}) exceeds MAX_ENTITIES (${SIM_CONFIG.MAX_ENTITIES}).`,
+      });
+    }
+    if (staticCount > SIM_CONFIG.MAX_STATIC_MODELS) {
+      errors.push({
+        path: '$.entities',
+        code: 'BUDGET_EXCEEDED',
+        message: `static model count (${staticCount}) exceeds MAX_STATIC_MODELS (${SIM_CONFIG.MAX_STATIC_MODELS}).`,
       });
     }
     input.entities.forEach((ent, idx) => {
@@ -684,6 +777,11 @@ export function validateLevelDataV3(
           'tag',
           'patrol',
           'ambush',
+          'category',
+          'collision',
+          'footprintW',
+          'footprintD',
+          'footprintOverride',
         ],
         ePath,
         errors
@@ -732,6 +830,7 @@ export function validateLevelDataV3(
           message: `Entity '${String(ent.id)}' scalePct must be an integer in [10, 500].`,
         });
       }
+      validateEntityPlacement(ent, ePath, gridSize, errors);
       if (
         ent.modelAssetId !== undefined &&
         (typeof ent.modelAssetId !== 'string' ||

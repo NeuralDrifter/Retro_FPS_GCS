@@ -7,11 +7,40 @@ import {
 } from '../modelLibrary/categories';
 import { measuredFootprintFromSize } from '../modelLibrary/footprint';
 import {
+  SimPlacedEntityV3,
   buildSolidFootprintGrid,
   getFootprintRect,
   quarterTurnsFromBam,
   rotatedFootprint,
+  validateLevelDataV3,
 } from '../sim';
+import { LevelSerializer } from '../LevelSerializer';
+import { createSizedTestLevelV3 } from './testLevels';
+
+function staticModel(
+  id: string,
+  row: number,
+  col: number,
+  extra: Partial<SimPlacedEntityV3> = {}
+): SimPlacedEntityV3 {
+  return {
+    id,
+    row,
+    col,
+    blueprintId: 'custom-glb',
+    yawBam: 0,
+    scalePct: 100,
+    category: 'buildings',
+    collision: 'solid',
+    footprintW: 1,
+    footprintD: 1,
+    ...extra,
+  };
+}
+
+function errorCodes(level: unknown): string[] {
+  return validateLevelDataV3(level).errors.map((e) => e.code);
+}
 
 describe('Model library & multi-cell placement', () => {
   // ==========================================================================
@@ -107,5 +136,88 @@ describe('Model library & multi-cell placement', () => {
     assert.deepEqual(measuredFootprintFromSize(9, 4.1), { w: 3, d: 2 });
     assert.deepEqual(measuredFootprintFromSize(0, Number.NaN), { w: 1, d: 1 });
     assert.deepEqual(measuredFootprintFromSize(1600, 1), { w: 16, d: 1 });
+  });
+
+  // ==========================================================================
+  // LEVEL FORMAT, VALIDATOR & SERIALIZER
+  // ==========================================================================
+  it('validator accepts a solid 3x2 building and 600 static decorations', () => {
+    const level = createSizedTestLevelV3(64, { row: 2, col: 2 });
+    level.entities = [staticModel('ent-1', 10, 10, { footprintW: 3, footprintD: 2 })];
+    for (let i = 0; i < 600; i++) {
+      level.entities.push(
+        staticModel(`ent-${i + 2}`, 20 + Math.floor(i / 40), 5 + (i % 40), {
+          category: 'decorations',
+          collision: 'nonSolid',
+        })
+      );
+    }
+    const res = validateLevelDataV3(level);
+    assert.equal(res.valid, true, JSON.stringify(res.errors.slice(0, 3)));
+  });
+
+  it('validator rejects bad category, collision, footprint size and footprint past the edge', () => {
+    const withEntity = (e: SimPlacedEntityV3) => {
+      const level = createSizedTestLevelV3(10, { row: 2, col: 2 });
+      level.entities = [e];
+      return level;
+    };
+    assert.ok(errorCodes(withEntity(staticModel('ent-1', 4, 4, { category: 'tank' as never }))).includes('INVALID_CATEGORY'));
+    assert.ok(errorCodes(withEntity(staticModel('ent-1', 4, 4, { collision: 'ghost' as never }))).includes('INVALID_COLLISION'));
+    assert.ok(errorCodes(withEntity(staticModel('ent-1', 4, 4, { footprintW: 17 }))).includes('INVALID_FOOTPRINT'));
+    assert.ok(errorCodes(withEntity(staticModel('ent-1', 4, 9, { footprintW: 3 }))).includes('OUT_OF_RANGE_FOOTPRINT'));
+  });
+
+  it('validator caps characters at MAX_ENTITIES separately from static models', () => {
+    const level = createSizedTestLevelV3(64, { row: 2, col: 2 });
+    level.entities = Array.from({ length: 513 }, (_, i) =>
+      staticModel(`ent-${i + 1}`, 3 + Math.floor(i / 50), 3 + (i % 50), {
+        category: 'characters',
+      })
+    );
+    assert.ok(errorCodes(level).includes('BUDGET_EXCEEDED'));
+  });
+
+  it('serializer round-trips placement fields and leaves legacy entities without them', () => {
+    const level = createSizedTestLevelV3(16, { row: 2, col: 2 });
+    const serialized = LevelSerializer.serializeLevel({
+      grid: level.grid,
+      wallTextures: level.wallTextures,
+      floorTextures: level.floorTextures,
+      ceilingTextures: level.ceilingTextures,
+      customTextures: [],
+      entities: [
+        {
+          id: 'ent-1', row: 5, col: 5, blueprintId: 'custom-glb', name: 'House', yaw: 0, scale: 1,
+          category: 'buildings', collision: 'solid', footprintW: 3, footprintD: 2, footprintOverride: true,
+        },
+        { id: 'ent-2', row: 9, col: 9, blueprintId: 'sentinel-bot', name: 'Bot', yaw: 0, scale: 1 },
+      ],
+      spawn: { row: 2, col: 2, yaw: 0 },
+      skyboxTheme: 'retro-nebula',
+      skyboxSeed: 1,
+      showCeiling: false,
+      minimapEnabled: true,
+    });
+    const restored = LevelSerializer.parseLevelJson(JSON.stringify(serialized));
+    const house = restored.entities.find((e) => e.id === 'ent-1')!;
+    assert.equal(house.category, 'buildings');
+    assert.equal(house.collision, 'solid');
+    assert.equal(house.footprintW, 3);
+    assert.equal(house.footprintD, 2);
+    assert.equal(house.footprintOverride, true);
+    const bot = restored.entities.find((e) => e.id === 'ent-2')!;
+    assert.equal(bot.category, undefined);
+    assert.equal(bot.collision, undefined);
+    assert.equal(bot.footprintW, undefined);
+  });
+
+  it('parseLevelJson names a missing model asset in its error', () => {
+    const level = createSizedTestLevelV3(10, { row: 2, col: 2 });
+    level.entities = [staticModel('ent-1', 4, 4, { modelAssetId: 'glb-0000000000000000' })];
+    assert.throws(
+      () => LevelSerializer.parseLevelJson(JSON.stringify(level)),
+      /glb-0000000000000000/
+    );
   });
 });
