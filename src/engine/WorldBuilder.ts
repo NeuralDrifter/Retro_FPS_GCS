@@ -30,6 +30,9 @@ import { CollisionSystem } from './CollisionSystem';
 import { TextureGenerator } from './TextureGenerator';
 import { EntityLoader } from './EntityLoader';
 import { EnemyAISystem } from './EnemyAISystem';
+import { isStaticModel } from './modelLibrary/categories';
+import { getFootprintRect } from './sim/footprint';
+import { radiansToBam } from './sim/trigTable';
 
 /** Cells per side of one batched chunk; chunks keep frustum culling and raycasts local */
 const CHUNK_CELLS = 16;
@@ -158,6 +161,8 @@ export interface WorldBuildResult {
   ceilingLayer: InstancedCellLayer | null;
   enemyAI: EnemyAISystem;
   wallCount: number;
+  /** Root groups of solid static models (also appended to `wallMeshes` as they load) */
+  staticSolidMeshes: THREE.Object3D[];
 }
 
 export class WorldBuilder {
@@ -474,21 +479,39 @@ export class WorldBuilder {
     entitiesContainer.name = 'Pie3D_EntitiesContainer';
     worldGroup.add(entitiesContainer);
 
-    entities.forEach((entity) => {
-      if (grid[entity.row]?.[entity.col] === CellType.WALL) return;
+    const staticSolidMeshes: THREE.Object3D[] = [];
 
-      const worldPos = CollisionSystem.gridToWorld(
-        entity.row,
-        entity.col,
+    entities.forEach((entity) => {
+      const isStatic = isStaticModel(entity);
+      if (!isStatic && grid[entity.row]?.[entity.col] === CellType.WALL) return;
+
+      // Static models sit centered on their whole footprint rectangle
+      const rect = getFootprintRect({
+        ...entity,
+        yawBam: radiansToBam(entity.yaw || 0),
+      });
+      const anchorWorld = CollisionSystem.gridToWorld(
+        rect.row0,
+        rect.col0,
         gridSize
       );
+      const worldPos = {
+        x: anchorWorld.x + ((rect.col1 - rect.col0) * cellSize) / 2,
+        z: anchorWorld.z + ((rect.row1 - rect.row0) * cellSize) / 2,
+      };
       EntityLoader.loadEntityInstance(
         entity,
         worldPos,
         options.showWireframe
       ).then((spawned) => {
         entitiesContainer.add(spawned.rootGroup);
-        enemyAI.registerEntity(spawned);
+        if (!isStatic) {
+          enemyAI.registerEntity(spawned);
+        } else if (entity.collision === 'solid') {
+          // Solid static models block shots and enemy line of sight like walls
+          staticSolidMeshes.push(spawned.rootGroup);
+          wallMeshes.push(spawned.rootGroup);
+        }
       });
     });
 
@@ -524,6 +547,7 @@ export class WorldBuilder {
       ceilingLayer,
       enemyAI,
       wallCount,
+      staticSolidMeshes,
     };
   }
 

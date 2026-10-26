@@ -53,18 +53,21 @@ export class CollisionSystem {
    * Checks whether a given grid cell blocks player movement.
    *  - Solid Walls (CellType.WALL = 1) are always solid.
    *  - Locked Doors (CellType.DOOR = 2) are solid until opened.
+   *  - Cells covered by a static solid model (`solidFootprint > 0`) are solid.
    */
   public static isCellSolid(
     grid: number[][],
     row: number,
     col: number,
-    openDoors: Set<string>
+    openDoors: Set<string>,
+    solidFootprint?: number[][]
   ): boolean {
     if (row < 0 || row >= grid.length || col < 0 || col >= grid.length) {
       return true; // Out-of-bounds world perimeter acts as solid barrier
     }
     const cell = grid[row]?.[col] ?? CellType.WALL;
     if (cell === CellType.WALL) return true;
+    if ((solidFootprint?.[row]?.[col] ?? 0) > 0) return true;
     if (cell === CellType.DOOR) {
       return !openDoors.has(`${row},${col}`);
     }
@@ -80,7 +83,8 @@ export class CollisionSystem {
     worldZ: number,
     radius: number,
     grid: number[][],
-    openDoors: Set<string>
+    openDoors: Set<string>,
+    solidFootprint?: number[][]
   ): boolean {
     const gridSize = grid.length;
     const halfWorld = (gridSize * ENGINE_CONFIG.CELL_SIZE) / 2;
@@ -102,7 +106,7 @@ export class CollisionSystem {
     // Inspect 3x3 neighboring grid squares around the player
     for (let r = centerCell.row - 1; r <= centerCell.row + 1; r++) {
       for (let c = centerCell.col - 1; c <= centerCell.col + 1; c++) {
-        if (!this.isCellSolid(grid, r, c, openDoors)) continue;
+        if (!this.isCellSolid(grid, r, c, openDoors, solidFootprint)) continue;
 
         const cellCenter = this.gridToWorld(r, c, gridSize);
         const minX = cellCenter.x - halfCell;
@@ -137,7 +141,8 @@ export class CollisionSystem {
     dz: number,
     grid: number[][],
     openDoors: Set<string>,
-    collisionEnabled = true
+    collisionEnabled = true,
+    solidFootprint?: number[][]
   ): { x: number; z: number; hitWall: boolean } {
     if (!collisionEnabled) {
       return { x: currX + dx, z: currZ + dz, hitWall: false };
@@ -149,14 +154,18 @@ export class CollisionSystem {
     let hitWall = false;
 
     // 1. Try advancing along World X
-    if (!this.checkCircleCollision(currX + dx, currZ, r, grid, openDoors)) {
+    if (
+      !this.checkCircleCollision(currX + dx, currZ, r, grid, openDoors, solidFootprint)
+    ) {
       nextX = currX + dx;
     } else {
       hitWall = true;
     }
 
     // 2. Try advancing along World Z using resolved X
-    if (!this.checkCircleCollision(nextX, currZ + dz, r, grid, openDoors)) {
+    if (
+      !this.checkCircleCollision(nextX, currZ + dz, r, grid, openDoors, solidFootprint)
+    ) {
       nextZ = currZ + dz;
     } else {
       hitWall = true;

@@ -25,6 +25,7 @@ import {
   PlacedEntity,
 } from '../types/engine';
 import { AssetRegistry } from './AssetRegistry';
+import { isStaticModel } from './modelLibrary/categories';
 
 export interface EntityMaterialSnapshot {
   material: THREE.MeshStandardMaterial;
@@ -99,12 +100,15 @@ export class EntityLoader {
     const bp = DEFAULT_ENTITY_BLUEPRINTS.find(
       (b) => b.id === entity.blueprintId
     );
-    const isEnemy =
-      typeof entity.isEnemy === 'boolean'
-        ? entity.isEnemy
-        : bp
-        ? bp.isEnemy
-        : entity.blueprintId !== 'supply-crate';
+    // Static models (decorations, items, buildings, vehicles) never fight or move
+    const isStatic = isStaticModel(entity);
+    const isEnemy = isStatic
+      ? false
+      : typeof entity.isEnemy === 'boolean'
+      ? entity.isEnemy
+      : bp
+      ? bp.isEnemy
+      : entity.blueprintId !== 'supply-crate';
     const maxHealth = entity.maxHealth ?? bp?.defaultHealth ?? 75;
     const moveSpeed = entity.moveSpeed ?? bp?.moveSpeed ?? (isEnemy ? 4.5 : 0);
     const attackDamage =
@@ -173,10 +177,19 @@ export class EntityLoader {
       }
     });
 
-    // 4. Normalize scale & ground bottom-center pivot at y = 0 inside a pivot group
+    // 4. Size & ground bottom-center pivot at y = 0 inside a pivot group:
+    //    characters and built-in models are normalized to a fixed height,
+    //    static custom models keep their real glTF size times their scale
     const targetHeight =
       entity.blueprintId === 'supply-crate' ? 1.5 : 2.55;
-    this.normalizeAndGroundModel(clonedModel, targetHeight * (entity.scale || 1));
+    if (isStatic && entity.blueprintId === 'custom-glb') {
+      this.groundModelAtScale(clonedModel, entity.scale || 1);
+    } else {
+      this.normalizeAndGroundModel(
+        clonedModel,
+        targetHeight * (entity.scale || 1)
+      );
+    }
 
     const modelGroup = new THREE.Group();
     modelGroup.name = `ModelPivot_${entity.id}`;
@@ -206,6 +219,7 @@ export class EntityLoader {
     const baseRing = new THREE.Mesh(baseRingGeo, baseRingMat);
     baseRing.rotation.x = -Math.PI / 2;
     baseRing.position.y = 0.025;
+    baseRing.visible = !isStatic;
     rootGroup.add(baseRing);
 
     rootGroup.add(modelGroup);
@@ -324,6 +338,48 @@ export class EntityLoader {
       animations:
         parsedGltf.animations.length > 0 ? parsedGltf.animations : animations,
     };
+  }
+
+  /**
+   * Measures a `.glb` model's native size in meters (unscaled), or returns
+   * `null` when it cannot be loaded. Reuses the shared asset cache.
+   */
+  public static async measureModelSize(
+    glbUrl: string
+  ): Promise<{ width: number; depth: number; height: number } | null> {
+    const cacheKey = `url:${glbUrl}`;
+    if (!this.assetCache.has(cacheKey)) {
+      this.assetCache.set(
+        cacheKey,
+        this.fetchOrGenerateGltfAsset('custom-glb', glbUrl)
+      );
+    }
+    try {
+      const cached = await this.assetCache.get(cacheKey)!;
+      cached.scene.updateMatrixWorld(true);
+      const size = new THREE.Box3()
+        .setFromObject(cached.scene)
+        .getSize(new THREE.Vector3());
+      if (![size.x, size.y, size.z].every(Number.isFinite)) return null;
+      return { width: size.x, depth: size.z, height: size.y };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Scales a model uniformly by `scale` (keeping its real size), centers it on
+   * X/Z, and shifts its bottom bounding plane to sit flush at `y = 0`.
+   */
+  private static groundModelAtScale(model: THREE.Object3D, scale: number): void {
+    model.scale.multiplyScalar(scale);
+    model.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(model);
+    if (box.isEmpty()) return;
+    const center = box.getCenter(new THREE.Vector3());
+    model.position.x -= center.x;
+    model.position.z -= center.z;
+    model.position.y -= box.min.y;
   }
 
   /**

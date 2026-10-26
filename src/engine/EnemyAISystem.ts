@@ -199,7 +199,8 @@ export class EnemyAISystem {
     callbacks: {
       onPlayerDamaged: (damage: number, attackerName: string) => void;
       onAmmoCollected: (amount: number) => void;
-    }
+    },
+    solidFootprint?: number[][]
   ): void {
     this.playerEyePos.set(
       playerPos.x,
@@ -368,7 +369,8 @@ export class EnemyAISystem {
             stepZ,
             grid,
             openDoors,
-            true
+            true,
+            solidFootprint
           );
 
           rootPos.x = resolved.x;
