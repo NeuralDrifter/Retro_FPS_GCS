@@ -96,6 +96,8 @@ export function castGridRayDDA(params: {
   maxDistanceUnits: number;
   grid: number[][];
   movers?: Record<string, MoverSimState>;
+  /** Cells covered by static solid models stop the ray like walls */
+  solidFootprint?: number[][];
   eyeHeightUnits?: number;
   floorHeights?: number[][];
   ceilingHeights?: number[][];
@@ -231,7 +233,10 @@ export function castGridRayDDA(params: {
 
     const cellType = params.grid[mapRow]?.[mapCol] ?? SimCellType.EMPTY;
 
-    if (cellType === SimCellType.WALL) {
+    if (
+      cellType === SimCellType.WALL ||
+      (params.solidFootprint?.[mapRow]?.[mapCol] ?? 0) > 0
+    ) {
       return {
         hit: true,
         hitKind: 'wall',

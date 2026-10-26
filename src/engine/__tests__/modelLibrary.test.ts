@@ -7,8 +7,17 @@ import {
 } from '../modelLibrary/categories';
 import { measuredFootprintFromSize } from '../modelLibrary/footprint';
 import {
+  LevelDataV3,
   SimPlacedEntityV3,
+  SimulationState,
+  assertNoFloatsInState,
   buildSolidFootprintGrid,
+  castGridRayDDA,
+  cloneSimulationState,
+  gridToWorldUnits,
+  createInitialSimulationState,
+  step,
+  validateSimulationState,
   getFootprintRect,
   quarterTurnsFromBam,
   rotatedFootprint,
@@ -36,6 +45,32 @@ function staticModel(
     footprintD: 1,
     ...extra,
   };
+}
+
+/** 16x16 walled level with the player at row 8 col 2 facing East (+X) */
+function walkingLevel(entities: SimPlacedEntityV3[]): LevelDataV3 {
+  const level = createSizedTestLevelV3(16, { row: 8, col: 2 });
+  level.spawn.yawBam = 49152;
+  level.entities = entities;
+  return level;
+}
+
+function walkEast(sim: SimulationState, ticks: number): SimulationState {
+  let next = sim;
+  for (let t = 0; t < ticks; t++) {
+    next = step(next, {
+      0: {
+        moveForward: 1,
+        moveRight: 0,
+        sprint: false,
+        yawDeltaBam: 0,
+        pitchDeltaBam: 0,
+        use: false,
+        shoot: false,
+      },
+    });
+  }
+  return next;
 }
 
 function errorCodes(level: unknown): string[] {
@@ -219,5 +254,85 @@ describe('Model library & multi-cell placement', () => {
       () => LevelSerializer.parseLevelJson(JSON.stringify(level)),
       /glb-0000000000000000/
     );
+  });
+
+  // ==========================================================================
+  // SIMULATION COLLISION AGAINST SOLID FOOTPRINTS
+  // ==========================================================================
+  it('player walking east stops before a solid 2x2 building', () => {
+    const house = staticModel('ent-1', 7, 6, { footprintW: 2, footprintD: 2 });
+    const sim = walkEast(createInitialSimulationState(walkingLevel([house]), [0]), 120);
+    assert.ok(sim.players[0].gridCol <= 5, `reached col ${sim.players[0].gridCol}`);
+    assertNoFloatsInState(sim);
+  });
+
+  it('player walks through a non-solid footprint', () => {
+    const arch = staticModel('ent-1', 7, 6, { footprintW: 2, footprintD: 2, collision: 'nonSolid' });
+    const sim = walkEast(createInitialSimulationState(walkingLevel([arch]), [0]), 120);
+    assert.ok(sim.players[0].gridCol >= 8, `stopped at col ${sim.players[0].gridCol}`);
+    assertNoFloatsInState(sim);
+  });
+
+  it('static models are not sim entities and the grid is omitted when none are solid', () => {
+    const level = walkingLevel([
+      staticModel('ent-1', 3, 3, { category: 'decorations', collision: 'nonSolid' }),
+      staticModel('ent-2', 4, 4, { category: 'characters', collision: 'solid', isEnemy: true }),
+    ]);
+    const sim = createInitialSimulationState(level, [0]);
+    assert.equal(sim.entities?.['ent-1'], undefined);
+    assert.ok(sim.entities?.['ent-2']);
+    assert.equal(sim.solidFootprint, undefined);
+    assertNoFloatsInState(sim);
+  });
+
+  it('solidFootprint survives clone and passes state validation', () => {
+    const sim = createInitialSimulationState(
+      walkingLevel([staticModel('ent-1', 7, 6, { footprintW: 2, footprintD: 2 })]),
+      [0]
+    );
+    assert.equal(sim.solidFootprint?.[7][6], 1);
+    const clone = cloneSimulationState(sim);
+    assert.deepEqual(clone.solidFootprint, sim.solidFootprint);
+    assert.notEqual(clone.solidFootprint, sim.solidFootprint);
+    const res = validateSimulationState(clone);
+    assert.equal(res.valid, true, JSON.stringify(res.errors));
+    assertNoFloatsInState(clone);
+  });
+
+  it('a ray stops at a solid model footprint and passes when there is none', () => {
+    const level = walkingLevel([]);
+    const footprint = buildSolidFootprintGrid(
+      [staticModel('ent-1', 8, 6)],
+      16
+    );
+    const origin = gridToWorldUnits(8, 2, 16);
+    const cast = (solid?: number[][]) =>
+      castGridRayDDA({
+        originXUnits: origin.xUnits,
+        originZUnits: origin.zUnits,
+        yawBam: 49152,
+        maxDistanceUnits: 16000,
+        grid: level.grid,
+        solidFootprint: solid,
+      });
+    assert.equal(cast(footprint).col, 6);
+    assert.equal(cast(undefined).col, 15);
+  });
+
+  it('a chasing sim enemy cannot walk through a solid model', () => {
+    const level = walkingLevel([
+      staticModel('ent-1', 8, 5),
+      staticModel('ent-2', 8, 7, {
+        category: 'characters',
+        isEnemy: true,
+        maxHealth: 50,
+        moveSpeedUnitsPerTick: 40,
+        attackDamage: 5,
+      }),
+    ]);
+    let sim = createInitialSimulationState(level, [0]);
+    for (let t = 0; t < 200; t++) sim = step(sim, {});
+    assert.ok((sim.entities?.['ent-2'].col ?? 0) >= 6, `enemy reached col ${sim.entities?.['ent-2'].col}`);
+    assertNoFloatsInState(sim);
   });
 });
