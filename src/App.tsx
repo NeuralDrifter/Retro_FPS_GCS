@@ -43,6 +43,9 @@ import {
   createInitialSimulationState,
   getCollectedKeysSetFromSim,
   getOpenDoorsSetFromSim,
+  EventDefinition,
+  RegionDefinition,
+  VariableRegistrySpec,
 } from './engine/sim';
 import {
   DesignStateSnapshot,
@@ -53,6 +56,7 @@ import { MapEditor2D } from './components/MapEditor2D';
 import { Viewport3D } from './components/Viewport3D';
 import { PropertiesInspector } from './components/PropertiesInspector';
 import { ArchitectureModal } from './components/ArchitectureModal';
+import { EventTriggerEditorModal } from './components/EventTriggerEditorModal';
 import { TopMenuBar } from './components/ide/TopMenuBar';
 import { LeftToolPalette } from './components/ide/LeftToolPalette';
 import { BottomStatusBar } from './components/ide/BottomStatusBar';
@@ -231,6 +235,7 @@ export default function App() {
 
   const [resetSignal, setResetSignal] = useState<number>(0);
   const [isArchModalOpen, setIsArchModalOpen] = useState<boolean>(false);
+  const [isEventEditorOpen, setIsEventEditorOpen] = useState<boolean>(false);
   const [engineLog, setEngineLog] = useState<string>(
     'Ready — Click 2D grid to sculpt level (Ctrl+Z Undo / Ctrl+Y Redo) or click 3D viewport to fire.'
   );
@@ -878,6 +883,55 @@ export default function App() {
     [recordHistorySnapshot]
   );
 
+  const handleSaveLevelDataFromEditor = useCallback(
+    (updated: {
+      events: EventDefinition[];
+      regions: RegionDefinition[];
+      variables: VariableRegistrySpec;
+    }) => {
+      recordHistorySnapshot('Edit Visual Triggers & Events');
+      const updatedV3 = LevelSerializer.serializeLevelV3({
+        grid,
+        wallTextures,
+        floorTextures,
+        ceilingTextures,
+        customTextures,
+        entities,
+        nextEntityId,
+        spawn,
+        skyboxTheme,
+        skyboxSeed,
+        showCeiling,
+        minimapEnabled,
+        cellTags: grid.map((r) => r.map(() => 0)),
+        events: updated.events,
+        regions: updated.regions,
+        variables: updated.variables,
+      });
+      setSimState(createInitialSimulationState(updatedV3, [0]));
+      setResetSignal((n) => n + 1);
+      setIsEventEditorOpen(false);
+      setEngineLog(
+        `Visual Triggers: Updated ${updated.events.length} events, ${updated.regions.length} regions.`
+      );
+    },
+    [
+      recordHistorySnapshot,
+      grid,
+      wallTextures,
+      floorTextures,
+      ceilingTextures,
+      customTextures,
+      entities,
+      nextEntityId,
+      spawn,
+      skyboxTheme,
+      skyboxSeed,
+      showCeiling,
+      minimapEnabled,
+    ]
+  );
+
   const currentLevelState = useMemo(
     () =>
       LevelSerializer.serializeLevel({
@@ -1023,6 +1077,7 @@ export default function App() {
         onSaveMap={handleSaveMap}
         onLoadMapFile={handleLoadMapFile}
         onOpenArchModal={() => setIsArchModalOpen(true)}
+        onOpenEventEditor={() => setIsEventEditorOpen(true)}
         isPlayFullscreen={isPlayFullscreen}
         onTogglePlayFullscreen={() => setIsPlayFullscreen((prev) => !prev)}
         onRespawnPlayer={() => setResetSignal((n) => n + 1)}
@@ -1214,6 +1269,22 @@ export default function App() {
         onClose={() => setIsArchModalOpen(false)}
         levelState={currentLevelState}
         onImportLevelState={handleRestoreLevelState}
+      />
+
+      {/* Phase 4 Visual Event & Trigger Authoring IDE Modal */}
+      <EventTriggerEditorModal
+        isOpen={isEventEditorOpen}
+        onClose={() => setIsEventEditorOpen(false)}
+        events={simState.events}
+        regions={simState.regions}
+        variables={{
+          flags: simState.flags,
+          counters: simState.counters,
+          timers: Object.keys(simState.timers),
+        }}
+        grid={grid}
+        gridSize={ENGINE_CONFIG.GRID_SIZE}
+        onSaveLevelData={handleSaveLevelDataFromEditor}
       />
     </div>
   );

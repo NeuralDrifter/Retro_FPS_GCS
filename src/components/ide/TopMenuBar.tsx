@@ -8,6 +8,7 @@ import {
   Play,
   Redo2,
   RotateCcw,
+  Sliders,
   Undo2,
 } from 'lucide-react';
 
@@ -22,6 +23,7 @@ interface TopMenuBarProps {
   onSaveMap: () => void;
   onLoadMapFile: (file: File) => void;
   onOpenArchModal: () => void;
+  onOpenEventEditor: () => void;
   isPlayFullscreen: boolean;
   onTogglePlayFullscreen: () => void;
   onRespawnPlayer: () => void;
@@ -38,6 +40,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
   onSaveMap,
   onLoadMapFile,
   onOpenArchModal,
+  onOpenEventEditor,
   isPlayFullscreen,
   onTogglePlayFullscreen,
   onRespawnPlayer,
@@ -152,6 +155,16 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
         >
           <FileCode2 className="w-3 h-3" />
           <span>JSON / Docs</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenEventEditor}
+          className="ide-btn !h-[20px] text-[#4ec9b0]"
+          title="Open Phase 4 Visual Event & Trigger Authoring IDE"
+        >
+          <Sliders className="w-3 h-3" />
+          <span>Visual Triggers</span>
         </button>
       </div>
 
