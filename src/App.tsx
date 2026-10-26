@@ -579,13 +579,8 @@ export default function App() {
       nextEntityIdRef.current = allocatedIdNum + 1;
       setNextEntityId(allocatedIdNum + 1);
 
-      const modelAssetId = targetAsset.customGlbUrl
-        ? AssetRegistry.registerCustomGlbUrl(
-            targetAsset.customGlbUrl,
-            targetAsset.name,
-            targetAsset.isEnemy
-          )
-        : targetAsset.id;
+      // The asset's own id is stable across reloads; ids derived from object URLs are not
+      const modelAssetId = AssetRegistry.registerModel(targetAsset).id;
 
       const newEntity: PlacedEntity = {
         id: `ent-${allocatedIdNum}`,

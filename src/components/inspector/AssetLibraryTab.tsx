@@ -9,6 +9,7 @@ import {
   computeDeterministicAssetId,
 } from '../../engine/AssetRegistry';
 import { Model3DThumbnailSvg } from './Model3DThumbnailSvg';
+import { uploadedModelId } from '../../engine/modelLibrary/uploadStore';
 import { Box, Check, GripVertical, PaintBucket, Upload } from 'lucide-react';
 
 interface AssetLibraryTabProps {
@@ -146,10 +147,7 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
     const customCount = uploadedModels.length + 1;
     const newModel = AssetRegistry.registerModel(
       buildCustomModel3DAsset({
-        id: computeDeterministicAssetId(
-          'glb',
-          `${file.name}:${file.size}:${newGlbAsEnemy ? 'enemy' : 'prop'}`
-        ),
+        id: uploadedModelId(file.name, file.size),
         name: sanitizeAssetLabel(file.name, `Custom .glb #${customCount}`),
         sourceType: 'file',
         isEnemy: newGlbAsEnemy,

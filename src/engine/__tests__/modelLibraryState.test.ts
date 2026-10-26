@@ -17,6 +17,19 @@ import {
 } from '../modelLibrary/libraryState';
 import { groupPlacementsIntoVariants } from '../modelLibrary/variants';
 import { parseModelDiskPath } from '../modelLibrary/diskPaths';
+import {
+  LIBRARY_STORAGE_KEY,
+  exportLibraryJson,
+  importLibraryJson,
+  loadLibraryState,
+  saveLibraryState,
+} from '../modelLibrary/libraryStorage';
+import {
+  deleteUploadedModel,
+  getAllUploadedModels,
+  putUploadedModel,
+  uploadedModelId,
+} from '../modelLibrary/uploadStore';
 
 function asset(id: string, extra: Partial<Model3DAsset> = {}): Model3DAsset {
   return {
@@ -203,5 +216,60 @@ describe('Model library state, filtering & variants', () => {
       assert.deepEqual(p(file), { category: 'decorations', folderPath: null }, file);
     }
     assert.deepEqual(p('zombie_guard.glb'), { category: 'characters', folderPath: null });
+  });
+
+  it('loadLibraryState falls back to an empty library when storage throws, holds bad JSON or a wrong version', () => {
+    const empty = createEmptyLibraryState();
+    const storageReturning = (value: string | null) => ({ getItem: () => value });
+    assert.deepEqual(loadLibraryState({ getItem: () => { throw new Error('SecurityError'); } }), empty);
+    assert.deepEqual(loadLibraryState(storageReturning('{')), empty);
+    assert.deepEqual(loadLibraryState(storageReturning('{"version":9}')), empty);
+    assert.deepEqual(loadLibraryState(storageReturning(null)), empty);
+    assert.deepEqual(loadLibraryState(null), empty);
+  });
+
+  it('saveLibraryState writes under the library key and returns false when setItem throws', () => {
+    const written: Record<string, string> = {};
+    const s = setModelTags(createEmptyLibraryState(), 'glb-tree', ['oak']);
+    assert.equal(saveLibraryState({ setItem: (k, v) => { written[k] = v; } }, s), true);
+    assert.deepEqual(loadLibraryState({ getItem: (k) => written[k] ?? null }), s);
+    assert.ok(written[LIBRARY_STORAGE_KEY]);
+    assert.equal(saveLibraryState({ setItem: () => { throw new Error('QuotaExceededError'); } }, s), false);
+    assert.equal(saveLibraryState(null, s), false);
+  });
+
+  it('loadLibraryState restores missing built-in folders', () => {
+    const s = createEmptyLibraryState();
+    const stripped = { ...s, folders: s.folders.filter((f) => f.id !== 'cat:items') };
+    const loaded = loadLibraryState({ getItem: () => JSON.stringify(stripped) });
+    assert.ok(loaded.folders.some((f) => f.id === 'cat:items'));
+  });
+
+  it('export then import round-trips folders, tags and settings, and rejects other files', () => {
+    let s = createFolder(createEmptyLibraryState(), 'Cars', 'cat:vehicles').state;
+    s = setModelTags(s, 'glb-truck', ['red']);
+    s = setModelSettings(s, 'glb-truck', { collision: 'nonSolid' });
+    const json = exportLibraryJson(s, [{ id: 'glb-truck', name: 'Truck' }]);
+    assert.deepEqual(JSON.parse(json).uploadedModels, [{ id: 'glb-truck', name: 'Truck' }]);
+    assert.deepEqual(importLibraryJson(json), s);
+    assert.throws(() => importLibraryJson('[]'), /Not a Pie3D library file/);
+    assert.throws(() => importLibraryJson('not json'), /Not a Pie3D library file/);
+  });
+
+  it('the upload store degrades to no-ops when IndexedDB is unavailable', async () => {
+    assert.equal(typeof indexedDB, 'undefined');
+    assert.equal(
+      await putUploadedModel({ id: 'glb-a', name: 'a.glb', blob: new Blob(['x']), meta: {} }),
+      false
+    );
+    assert.deepEqual(await getAllUploadedModels(), []);
+    assert.equal(await deleteUploadedModel('glb-a'), false);
+  });
+
+  it('uploadedModelId depends only on the file name and size, so it is stable across reloads', () => {
+    const id = uploadedModelId('tower.glb', 2048);
+    assert.match(id, /^glb-[0-9a-f]{16}$/);
+    assert.equal(uploadedModelId('tower.glb', 2048), id);
+    assert.notEqual(uploadedModelId('tower.glb', 2049), id);
   });
 });
