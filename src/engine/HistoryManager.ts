@@ -3,10 +3,10 @@
  * PIE3D GLOBAL HISTORY MANAGEMENT SYSTEM (UNDO / REDO ENGINE)
  * ============================================================================
  * Tracks immutable deep-cloned snapshots of the level design state:
- *  - `grid[10][10]`            : Cell block types (Empty, Wall, Door, Key)
- *  - `wallTextures[10][10]`    : Per-cell Wall Texture Asset IDs
- *  - `floorTextures[10][10]`   : Per-cell Floor Texture Asset IDs
- *  - `ceilingTextures[10][10]` : Per-cell Ceiling Texture Asset IDs
+ *  - `grid[row][col]`            : Cell block types (Empty, Wall, Door, Key)
+ *  - `wallTextures[row][col]`    : Per-cell Wall Texture Asset IDs
+ *  - `floorTextures[row][col]`   : Per-cell Floor Texture Asset IDs
+ *  - `ceilingTextures[row][col]` : Per-cell Ceiling Texture Asset IDs
  *  - `entities[]`              : Placed 3D `.glb` Entities & Enemy AI stats
  *  - `spawn`                   : Player Spawn coordinates & yaw angle
  *
@@ -89,6 +89,11 @@ export class HistoryManager {
       ) {
         return false;
       }
+    }
+
+    // Maps of different sizes differ even when one is a prefix of the other
+    if (a.grid.length !== b.grid.length) {
+      return false;
     }
 
     for (let r = 0; r < a.grid.length; r++) {

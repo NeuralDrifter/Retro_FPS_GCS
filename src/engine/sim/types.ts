@@ -9,9 +9,10 @@
 export const SIM_CONFIG = {
   TICKS_PER_SECOND: 30,
   MAX_TICKS_PER_FRAME: 5,
-  GRID_SIZE: 10,
+  GRID_SIZE: 10, // Default per-level grid size (levels store their own `gridSize`)
+  MIN_GRID_SIZE: 8,
+  MAX_GRID_SIZE: 128,
   CELL_UNITS: 1000, // 1 cell = 1000 millicells (corresponds to 4.0m in 3D view)
-  HALF_WORLD_UNITS: 5000, // 10 cells * 1000 / 2
   DEFAULT_FLOOR_HEIGHT_UNITS: 0,
   DEFAULT_CEILING_HEIGHT_UNITS: 1000,
   PLAYER_EYE_HEIGHT_UNITS: 438,
@@ -31,8 +32,8 @@ export const SIM_CONFIG = {
   MAX_ACTIONS_PER_TICK: 64,
   MAX_PENDING_CONTINUATIONS: 64,
   MAX_FIRES_PER_EVENT_PER_TICK: 4,
-  MAX_MOVERS: 64,
-  MAX_ENTITIES: 128,
+  MAX_MOVERS: 1024, // Every door cell owns a mover, so large maps need headroom
+  MAX_ENTITIES: 512,
   MAX_FLAGS: 256,
   MAX_COUNTERS: 64,
   MAX_TIMERS: 64,

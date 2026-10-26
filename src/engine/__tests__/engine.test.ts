@@ -5,6 +5,7 @@ import {
   ENGINE_CONFIG,
   MAP_PRESETS,
   createUniformTextureMatrix,
+  resizeSquareMatrix,
 } from '../../types/engine';
 import { CollisionSystem } from '../CollisionSystem';
 import { HistoryManager } from '../HistoryManager';
@@ -68,9 +69,9 @@ function createBaseTestLevelV3(): LevelDataV3 {
       showCeiling: false,
     },
     grid,
-    wallTextures: createUniformTextureMatrix('default-grid'),
-    floorTextures: createUniformTextureMatrix('floor-obsidian'),
-    ceilingTextures: createUniformTextureMatrix('ceiling-coffer'),
+    wallTextures: createUniformTextureMatrix('default-grid', ENGINE_CONFIG.GRID_SIZE),
+    floorTextures: createUniformTextureMatrix('floor-obsidian', ENGINE_CONFIG.GRID_SIZE),
+    ceilingTextures: createUniformTextureMatrix('ceiling-coffer', ENGINE_CONFIG.GRID_SIZE),
     entities: [],
     regions: [
       {
@@ -96,6 +97,31 @@ function createBaseTestLevelV3(): LevelDataV3 {
   };
 }
 
+/** A walled square level of any size with the player spawned at `spawn` */
+function createSizedTestLevelV3(
+  size: number,
+  spawn: { row: number; col: number }
+): LevelDataV3 {
+  const base = createBaseTestLevelV3();
+  const grid = Array.from({ length: size }, (_, r) =>
+    Array.from({ length: size }, (__, c) =>
+      r === 0 || r === size - 1 || c === 0 || c === size - 1
+        ? SimCellType.WALL
+        : SimCellType.EMPTY
+    )
+  );
+  return {
+    ...base,
+    gridSize: size,
+    spawn: { ...base.spawn, ...spawn },
+    grid,
+    wallTextures: createUniformTextureMatrix('default-grid', size),
+    floorTextures: createUniformTextureMatrix('floor-obsidian', size),
+    ceilingTextures: createUniformTextureMatrix('ceiling-coffer', size),
+    regions: [],
+  };
+}
+
 describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Tests', () => {
   // ==========================================================================
   // 1. EXISTING CHARACTERIZATION TESTS
@@ -103,8 +129,8 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
   it('CollisionSystem converts grid coordinates to world coordinates and back accurately', () => {
     for (let row = 0; row < ENGINE_CONFIG.GRID_SIZE; row++) {
       for (let col = 0; col < ENGINE_CONFIG.GRID_SIZE; col++) {
-        const world = CollisionSystem.gridToWorld(row, col);
-        const gridBack = CollisionSystem.worldToGrid(world.x, world.z);
+        const world = CollisionSystem.gridToWorld(row, col, ENGINE_CONFIG.GRID_SIZE);
+        const gridBack = CollisionSystem.worldToGrid(world.x, world.z, ENGINE_CONFIG.GRID_SIZE);
         assert.equal(gridBack.row, row);
         assert.equal(gridBack.col, col);
       }
@@ -118,8 +144,8 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     grid[2][3] = CellType.WALL;
     grid[2][4] = CellType.DOOR;
 
-    const wallWorld = CollisionSystem.gridToWorld(2, 3);
-    const doorWorld = CollisionSystem.gridToWorld(2, 4);
+    const wallWorld = CollisionSystem.gridToWorld(2, 3, ENGINE_CONFIG.GRID_SIZE);
+    const doorWorld = CollisionSystem.gridToWorld(2, 4, ENGINE_CONFIG.GRID_SIZE);
 
     assert.equal(
       CollisionSystem.checkCircleCollision(
@@ -157,9 +183,9 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     const preset = MAP_PRESETS[0];
     const original = {
       grid: preset.grid.map((r) => [...r]),
-      wallTextures: createUniformTextureMatrix('default-grid'),
-      floorTextures: createUniformTextureMatrix('floor-obsidian'),
-      ceilingTextures: createUniformTextureMatrix('ceiling-coffer'),
+      wallTextures: createUniformTextureMatrix('default-grid', ENGINE_CONFIG.GRID_SIZE),
+      floorTextures: createUniformTextureMatrix('floor-obsidian', ENGINE_CONFIG.GRID_SIZE),
+      ceilingTextures: createUniformTextureMatrix('ceiling-coffer', ENGINE_CONFIG.GRID_SIZE),
       entities: preset.entities ? preset.entities.map((e) => ({ ...e })) : [],
       spawn: { ...preset.spawn },
       actionLabel: 'Initial Snapshot',
@@ -177,9 +203,9 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     const preset = MAP_PRESETS[0];
     const serialized = LevelSerializer.serializeLevel({
       grid: preset.grid,
-      wallTextures: createUniformTextureMatrix('techbase-panel'),
-      floorTextures: createUniformTextureMatrix('floor-obsidian'),
-      ceilingTextures: createUniformTextureMatrix('ceiling-coffer'),
+      wallTextures: createUniformTextureMatrix('techbase-panel', ENGINE_CONFIG.GRID_SIZE),
+      floorTextures: createUniformTextureMatrix('floor-obsidian', ENGINE_CONFIG.GRID_SIZE),
+      ceilingTextures: createUniformTextureMatrix('ceiling-coffer', ENGINE_CONFIG.GRID_SIZE),
       customTextures: [],
       entities: preset.entities || [],
       spawn: preset.spawn,
@@ -828,7 +854,7 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
 
     // 3. 2D DDA Grid Raycast Golden Vector
     const level = createBaseTestLevelV3();
-    const origin = gridToWorldUnits(2, 2); // (-2500, -2500)
+    const origin = gridToWorldUnits(2, 2, SIM_CONFIG.GRID_SIZE); // (-2500, -2500)
     // Cast North (yawBam = 0 -> -Z) toward wall at row 0, col 2
     const hitNorth = castGridRayDDA({
       originXUnits: origin.xUnits,
@@ -1103,10 +1129,11 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     const level = LevelSerializer.serializeLevelV3({
       grid: preset.grid,
       wallTextures: createUniformTextureMatrix(
-        preset.defaultWallTex || 'default-grid'
+        preset.defaultWallTex || 'default-grid',
+        ENGINE_CONFIG.GRID_SIZE
       ),
-      floorTextures: createUniformTextureMatrix('floor-obsidian'),
-      ceilingTextures: createUniformTextureMatrix('ceiling-coffer'),
+      floorTextures: createUniformTextureMatrix('floor-obsidian', ENGINE_CONFIG.GRID_SIZE),
+      ceilingTextures: createUniformTextureMatrix('ceiling-coffer', ENGINE_CONFIG.GRID_SIZE),
       entities: preset.entities || [],
       spawn: preset.spawn,
       skyboxTheme: 'retro-nebula',
@@ -1130,7 +1157,7 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     assert.equal(sim.movers['door:4,5']?.locked, true);
 
     // 1. Move player to (5, 1) and activate the secret push wall at (6, 1)
-    const posBeforeSecret = gridToWorldUnits(5, 1);
+    const posBeforeSecret = gridToWorldUnits(5, 1, SIM_CONFIG.GRID_SIZE);
     sim.players[0].xUnits = posBeforeSecret.xUnits;
     sim.players[0].zUnits = posBeforeSecret.zUnits;
     sim.players[0].gridRow = 5;
@@ -1159,7 +1186,7 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     assert.equal(sim.grid[8][1], CellType.WALL);
 
     // 2. Move player to (1, 7) and walk East into keycard cell (1, 8)
-    const posBeforeKey = gridToWorldUnits(1, 7);
+    const posBeforeKey = gridToWorldUnits(1, 7, SIM_CONFIG.GRID_SIZE);
     sim.players[0].xUnits = posBeforeKey.xUnits;
     sim.players[0].zUnits = posBeforeKey.zUnits;
     sim.players[0].gridRow = 1;
@@ -1181,9 +1208,15 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     }
     assert.equal(sim.players[0].items.includes('keycard'), true);
     assert.equal(sim.movers['door:4,5']?.locked, false);
+    // Picking up the keycard only unlocks the door; the player must still use it to open it
+    for (let t = 0; t < 5; t++) {
+      sim = step(sim, {});
+    }
+    assert.equal(sim.movers['door:4,5']?.state, 'closed');
+    assert.equal(sim.movers['door:4,5']?.progress, 0);
 
     // 3. Move player to extraction switch at (8, 8) and press `use` to exit level
-    const posAtExit = gridToWorldUnits(8, 8);
+    const posAtExit = gridToWorldUnits(8, 8, SIM_CONFIG.GRID_SIZE);
     sim.players[0].xUnits = posAtExit.xUnits;
     sim.players[0].zUnits = posAtExit.zUnits;
     sim.players[0].gridRow = 8;
@@ -1241,7 +1274,7 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     ];
 
     let sim = createInitialSimulationState(level, [0]);
-    const pPos = gridToWorldUnits(3, 3);
+    const pPos = gridToWorldUnits(3, 3, SIM_CONFIG.GRID_SIZE);
     sim.players[0].xUnits = pPos.xUnits;
     sim.players[0].zUnits = pPos.zUnits;
     sim.players[0].gridRow = 3;
@@ -1319,7 +1352,7 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     assert.equal(sim.entities?.['bot_ambush_1']?.state, 'idle');
 
     // Teleport player adjacent to tripwire at (5, 2)
-    const pos = gridToWorldUnits(5, 2);
+    const pos = gridToWorldUnits(5, 2, SIM_CONFIG.GRID_SIZE);
     sim.players[0].xUnits = pos.xUnits;
     sim.players[0].zUnits = pos.zUnits;
     sim.players[0].gridRow = 5;
@@ -1404,7 +1437,7 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     };
 
     // Position player adjacent to arena at (5, 4) and walk East into arena cell (5, 5)
-    const pPos = gridToWorldUnits(5, 4);
+    const pPos = gridToWorldUnits(5, 4, SIM_CONFIG.GRID_SIZE);
     sim.players[0].xUnits = pPos.xUnits;
     sim.players[0].zUnits = pPos.zUnits;
     sim.players[0].gridRow = 5;
@@ -1473,7 +1506,7 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     ];
 
     let sim = createInitialSimulationState(level, [0]);
-    const pPos = gridToWorldUnits(2, 2);
+    const pPos = gridToWorldUnits(2, 2, SIM_CONFIG.GRID_SIZE);
     sim.players[0].xUnits = pPos.xUnits;
     sim.players[0].zUnits = pPos.zUnits;
     sim.players[0].gridRow = 2;
@@ -1596,7 +1629,7 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     ];
 
     let sim = createInitialSimulationState(level, [0]);
-    const pos22 = gridToWorldUnits(2, 2);
+    const pos22 = gridToWorldUnits(2, 2, SIM_CONFIG.GRID_SIZE);
     sim.players[0].xUnits = pos22.xUnits;
     sim.players[0].zUnits = pos22.zUnits;
     sim.players[0].gridRow = 2;
@@ -1616,7 +1649,7 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     assert.equal(sim.messages[0].text, 'Plate activated after 5 ticks!');
 
     // Move player away from region to cell (3, 3)
-    const pos33 = gridToWorldUnits(3, 3);
+    const pos33 = gridToWorldUnits(3, 3, SIM_CONFIG.GRID_SIZE);
     sim.players[0].xUnits = pos33.xUnits;
     sim.players[0].zUnits = pos33.zUnits;
     sim.players[0].gridRow = 3;
@@ -1666,7 +1699,7 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     ];
 
     let sim = createInitialSimulationState(level, [0]);
-    const pos22 = gridToWorldUnits(2, 2);
+    const pos22 = gridToWorldUnits(2, 2, SIM_CONFIG.GRID_SIZE);
     sim.players[0].xUnits = pos22.xUnits;
     sim.players[0].zUnits = pos22.zUnits;
     sim.players[0].gridRow = 2;
@@ -1736,7 +1769,7 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     ];
 
     let sim = createInitialSimulationState(level, [0]);
-    const pos22 = gridToWorldUnits(2, 2);
+    const pos22 = gridToWorldUnits(2, 2, SIM_CONFIG.GRID_SIZE);
     sim.players[0].xUnits = pos22.xUnits;
     sim.players[0].zUnits = pos22.zUnits;
     sim.players[0].gridRow = 2;
@@ -1956,6 +1989,162 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
 
     assertNoFloatsInState(sim);
   });
+
+  // ==========================================================================
+  // PER-LEVEL MAP SIZE (MIN_GRID_SIZE..MAX_GRID_SIZE)
+  // ==========================================================================
+  it('Map Size: validator accepts sizes from MIN_GRID_SIZE to MAX_GRID_SIZE and rejects others', () => {
+    for (const size of [SIM_CONFIG.MIN_GRID_SIZE, 64, SIM_CONFIG.MAX_GRID_SIZE]) {
+      const res = validateLevelDataV3(createSizedTestLevelV3(size, { row: 2, col: 2 }));
+      assert.equal(res.valid, true, `${size}: ${JSON.stringify(res.errors)}`);
+    }
+    for (const size of [SIM_CONFIG.MIN_GRID_SIZE - 1, SIM_CONFIG.MAX_GRID_SIZE + 1]) {
+      const res = validateLevelDataV3(createSizedTestLevelV3(size, { row: 2, col: 2 }));
+      assert.equal(res.valid, false);
+      assert.equal(res.errors.some((e) => e.code === 'INVALID_GRID_SIZE'), true);
+    }
+  });
+
+  it('Map Size: 128x128 simulation spawns at far cells, tracks the player cell, and supports more than 64 doors', () => {
+    const size = SIM_CONFIG.MAX_GRID_SIZE;
+    const level = createSizedTestLevelV3(size, { row: 120, col: 100 });
+    // A row of 100 doors exceeds the old 64-mover cap
+    for (let c = 10; c < 110; c++) level.grid[60][c] = SimCellType.DOOR;
+
+    let sim = createInitialSimulationState(level, [0]);
+    const expected = gridToWorldUnits(120, 100, size);
+    assert.equal(sim.gridSize, size);
+    assert.equal(sim.players[0].xUnits, expected.xUnits);
+    assert.equal(sim.players[0].zUnits, expected.zUnits);
+    assert.equal(Object.keys(sim.movers).length, 100);
+
+    sim = step(sim, {
+      0: {
+        moveForward: 0,
+        moveRight: 0,
+        sprint: false,
+        yawDeltaBam: 0,
+        pitchDeltaBam: 0,
+        use: false,
+        shoot: false,
+      },
+    });
+    assert.equal(sim.players[0].gridRow, 120);
+    assert.equal(sim.players[0].gridCol, 100);
+    const stateRes = validateSimulationState(sim);
+    assert.equal(stateRes.valid, true, JSON.stringify(stateRes.errors));
+    assertNoFloatsInState(sim);
+  });
+
+  it('Map Size: 3D coordinate helpers round-trip every cell of a 128x128 grid', () => {
+    const size = ENGINE_CONFIG.MAX_GRID_SIZE;
+    for (const [row, col] of [
+      [0, 0],
+      [0, size - 1],
+      [size - 1, 0],
+      [size - 1, size - 1],
+      [64, 37],
+    ]) {
+      const world = CollisionSystem.gridToWorld(row, col, size);
+      assert.deepEqual(CollisionSystem.worldToGrid(world.x, world.z, size), { row, col });
+    }
+  });
+
+  it('Map Size: LevelSerializer round-trips a 32x32 level without clamping far cells', () => {
+    const size = 32;
+    const level = createSizedTestLevelV3(size, { row: 30, col: 29 });
+    const serialized = LevelSerializer.serializeLevel({
+      grid: level.grid,
+      wallTextures: level.wallTextures,
+      floorTextures: level.floorTextures,
+      ceilingTextures: level.ceilingTextures,
+      customTextures: [],
+      entities: [
+        {
+          id: 'ent-1',
+          row: 25,
+          col: 27,
+          blueprintId: 'sentinel-bot',
+          name: 'Far Sentinel',
+          yaw: 0,
+          scale: 1,
+        },
+      ],
+      spawn: { row: 30, col: 29, yaw: 0 },
+      skyboxTheme: 'retro-nebula',
+      skyboxSeed: 1,
+      showCeiling: false,
+      minimapEnabled: true,
+    });
+    assert.equal(serialized.gridSize, size);
+
+    const restored = LevelSerializer.parseLevelJson(JSON.stringify(serialized));
+    assert.equal(restored.gridSize, size);
+    assert.equal(restored.grid.length, size);
+    assert.deepEqual(restored.spawn, { row: 30, col: 29, yaw: 0 });
+    assert.equal(restored.entities[0].row, 25);
+    assert.equal(restored.entities[0].col, 27);
+  });
+
+  it('Map Size: serializeLevelV3 fits stale cell tags to the current grid size', () => {
+    const level = createSizedTestLevelV3(16, { row: 2, col: 2 });
+    const staleTags = Array.from({ length: 10 }, () => Array.from({ length: 10 }, () => 7));
+    const v3 = LevelSerializer.serializeLevelV3({
+      grid: level.grid,
+      wallTextures: level.wallTextures,
+      floorTextures: level.floorTextures,
+      ceilingTextures: level.ceilingTextures,
+      entities: [],
+      spawn: { row: 2, col: 2, yaw: 0 },
+      skyboxTheme: 'retro-nebula',
+      skyboxSeed: 1,
+      showCeiling: false,
+      minimapEnabled: true,
+      cellTags: staleTags,
+    });
+    assert.equal(v3.gridSize, 16);
+    assert.equal(v3.cellTags?.length, 16);
+    assert.equal(v3.cellTags?.[9][9], 7);
+    assert.equal(v3.cellTags?.[15][15], 0);
+  });
+
+  it('Map Size: resizeSquareMatrix grows with fill and crops from the bottom-right', () => {
+    const m = [
+      [1, 2],
+      [3, 4],
+    ];
+    assert.deepEqual(resizeSquareMatrix(m, 3, 0), [
+      [1, 2, 0],
+      [3, 4, 0],
+      [0, 0, 0],
+    ]);
+    assert.deepEqual(resizeSquareMatrix(m, 1, 0), [[1]]);
+
+    // A grown map whose top-left corner matches the old one is still a different snapshot
+    const preset = MAP_PRESETS[0];
+    const size = preset.grid.length;
+    const small = {
+      grid: preset.grid.map((r) => [...r]),
+      wallTextures: createUniformTextureMatrix('default-grid', size),
+      floorTextures: createUniformTextureMatrix('floor-obsidian', size),
+      ceilingTextures: createUniformTextureMatrix('ceiling-coffer', size),
+      entities: [],
+      spawn: { ...preset.spawn },
+      actionLabel: 'Small',
+    };
+    const grown = {
+      ...small,
+      grid: resizeSquareMatrix(small.grid, 64, CellType.EMPTY as number),
+      wallTextures: resizeSquareMatrix(small.wallTextures, 64, 'default-grid'),
+      floorTextures: resizeSquareMatrix(small.floorTextures, 64, 'floor-obsidian'),
+      ceilingTextures: resizeSquareMatrix(small.ceilingTextures, 64, 'ceiling-coffer'),
+      actionLabel: 'Grown',
+    };
+    assert.equal(HistoryManager.areSnapshotsEqual(small, grown), false);
+    assert.equal(HistoryManager.areSnapshotsEqual(grown, small), false);
+    assert.deepEqual(m, [
+      [1, 2],
+      [3, 4],
+    ]);
+  });
 });
-
-

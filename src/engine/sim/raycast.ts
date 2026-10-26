@@ -2,7 +2,7 @@
  * ============================================================================
  * DETERMINISTIC INTEGER 2D DDA GRID RAYCASTER (WITH HEIGHT-CHECK HOOK)
  * ============================================================================
- * Casts a ray across the 10x10 integer millicell grid (`CELL_UNITS = 1000`)
+ * Casts a ray across the integer millicell grid (`CELL_UNITS = 1000`)
  * using only integer arithmetic and the committed BAM trig lookup table.
  *
  * Includes a per-cell height-check hook (`floorHeights`, `ceilingHeights`,
@@ -27,17 +27,22 @@ export interface GridRayHit {
 /**
  * Converts grid coordinates `(row, col)` to cell-center world millicells `(xUnits, zUnits)`.
  */
-export function gridToWorldUnits(row: number, col: number): {
+export function gridToWorldUnits(
+  row: number,
+  col: number,
+  gridSize: number
+): {
   xUnits: number;
   zUnits: number;
 } {
+  const halfWorld = Math.trunc((gridSize * SIM_CONFIG.CELL_UNITS) / 2);
   return {
     xUnits:
-      -SIM_CONFIG.HALF_WORLD_UNITS +
+      -halfWorld +
       Math.trunc(col) * SIM_CONFIG.CELL_UNITS +
       Math.trunc(SIM_CONFIG.CELL_UNITS / 2),
     zUnits:
-      -SIM_CONFIG.HALF_WORLD_UNITS +
+      -halfWorld +
       Math.trunc(row) * SIM_CONFIG.CELL_UNITS +
       Math.trunc(SIM_CONFIG.CELL_UNITS / 2),
   };
@@ -49,7 +54,7 @@ export function gridToWorldUnits(row: number, col: number): {
 export function worldUnitsToGrid(
   xUnits: number,
   zUnits: number,
-  gridSize: number = SIM_CONFIG.GRID_SIZE
+  gridSize: number
 ): { row: number; col: number } {
   const halfWorld = Math.trunc((gridSize * SIM_CONFIG.CELL_UNITS) / 2);
   const rawCol = Math.floor(
@@ -102,7 +107,7 @@ export function castGridRayDDA(params: {
   const eyeHeight =
     params.eyeHeightUnits ?? SIM_CONFIG.PLAYER_EYE_HEIGHT_UNITS;
 
-  // Convert origin from world millicells [-5000..5000] to positive grid-space [0..10000]
+  // Convert origin from centered world millicells [-halfWorld..halfWorld] to positive grid-space [0..gridSize*1000]
   const posX = Math.trunc(params.originXUnits) + halfWorld;
   const posZ = Math.trunc(params.originZUnits) + halfWorld;
 

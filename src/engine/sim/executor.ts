@@ -223,7 +223,7 @@ export function createInitialSimulationState(
     ? level.ceilingHeights.map((r) => [...r])
     : constMatrix(SIM_CONFIG.DEFAULT_CEILING_HEIGHT_UNITS);
 
-  const spawnWorld = gridToWorldUnits(level.spawn.row, level.spawn.col);
+  const spawnWorld = gridToWorldUnits(level.spawn.row, level.spawn.col, gridSize);
   const spawnYawBam = normalizeBam(level.spawn.yawBam);
 
   const players: Record<number, PlayerSimState> = {};
@@ -285,7 +285,7 @@ export function createInitialSimulationState(
   const entities: Record<string, SimEntityState> = {};
   if (level.entities && level.entities.length > 0) {
     for (const ent of level.entities) {
-      const world = gridToWorldUnits(ent.row, ent.col);
+      const world = gridToWorldUnits(ent.row, ent.col, gridSize);
       entities[ent.id] = {
         id: ent.id,
         blueprintId: ent.blueprintId,
@@ -684,14 +684,11 @@ export function step(
         col: player.gridCol,
       });
 
-      // Default keycard behavior: open all unlocked/default doors on the map
+      // Default keycard behavior: unlock all doors on the map; the player still uses a door to open it
       for (const mKey of Object.keys(state.movers)) {
         const mover = state.movers[mKey];
         if (mover.kind === 'door') {
           mover.locked = false;
-          if (mover.state === 'closed' || mover.state === 'closing') {
-            mover.state = 'opening';
-          }
         }
       }
       addSimLog(
@@ -2171,7 +2168,7 @@ export function spawnEntityInSim(
   const newId = `ent-${state.nextEntityId}`;
   state.nextEntityId += 1;
 
-  const world = gridToWorldUnits(act.row, act.col);
+  const world = gridToWorldUnits(act.row, act.col, state.gridSize);
   const ent: SimEntityState = {
     id: newId,
     blueprintId: act.blueprintId,
@@ -2743,7 +2740,7 @@ function executeSingleAction(
 
     case 'teleport_player': {
       const targets = getTargetPlayers(state, activator, act.target);
-      const dest = gridToWorldUnits(act.row, act.col);
+      const dest = gridToWorldUnits(act.row, act.col, state.gridSize);
       for (const p of targets) {
         p.xUnits = dest.xUnits;
         p.zUnits = dest.zUnits;

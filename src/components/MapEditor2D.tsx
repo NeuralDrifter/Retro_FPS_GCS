@@ -9,9 +9,11 @@
  *  - Supports HTML5 Drag-and-Drop (`onDragOver` / `onDrop`) so users can drag
  *    texture thumbnails directly from the Inspector's Asset Library tab onto
  *    any 2D grid cell!
+ *  - Draws the grid on a single canvas so maps up to 128x128 stay responsive;
+ *    zoom with the header buttons or Ctrl + mouse wheel, scroll to pan.
  */
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CellType,
   DEFAULT_ENTITY_BLUEPRINTS,
@@ -21,7 +23,37 @@ import {
   PlayerTransform,
   TextureAsset,
 } from '../types/engine';
-import { DoorClosed, KeyRound, Code2, Square, RotateCcw } from 'lucide-react';
+import { Code2, Square, RotateCcw, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+
+/** Pixel width of the X/Z coordinate rulers drawn along the canvas edges */
+const RULER_PX = 22;
+const MIN_CELL_PX = 4;
+const MAX_CELL_PX = 56;
+
+const CELL_COLORS = {
+  emptyBg: '#1e1e1e',
+  gridLine: '#2d2d30',
+  wallBg: '#3b566e',
+  doorClosedBg: '#478cbf',
+  doorOpenBg: '#253746',
+  keyBg: '#4d3c1d',
+  keyCollectedBg: '#2a261d',
+  enemy: '#d14d41',
+  object: '#478cbf',
+  spawn: '#4ec9b0',
+  selected: '#478cbf',
+  dragTarget: '#4ec9b0',
+  rulerText: '#858585',
+  rulerActive: '#478cbf',
+} as const;
+
+/** Picks how many cells apart ruler labels are so they never overlap */
+const getRulerStep = (cellPx: number): number => {
+  if (cellPx >= 26) return 1;
+  if (cellPx >= 13) return 2;
+  if (cellPx >= 6) return 5;
+  return 10;
+};
 
 interface MapEditor2DProps {
   grid: number[][];
@@ -82,33 +114,268 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
   const entityByCell = new Map<string, PlacedEntity>();
   entities.forEach((ent) => entityByCell.set(`${ent.row},${ent.col}`, ent));
 
-  const totalWorldSpan = ENGINE_CONFIG.GRID_SIZE * ENGINE_CONFIG.CELL_SIZE;
-  const halfWorld = totalWorldSpan / 2;
-  const playerPctX = Math.max(
-    0,
-    Math.min(100, ((playerTransform.x + halfWorld) / totalWorldSpan) * 100)
+  const gridSize = grid.length;
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const [imageLoadTick, setImageLoadTick] = useState(0);
+  const lastPointerCellRef = useRef<string | null>(null);
+
+  // `null` zoom means "fit the whole map into the panel"
+  const [zoomCellPx, setZoomCellPx] = useState<number | null>(null);
+  const [fitCellPx, setFitCellPx] = useState<number>(32);
+  const cellPx = zoomCellPx ?? fitCellPx;
+  const canvasPx = RULER_PX + gridSize * cellPx;
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const measure = () => {
+      const avail = Math.min(el.clientWidth, el.clientHeight) - RULER_PX - 16;
+      setFitCellPx(
+        Math.max(
+          MIN_CELL_PX,
+          Math.min(MAX_CELL_PX, Math.floor(avail / gridSize))
+        )
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [gridSize]);
+
+  const zoomBy = useCallback(
+    (factor: number) => {
+      setZoomCellPx((prev) => {
+        const base = prev ?? fitCellPx;
+        const next = Math.round(base * factor);
+        return Math.max(
+          MIN_CELL_PX,
+          Math.min(MAX_CELL_PX, next === base ? base + Math.sign(factor - 1) : next)
+        );
+      });
+    },
+    [fitCellPx]
   );
-  const playerPctY = Math.max(
+
+  // Ctrl + wheel zooms (non-passive listener so the page itself does not zoom)
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      zoomBy(e.deltaY < 0 ? 1.2 : 1 / 1.2);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [zoomBy]);
+
+  const getTextureImage = (asset: TextureAsset | undefined) => {
+    if (!asset?.previewUrl) return null;
+    const cache = imageCacheRef.current;
+    let img = cache.get(asset.previewUrl);
+    if (!img) {
+      img = new Image();
+      img.referrerPolicy = 'no-referrer';
+      img.onload = () => setImageLoadTick((n) => n + 1);
+      img.src = asset.previewUrl;
+      cache.set(asset.previewUrl, img);
+    }
+    return img.complete && img.naturalWidth > 0 ? img : null;
+  };
+
+  // Redraw the whole map whenever anything it shows changes
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(canvasPx * dpr);
+    canvas.height = Math.round(canvasPx * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, canvasPx, canvasPx);
+
+    // Rulers
+    const step = getRulerStep(cellPx);
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < gridSize; i++) {
+      const isSelCol = selectedCell.col === i;
+      const isSelRow = selectedCell.row === i;
+      if (i % step === 0 || isSelCol) {
+        ctx.fillStyle = isSelCol ? CELL_COLORS.rulerActive : CELL_COLORS.rulerText;
+        ctx.fillText(`X${i}`, RULER_PX + i * cellPx + cellPx / 2, RULER_PX / 2);
+      }
+      if (i % step === 0 || isSelRow) {
+        ctx.fillStyle = isSelRow ? CELL_COLORS.rulerActive : CELL_COLORS.rulerText;
+        ctx.fillText(`Z${i}`, RULER_PX / 2, RULER_PX + i * cellPx + cellPx / 2);
+      }
+    }
+
+    ctx.fillStyle = CELL_COLORS.gridLine;
+    ctx.fillRect(RULER_PX, RULER_PX, gridSize * cellPx, gridSize * cellPx);
+
+    const gap = cellPx >= 8 ? 1 : 0;
+    const showGlyphs = cellPx >= 14;
+    ctx.font = `bold ${Math.max(8, Math.min(12, Math.floor(cellPx * 0.4)))}px ui-monospace, monospace`;
+
+    for (let r = 0; r < gridSize; r++) {
+      for (let c = 0; c < gridSize; c++) {
+        const cellValue = grid[r][c];
+        const cellKey = `${r},${c}`;
+        const x = RULER_PX + c * cellPx;
+        const y = RULER_PX + r * cellPx;
+        const w = cellPx - gap;
+        const cx = x + w / 2;
+        const cy = y + w / 2;
+
+        let bg: string = CELL_COLORS.emptyBg;
+        if (cellValue === CellType.WALL) bg = CELL_COLORS.wallBg;
+        else if (cellValue === CellType.DOOR)
+          bg = openDoors.has(cellKey) ? CELL_COLORS.doorOpenBg : CELL_COLORS.doorClosedBg;
+        else if (cellValue === CellType.KEY)
+          bg = collectedKeys.has(cellKey) ? CELL_COLORS.keyCollectedBg : CELL_COLORS.keyBg;
+        ctx.fillStyle = bg;
+        ctx.fillRect(x, y, w, w);
+
+        // Texture preview swatch inside the cell
+        if (cellValue === CellType.WALL) {
+          const img = getTextureImage(
+            texMap.get(wallTextures[r]?.[c] || 'default-grid')
+          );
+          if (img) {
+            ctx.globalAlpha = 0.55;
+            ctx.drawImage(img, x, y, w, w);
+            ctx.globalAlpha = 1;
+          }
+        } else if (
+          cellValue === CellType.EMPTY &&
+          floorTextures[r]?.[c] &&
+          floorTextures[r][c] !== 'floor-obsidian'
+        ) {
+          const img = getTextureImage(texMap.get(floorTextures[r][c]));
+          if (img) {
+            ctx.globalAlpha = 0.4;
+            ctx.drawImage(img, x, y, w, w);
+            ctx.globalAlpha = 1;
+          }
+        }
+
+        if (showGlyphs) {
+          if (cellValue === CellType.DOOR) {
+            ctx.fillStyle = openDoors.has(cellKey) ? CELL_COLORS.doorClosedBg : '#ffffff';
+            ctx.fillText('D', cx, cy);
+          } else if (cellValue === CellType.KEY) {
+            ctx.fillStyle = '#ce9178';
+            ctx.fillText('K', cx, cy);
+          }
+        }
+
+        const placedEntity = entityByCell.get(cellKey);
+        if (placedEntity && cellValue !== CellType.WALL) {
+          const inset = Math.max(1, cellPx * 0.08);
+          ctx.fillStyle =
+            placedEntity.isEnemy !== false ? CELL_COLORS.enemy : CELL_COLORS.object;
+          ctx.globalAlpha = 0.85;
+          ctx.fillRect(x + inset, y + inset, w - inset * 2, w - inset * 2);
+          ctx.globalAlpha = 1;
+          if (showGlyphs) {
+            const bp = DEFAULT_ENTITY_BLUEPRINTS.find(
+              (b) => b.id === placedEntity.blueprintId
+            );
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(bp ? bp.badgeText : 'GLB', cx, cy);
+          }
+        }
+
+        if (spawn.row === r && spawn.col === c) {
+          const inset = Math.max(1, cellPx * 0.08);
+          ctx.strokeStyle = CELL_COLORS.spawn;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x + inset, y + inset, w - inset * 2, w - inset * 2);
+          if (showGlyphs) {
+            ctx.fillStyle = CELL_COLORS.spawn;
+            ctx.fillText('S', cx, cy);
+          }
+        }
+      }
+    }
+
+    const outlineCell = (row: number, col: number, color: string, width: number) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.strokeRect(
+        RULER_PX + col * cellPx + width / 2,
+        RULER_PX + row * cellPx + width / 2,
+        cellPx - gap - width,
+        cellPx - gap - width
+      );
+    };
+    if (selectedCell.row < gridSize && selectedCell.col < gridSize) {
+      outlineCell(selectedCell.row, selectedCell.col, CELL_COLORS.selected, 2);
+    }
+    if (dragOverCell) {
+      outlineCell(dragOverCell.row, dragOverCell.col, CELL_COLORS.dragTarget, 2);
+    }
+    // texMap and entityByCell are rebuilt every render from these same props
+  }, [
+    grid,
+    wallTextures,
+    floorTextures,
+    textures,
+    entities,
+    spawn,
+    selectedCell,
+    dragOverCell,
+    collectedKeys,
+    openDoors,
+    cellPx,
+    canvasPx,
+    gridSize,
+    imageLoadTick,
+  ]);
+
+  /** Maps a mouse/drag event to the grid cell under it, or null outside the grid */
+  const getCellFromEvent = (e: { clientX: number; clientY: number }) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const col = Math.floor((e.clientX - rect.left - RULER_PX) / cellPx);
+    const row = Math.floor((e.clientY - rect.top - RULER_PX) / cellPx);
+    if (row < 0 || col < 0 || row >= gridSize || col >= gridSize) return null;
+    return { row, col };
+  };
+
+  // Player camera marker and view cone, in cell units over the canvas grid
+  const halfWorld = (gridSize * ENGINE_CONFIG.CELL_SIZE) / 2;
+  const playerCellX = Math.max(
     0,
-    Math.min(100, ((playerTransform.z + halfWorld) / totalWorldSpan) * 100)
+    Math.min(gridSize, (playerTransform.x + halfWorld) / ENGINE_CONFIG.CELL_SIZE)
+  );
+  const playerCellY = Math.max(
+    0,
+    Math.min(gridSize, (playerTransform.z + halfWorld) / ENGINE_CONFIG.CELL_SIZE)
   );
 
   const dirX = -Math.sin(playerTransform.yaw);
   const dirZ = -Math.cos(playerTransform.yaw);
   const fovHalf = (37.5 * Math.PI) / 180;
-  const coneLen = 15;
+  const coneLen = 1.5;
 
   const leftRayX =
-    playerPctX +
+    playerCellX +
     (dirX * Math.cos(-fovHalf) - dirZ * Math.sin(-fovHalf)) * coneLen;
   const leftRayY =
-    playerPctY +
+    playerCellY +
     (dirX * Math.sin(-fovHalf) + dirZ * Math.cos(-fovHalf)) * coneLen;
   const rightRayX =
-    playerPctX +
+    playerCellX +
     (dirX * Math.cos(fovHalf) - dirZ * Math.sin(fovHalf)) * coneLen;
   const rightRayY =
-    playerPctY +
+    playerCellY +
     (dirX * Math.sin(fovHalf) + dirZ * Math.cos(fovHalf)) * coneLen;
 
   const handlePointerDown = (row: number, col: number, e: React.PointerEvent) => {
@@ -147,17 +414,37 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
   const handlePointerUp = () => {
     setIsDragging(false);
     setDragTargetValue(undefined);
+    lastPointerCellRef.current = null;
+  };
+
+  const handleCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const cell = getCellFromEvent(e);
+    if (!cell) return;
+    lastPointerCellRef.current = `${cell.row},${cell.col}`;
+    handlePointerDown(cell.row, cell.col, e);
+  };
+
+  const handleCanvasPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const cell = getCellFromEvent(e);
+    if (!cell) {
+      if (lastPointerCellRef.current !== null) onHoverCellChange(null);
+      lastPointerCellRef.current = null;
+      return;
+    }
+    const key = `${cell.row},${cell.col}`;
+    if (key === lastPointerCellRef.current) return;
+    lastPointerCellRef.current = key;
+    handlePointerEnter(cell.row, cell.col);
   };
 
   /**
    * Handles dropping a 2D texture OR a 3D .glb model dragged from the
    * Inspector's Asset Library tab directly onto a 2D Grid cell.
    */
-  const handleCellDragOver = (
-    e: React.DragEvent<HTMLButtonElement>,
-    row: number,
-    col: number
-  ) => {
+  const handleCellDragOver = (e: React.DragEvent<HTMLCanvasElement>) => {
+    const cell = getCellFromEvent(e);
+    if (!cell) return;
+    const { row, col } = cell;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
     if (dragOverCell?.row !== row || dragOverCell?.col !== col) {
@@ -166,13 +453,12 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
     }
   };
 
-  const handleCellDrop = (
-    e: React.DragEvent<HTMLButtonElement>,
-    row: number,
-    col: number
-  ) => {
+  const handleCellDrop = (e: React.DragEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     setDragOverCell(null);
+    const cell = getCellFromEvent(e);
+    if (!cell) return;
+    const { row, col } = cell;
 
     const modelId = e.dataTransfer.getData('application/pie3d-model-id');
     if (modelId) {
@@ -212,7 +498,9 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
       {/* Compact 24px IDE Panel Header */}
       <div className="ide-panel-header">
         <div className="flex items-center gap-2">
-          <span>2D Orthographic Map [10×10]</span>
+          <span>
+            2D Orthographic Map [{gridSize}×{gridSize}]
+          </span>
           <span className="font-mono text-[#478cbf]">
             Tool: {toolMode.toUpperCase()}
           </span>
@@ -221,9 +509,35 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
         <div className="flex items-center gap-1">
           <button
             type="button"
+            onClick={() => zoomBy(1 / 1.25)}
+            className="ide-btn !h-[18px] !px-1 !text-[10px]"
+            title="Zoom Out (Ctrl + Mouse Wheel)"
+          >
+            <ZoomOut className="w-2.5 h-2.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => zoomBy(1.25)}
+            className="ide-btn !h-[18px] !px-1 !text-[10px]"
+            title="Zoom In (Ctrl + Mouse Wheel)"
+          >
+            <ZoomIn className="w-2.5 h-2.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setZoomCellPx(null)}
+            className={`ide-btn !h-[18px] !px-1 !text-[10px] ${
+              zoomCellPx === null ? 'ide-btn--active' : ''
+            }`}
+            title="Fit Whole Map"
+          >
+            <Maximize className="w-2.5 h-2.5" />
+          </button>
+          <button
+            type="button"
             onClick={onBorderWalls}
             className="ide-btn !h-[18px] !px-1.5 !text-[10px]"
-            title="Build Perimeter Walls around 10x10 Grid"
+            title="Build Perimeter Walls around the Grid"
           >
             <Square className="w-2.5 h-2.5" />
             <span>Perimeter</span>
@@ -252,219 +566,65 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
       </div>
 
       {/* Main 2D Drafting Canvas */}
-      <div className="flex-1 flex flex-col items-center justify-center p-3 overflow-auto bg-[#181818]">
-        <div className="w-full max-w-[420px]">
-          {/* X-Axis Ruler (X0..X9) */}
-          <div className="grid grid-cols-10 mb-1 pl-6">
-            {Array.from({ length: ENGINE_CONFIG.GRID_SIZE }).map((_, colIdx) => (
-              <div
-                key={colIdx}
-                className={`text-center font-mono text-[10px] tabular-nums ${
-                  selectedCell.col === colIdx
-                    ? 'text-[#478cbf] font-semibold'
-                    : 'text-[#858585]'
-                }`}
-              >
-                X{colIdx}
-              </div>
-            ))}
-          </div>
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-auto p-2 bg-[#181818]"
+      >
+        <div className="w-max mx-auto">
+          <div
+            className="relative"
+            style={{ width: canvasPx, height: canvasPx }}
+          >
+            <canvas
+              ref={canvasRef}
+              aria-label={`2D Grid Map ${gridSize} by ${gridSize}`}
+              style={{ width: canvasPx, height: canvasPx }}
+              className="block cursor-pointer"
+              onPointerDown={handleCanvasPointerDown}
+              onPointerMove={handleCanvasPointerMove}
+              onContextMenu={(e) => e.preventDefault()}
+              onDragOver={handleCellDragOver}
+              onDrop={handleCellDrop}
+              onDragLeave={() => setDragOverCell(null)}
+            />
 
-          <div className="flex items-stretch">
-            {/* Z-Axis Ruler (Z0..Z9) */}
-            <div className="flex flex-col justify-between pr-1.5 py-0.5">
-              {Array.from({ length: ENGINE_CONFIG.GRID_SIZE }).map(
-                (_, rowIdx) => (
-                  <div
-                    key={rowIdx}
-                    className={`flex items-center justify-end font-mono text-[10px] tabular-nums h-full ${
-                      selectedCell.row === rowIdx
-                        ? 'text-[#478cbf] font-semibold'
-                        : 'text-[#858585]'
-                    }`}
-                  >
-                    Z{rowIdx}
-                  </div>
-                )
-              )}
-            </div>
-
-            {/* 10x10 Grid Viewport Frame */}
-            <div
-              className="relative flex-1 aspect-square bg-[#141414] p-1 border border-[#3e3e42]"
-              onDragLeave={(e) => {
-                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                  setDragOverCell(null);
-                }
+            {/* Real-Time First-Person Camera Position & View Frustum Cone */}
+            <svg
+              viewBox={`0 0 ${gridSize} ${gridSize}`}
+              className="absolute pointer-events-none overflow-visible"
+              style={{
+                left: RULER_PX,
+                top: RULER_PX,
+                width: gridSize * cellPx,
+                height: gridSize * cellPx,
               }}
             >
-              <div className="grid grid-cols-10 grid-rows-10 gap-[1px] bg-[#2d2d30] w-full h-full">
-                {grid.map((rowArr, rIdx) =>
-                  rowArr.map((cellValue, cIdx) => {
-                    const isSpawn =
-                      spawn.row === rIdx && spawn.col === cIdx;
-                    const isSelected =
-                      selectedCell.row === rIdx && selectedCell.col === cIdx;
-                    const isDragTarget =
-                      dragOverCell?.row === rIdx && dragOverCell?.col === cIdx;
-                    const cellKey = `${rIdx},${cIdx}`;
-                    const isKeyCollected = collectedKeys.has(cellKey);
-                    const isDoorOpen = openDoors.has(cellKey);
-                    const placedEntity = entityByCell.get(cellKey);
-
-                    const wallTexAsset = texMap.get(
-                      wallTextures[rIdx]?.[cIdx] || 'default-grid'
-                    );
-                    const floorTexAsset = texMap.get(
-                      floorTextures[rIdx]?.[cIdx] || 'floor-obsidian'
-                    );
-
-                    let cellBg =
-                      'bg-[#1e1e1e] text-[#858585] hover:bg-[#252526]';
-                    if (cellValue === CellType.WALL) {
-                      cellBg = 'bg-[#3b566e] text-white font-semibold';
-                    } else if (cellValue === CellType.DOOR) {
-                      cellBg = isDoorOpen
-                        ? 'bg-[#253746] text-[#478cbf]'
-                        : 'bg-[#478cbf] text-white font-semibold';
-                    } else if (cellValue === CellType.KEY) {
-                      cellBg = isKeyCollected
-                        ? 'bg-[#2a261d] text-[#858585]'
-                        : 'bg-[#4d3c1d] text-[#ce9178] font-semibold';
-                    }
-
-                    const entBp = placedEntity
-                      ? DEFAULT_ENTITY_BLUEPRINTS.find(
-                          (b) => b.id === placedEntity.blueprintId
-                        )
-                      : undefined;
-
-                    return (
-                      <button
-                        key={cellKey}
-                        type="button"
-                        onPointerDown={(e) => handlePointerDown(rIdx, cIdx, e)}
-                        onPointerEnter={() => handlePointerEnter(rIdx, cIdx)}
-                        onDragOver={(e) => handleCellDragOver(e, rIdx, cIdx)}
-                        onDrop={(e) => handleCellDrop(e, rIdx, cIdx)}
-                        aria-label={`Grid Cell X${cIdx} Z${rIdx}`}
-                        className={`relative flex items-center justify-center text-[10px] font-mono tabular-nums overflow-hidden cursor-pointer ${cellBg} ${
-                          isDragTarget
-                            ? 'outline-2 outline-[#4ec9b0] bg-[#094771] z-20'
-                            : isSelected
-                            ? 'outline-1 outline-[#478cbf] z-10'
-                            : ''
-                        }`}
-                      >
-                        {/* Texture Preview Swatch inside Cell */}
-                        {cellValue === CellType.WALL && wallTexAsset && (
-                          <img
-                            src={wallTexAsset.previewUrl}
-                            alt=""
-                            referrerPolicy="no-referrer"
-                            className="absolute inset-0 w-full h-full object-cover opacity-55 pointer-events-none"
-                          />
-                        )}
-                        {cellValue === CellType.EMPTY &&
-                          floorTexAsset &&
-                          floorTextures[rIdx]?.[cIdx] !== 'floor-obsidian' && (
-                            <img
-                              src={floorTexAsset.previewUrl}
-                              alt=""
-                              referrerPolicy="no-referrer"
-                              className="absolute inset-0 w-full h-full object-cover opacity-40 pointer-events-none"
-                            />
-                          )}
-
-                        {/* Wall Value */}
-                        {cellValue === CellType.WALL && (
-                          <span className="relative z-10 pointer-events-none bg-[#181818]/80 text-[#cccccc] px-1 text-[9px]">
-                            1
-                          </span>
-                        )}
-
-                        {/* Empty Dot */}
-                        {cellValue === CellType.EMPTY &&
-                          !isSpawn &&
-                          !placedEntity && (
-                            <span className="relative z-10 pointer-events-none opacity-30">
-                              ·
-                            </span>
-                          )}
-
-                        {/* Door Icon */}
-                        {cellValue === CellType.DOOR && (
-                          <DoorClosed className="relative z-10 w-3 h-3 pointer-events-none" />
-                        )}
-
-                        {/* Key Icon */}
-                        {cellValue === CellType.KEY && (
-                          <KeyRound className="relative z-10 w-3 h-3 pointer-events-none" />
-                        )}
-
-                        {/* Placed .GLB Entity / Enemy AI Marker */}
-                        {placedEntity && cellValue !== CellType.WALL && (
-                          <span
-                            className={`absolute inset-0.5 z-10 border flex items-center justify-center font-bold text-[9px] pointer-events-none ${
-                              placedEntity.isEnemy !== false
-                                ? 'border-[#d14d41] bg-[#d14d41]/85 text-white'
-                                : 'border-[#478cbf] bg-[#478cbf]/85 text-white'
-                            }`}
-                            title={placedEntity.name}
-                          >
-                            {entBp ? entBp.badgeText : 'GLB'}
-                          </span>
-                        )}
-
-                        {/* Player Spawn Flag */}
-                        {isSpawn && (
-                          <span
-                            className="absolute inset-0.5 z-10 border border-[#4ec9b0] bg-[#4ec9b0]/25 flex items-center justify-center pointer-events-none"
-                            title="Player Spawn Point"
-                          >
-                            <span className="text-[9px] font-bold text-[#4ec9b0]">
-                              S
-                            </span>
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Real-Time First-Person Camera Position & View Frustum Cone */}
-              <svg
-                viewBox="0 0 100 100"
-                className="absolute inset-1 w-[calc(100%-8px)] h-[calc(100%-8px)] pointer-events-none overflow-visible z-20"
-              >
-                <polygon
-                  points={`${playerPctX},${playerPctY} ${leftRayX},${leftRayY} ${rightRayX},${rightRayY}`}
-                  fill="rgba(71, 140, 191, 0.28)"
-                  stroke="#478cbf"
-                  strokeWidth="0.6"
-                />
-                <circle
-                  cx={playerPctX}
-                  cy={playerPctY}
-                  r="2.2"
-                  fill="#4ec9b0"
-                  stroke="#181818"
-                  strokeWidth="0.8"
-                />
-              </svg>
-            </div>
+              <polygon
+                points={`${playerCellX},${playerCellY} ${leftRayX},${leftRayY} ${rightRayX},${rightRayY}`}
+                fill="rgba(71, 140, 191, 0.28)"
+                stroke="#478cbf"
+                strokeWidth="0.06"
+              />
+              <circle
+                cx={playerCellX}
+                cy={playerCellY}
+                r={0.22}
+                fill="#4ec9b0"
+                stroke="#181818"
+                strokeWidth="0.08"
+              />
+            </svg>
           </div>
 
           {/* Raw 2D Matrix Array Drawer (When Toggled) */}
           {showRawMatrix && (
             <div className="mt-2 p-2 bg-[#141414] border border-[#3e3e42] font-mono text-[10px] text-[#cccccc] overflow-x-auto">
               <div className="text-[#858585] mb-1">
-                // grid[10][10] (Drag textures from Asset Library onto cells)
+                // grid[{gridSize}][{gridSize}] (Drag textures from Asset Library onto cells)
               </div>
               {grid.map((row, rIdx) => (
                 <div key={rIdx} className="pl-2 leading-tight tabular-nums">
-                  [{row.join(', ')}]{rIdx < 9 ? ',' : ''}
+                  [{row.join(', ')}]{rIdx < gridSize - 1 ? ',' : ''}
                 </div>
               ))}
             </div>

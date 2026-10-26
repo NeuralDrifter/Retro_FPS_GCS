@@ -45,8 +45,6 @@ export const EventTriggerEditorModal: React.FC<EventTriggerEditorModalProps> = (
   gridSize,
   onSaveLevelData,
 }) => {
-  if (!isOpen) return null;
-
   const [activeTab, setActiveTab] = useState<EditorTab>('events');
   const [events, setEvents] = useState<EventDefinition[]>(
     () => JSON.parse(JSON.stringify(initialEvents))
@@ -62,6 +60,9 @@ export const EventTriggerEditorModal: React.FC<EventTriggerEditorModalProps> = (
   const [newFlagKey, setNewFlagKey] = useState<string>('');
   const [newCounterKey, setNewCounterKey] = useState<string>('');
   const [newTimerName, setNewTimerName] = useState<string>('');
+
+  // Hooks must run on every render, so the closed check comes after them
+  if (!isOpen) return null;
 
   // Run validation on current state
   const validationResult = validateLevelDataV3({

@@ -2,9 +2,12 @@
  * ============================================================================
  * PIE3D IN-GAME MINIMAP HUD OVERLAY (DESKTOP IDE / GAME WINDOW COMPONENT)
  * ============================================================================
- * Renders a real-time 10x10 tactical radar/minimap inside the 3D Viewport
+ * Renders a real-time tactical radar/minimap inside the 3D Viewport
  * (`Viewport3D`) showing player position, orientation cone, walls, doors,
  * keycards, live Enemy AI positions, and dropped Ammo loot.
+ *
+ * Maps larger than `RADAR_VIEW_CELLS` show a window of that many cells that
+ * follows the player, so only nearby cells are drawn.
  */
 
 import React, { useState } from 'react';
@@ -17,6 +20,9 @@ import {
   PlayerTransform,
 } from '../types/engine';
 import { Compass, EyeOff } from 'lucide-react';
+
+/** Cells shown across the radar; smaller maps show the whole grid */
+const RADAR_VIEW_CELLS = 16;
 
 interface MinimapHUDProps {
   grid: number[][];
@@ -41,13 +47,34 @@ export const MinimapHUD: React.FC<MinimapHUDProps> = ({
 }) => {
   const [rotateWithPlayer, setRotateWithPlayer] = useState(false);
 
-  const totalWorldSpan = ENGINE_CONFIG.GRID_SIZE * ENGINE_CONFIG.CELL_SIZE;
-  const halfWorld = totalWorldSpan / 2;
+  const gridSize = grid.length;
+  const viewCells = Math.min(gridSize, RADAR_VIEW_CELLS);
+  const cellPct = 100 / viewCells;
+  const halfWorld = (gridSize * ENGINE_CONFIG.CELL_SIZE) / 2;
+
+  // Radar window origin in cells, centered on the player and clamped to the map edges
+  const playerCellX = (playerTransform.x + halfWorld) / ENGINE_CONFIG.CELL_SIZE;
+  const playerCellY = (playerTransform.z + halfWorld) / ENGINE_CONFIG.CELL_SIZE;
+  const originCol = Math.max(
+    0,
+    Math.min(gridSize - viewCells, playerCellX - viewCells / 2)
+  );
+  const originRow = Math.max(
+    0,
+    Math.min(gridSize - viewCells, playerCellY - viewCells / 2)
+  );
+  const firstCol = Math.floor(originCol);
+  const firstRow = Math.floor(originRow);
+  const lastCol = Math.min(gridSize - 1, Math.ceil(originCol + viewCells));
+  const lastRow = Math.min(gridSize - 1, Math.ceil(originRow + viewCells));
 
   const worldToPctX = (wx: number) =>
-    Math.max(0, Math.min(100, ((wx + halfWorld) / totalWorldSpan) * 100));
+    ((wx + halfWorld) / ENGINE_CONFIG.CELL_SIZE - originCol) * cellPct;
   const worldToPctY = (wz: number) =>
-    Math.max(0, Math.min(100, ((wz + halfWorld) / totalWorldSpan) * 100));
+    ((wz + halfWorld) / ENGINE_CONFIG.CELL_SIZE - originRow) * cellPct;
+  const cellToPctX = (col: number) => (col - originCol) * cellPct;
+  const cellToPctY = (row: number) => (row - originRow) * cellPct;
+  const cellScale = cellPct / 10;
 
   const playerPctX = worldToPctX(playerTransform.x);
   const playerPctY = worldToPctY(playerTransform.z);
@@ -125,7 +152,7 @@ export const MinimapHUD: React.FC<MinimapHUDProps> = ({
         </div>
       </div>
 
-      {/* 10x10 SVG Radar Viewport */}
+      {/* SVG Radar Viewport */}
       <div className="relative w-full aspect-square bg-[#141414] border border-[#333333] overflow-hidden">
         <svg
           viewBox="0 0 100 100"
@@ -137,21 +164,23 @@ export const MinimapHUD: React.FC<MinimapHUDProps> = ({
             transformOrigin: '50% 50%',
           }}
         >
-          {/* 1. Render 10x10 Grid Cells */}
-          {grid.map((rowArr, rIdx) =>
-            rowArr.map((cell, cIdx) => {
-              const x = cIdx * 10;
-              const y = rIdx * 10;
+          {/* 1. Render Grid Cells inside the radar window */}
+          {grid.slice(firstRow, lastRow + 1).map((rowArr, rOffset) =>
+            rowArr.slice(firstCol, lastCol + 1).map((cell, cOffset) => {
+              const rIdx = firstRow + rOffset;
+              const cIdx = firstCol + cOffset;
+              const x = cellToPctX(cIdx);
+              const y = cellToPctY(rIdx);
               const cellKey = `${rIdx},${cIdx}`;
 
               if (cell === CellType.WALL) {
                 return (
                   <rect
                     key={cellKey}
-                    x={x + 0.4}
-                    y={y + 0.4}
-                    width={9.2}
-                    height={9.2}
+                    x={x + 0.4 * cellScale}
+                    y={y + 0.4 * cellScale}
+                    width={9.2 * cellScale}
+                    height={9.2 * cellScale}
                     fill="#478cbf"
                     fillOpacity={0.75}
                   />
@@ -163,13 +192,13 @@ export const MinimapHUD: React.FC<MinimapHUDProps> = ({
                 return (
                   <rect
                     key={cellKey}
-                    x={x + 0.8}
-                    y={y + 0.8}
-                    width={8.4}
-                    height={8.4}
+                    x={x + 0.8 * cellScale}
+                    y={y + 0.8 * cellScale}
+                    width={8.4 * cellScale}
+                    height={8.4 * cellScale}
                     fill={isOpen ? 'rgba(71, 140, 191, 0.2)' : '#5a9fd4'}
                     stroke="#5a9fd4"
-                    strokeWidth={0.8}
+                    strokeWidth={0.8 * cellScale}
                   />
                 );
               }
@@ -178,9 +207,9 @@ export const MinimapHUD: React.FC<MinimapHUDProps> = ({
                 return (
                   <circle
                     key={cellKey}
-                    cx={x + 5}
-                    cy={y + 5}
-                    r={2.5}
+                    cx={x + cellPct / 2}
+                    cy={y + cellPct / 2}
+                    r={2.5 * cellScale}
                     fill="#ce9178"
                   />
                 );
@@ -191,11 +220,11 @@ export const MinimapHUD: React.FC<MinimapHUDProps> = ({
                   key={cellKey}
                   x={x}
                   y={y}
-                  width={10}
-                  height={10}
+                  width={cellPct}
+                  height={cellPct}
                   fill="none"
                   stroke="#252526"
-                  strokeWidth={0.4}
+                  strokeWidth={0.4 * cellScale}
                 />
               );
             })
@@ -250,8 +279,8 @@ export const MinimapHUD: React.FC<MinimapHUDProps> = ({
               })
             : entities.map((ent) => {
                 if (grid[ent.row]?.[ent.col] === CellType.WALL) return null;
-                const ex = ent.col * 10 + 5;
-                const ey = ent.row * 10 + 5;
+                const ex = cellToPctX(ent.col) + cellPct / 2;
+                const ey = cellToPctY(ent.row) + cellPct / 2;
                 return (
                   <circle
                     key={ent.id}
