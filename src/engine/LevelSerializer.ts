@@ -539,6 +539,21 @@ export class LevelSerializer {
     const parsed = JSON.parse(rawJson);
     const { levelV3, customTextures } = this.migrateToV3(parsed, rawJson);
 
+    // Copies of models this library lacks stay in the level and show stand-ins
+    const knownModels = AssetRegistry.createAllowlist().modelIds;
+    const missingNames = new Map<string, string[]>();
+    for (const e of levelV3.entities) {
+      if (!e.modelAssetId || knownModels.has(e.modelAssetId)) continue;
+      const names = missingNames.get(e.modelAssetId) ?? [];
+      names.push(e.name || e.id);
+      missingNames.set(e.modelAssetId, names);
+    }
+    const missingModelWarnings = [...missingNames].map(
+      ([id, names]) =>
+        `Model '${id}' used by ${names.map((n) => `'${n}'`).join(', ')} is not in this library; ` +
+        `those copies show a stand-in until you add the model back.`
+    );
+
     const entities: PlacedEntity[] = levelV3.entities.map((e) => ({
       id: e.id,
       row: e.row,
@@ -596,6 +611,7 @@ export class LevelSerializer {
       floorTextures: levelV3.floorTextures.map((r) => [...r]),
       ceilingTextures: levelV3.ceilingTextures.map((r) => [...r]),
       customTextures,
+      ...(missingModelWarnings.length > 0 ? { missingModelWarnings } : {}),
       entities,
       events: levelV3.events,
       regions: levelV3.regions,

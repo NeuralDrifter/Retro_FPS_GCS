@@ -278,18 +278,23 @@ describe('Model library & multi-cell placement', () => {
     assert.equal(bot.footprintW, undefined);
   });
 
-  it('parseLevelJson names a missing model asset in its error', () => {
+  it('parseLevelJson loads a level with a missing model, keeps its copies and warns', () => {
     const level = createSizedTestLevelV3(10, { row: 2, col: 2 });
     level.entities = [
       staticModel('ent-1', 4, 4, { modelAssetId: 'glb-0000000000000000', name: 'Old Mill' }),
     ];
-    assert.throws(
-      () => LevelSerializer.parseLevelJson(JSON.stringify(level)),
-      (err: Error) =>
-        /glb-0000000000000000/.test(err.message) &&
-        /'Old Mill'/.test(err.message) &&
-        /not available/.test(err.message)
-    );
+    const restored = LevelSerializer.parseLevelJson(JSON.stringify(level));
+    assert.equal(restored.entities[0].modelAssetId, 'glb-0000000000000000');
+    assert.equal(restored.missingModelWarnings?.length, 1);
+    assert.match(restored.missingModelWarnings![0], /glb-0000000000000000/);
+    assert.match(restored.missingModelWarnings![0], /'Old Mill'/);
+    assert.equal(validateLevelDataV3(level).valid, true);
+  });
+
+  it('a malformed model id is still rejected', () => {
+    const level = createSizedTestLevelV3(10, { row: 2, col: 2 });
+    level.entities = [staticModel('ent-1', 4, 4, { modelAssetId: 'Bad Id!' })];
+    assert.ok(errorCodes(level).includes('UNREGISTERED_ASSET_ID'));
   });
 
   // ==========================================================================

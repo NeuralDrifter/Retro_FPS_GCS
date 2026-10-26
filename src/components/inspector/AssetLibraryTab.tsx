@@ -151,6 +151,8 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
   >([]);
   // Ids taken by uploads that are not in `model3DAssets` yet (several files dropped at once)
   const claimedModelIdsRef = useRef<Set<string>>(new Set());
+  // Model waiting for the delete confirmation
+  const [confirmDeleteModelId, setConfirmDeleteModelId] = useState<string | null>(null);
 
   const uploadedTextures = textures.filter(
     (t) => t.sourceType === 'file' || t.sourceType === 'url'
@@ -683,15 +685,53 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
                 {isRemovableModel(selectedModel) && (
                   <button
                     type="button"
-                    onClick={() => onRemoveUploadedModel(selectedModel.id)}
+                    onClick={() => setConfirmDeleteModelId(selectedModel.id)}
                     className="ide-btn !h-[18px] !px-1.5 !text-[10px] text-[#f48771]"
-                    title="Remove this model from the library (placed copies stay in the level)"
+                    title="Delete this model and every copy of it in this level"
                   >
                     <Trash2 className="w-2.5 h-2.5" />
-                    <span>Remove</span>
+                    <span>Delete</span>
                   </button>
                 )}
               </div>
+              {confirmDeleteModelId === selectedModel.id && (() => {
+                const copies = placedEntities.filter(
+                  (e) => e.modelAssetId === selectedModel.id
+                ).length;
+                return (
+                  <div
+                    role="alert"
+                    className="p-2 border border-[#f48771] bg-[#3a1d1d] rounded-[2px] text-[10px] text-[#cccccc] space-y-1.5"
+                  >
+                    <div>
+                      Delete '{selectedModel.name}' from the library
+                      {copies > 0 &&
+                        ` and its ${copies} ${copies === 1 ? 'copy' : 'copies'} from this level`}
+                      ? This can't be undone. You can upload the model again later and place
+                      it again.
+                    </div>
+                    <div className="flex gap-1.5 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteModelId(null)}
+                        className="ide-btn !h-[18px] !px-1.5 !text-[10px]"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfirmDeleteModelId(null);
+                          onRemoveUploadedModel(selectedModel.id);
+                        }}
+                        className="ide-btn !h-[18px] !px-1.5 !text-[10px] text-[#f48771]"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="font-mono text-[10px] text-[#858585]">
                 {getCategoryInfo(resolveModelSettings(libraryState, selectedModel).category).label}
                 {' · '}

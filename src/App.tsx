@@ -74,6 +74,7 @@ import {
   getEntitiesCoveringCell,
   getEntityRect,
   remapEntityModelIds,
+  removeModelCopies,
 } from './engine/modelLibrary/placement';
 import { EntityLoader } from './engine/EntityLoader';
 
@@ -283,12 +284,15 @@ export default function App() {
       return [...prev.filter((m) => !restoredIds.has(m.id)), ...restored];
     });
   }, []);
+  // Deleting a model is permanent: its copies leave the level and the undo / redo steps
   const handleRemoveModelAsset = useCallback((modelId: string) => {
+    const removeCopies = (snaps: DesignStateSnapshot[]) =>
+      snaps.map((snap) => ({ ...snap, entities: removeModelCopies(snap.entities, modelId) }));
     setCustomModel3DAssets((prev) => prev.filter((m) => m.id !== modelId));
-    // Copies still placed in the level keep drawing from the file until they are deleted
-    if (!currentDesignRef.current.entities.some((e) => e.modelAssetId === modelId)) {
-      AssetRegistry.removeModelFile(modelId);
-    }
+    setEntities((prev) => removeModelCopies(prev, modelId));
+    setPastHistory(removeCopies);
+    setFutureHistory(removeCopies);
+    AssetRegistry.removeModelFile(modelId);
   }, []);
   // Placed copies (and undo / redo steps) follow stored models that moved to new ids
   const handleModelIdsRenamed = useCallback((renamed: Record<string, string>) => {
@@ -733,8 +737,12 @@ export default function App() {
             (m) => m.id === (source.modelAssetId ?? source.blueprintId)
           )
         : undefined;
-      if (!source || !asset) {
+      if (!source) {
         setEngineLog('Placement blocked: that variant is no longer in the level.');
+        return;
+      }
+      if (!asset) {
+        setEngineLog(`Placement blocked: '${source.name}' uses a model that is not in this library.`);
         return;
       }
       setSelectedCell({ row, col });
@@ -1073,7 +1081,9 @@ export default function App() {
       setSimState(createInitialSimulationState(restoredV3, [0]));
       setResetSignal((n) => n + 1);
       setEngineLog(
-        `File: Loaded Level JSON (${state.entities.length} Entities, ${state.customTextures.length} Custom Textures).`
+        state.missingModelWarnings?.length
+          ? `Warning: ${state.missingModelWarnings.join(' ')}`
+          : `File: Loaded Level JSON (${state.entities.length} Entities, ${state.customTextures.length} Custom Textures).`
       );
     },
     [recordHistorySnapshot]

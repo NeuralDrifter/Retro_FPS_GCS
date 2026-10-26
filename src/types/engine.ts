@@ -315,6 +315,8 @@ export interface LevelStateData {
   ceilingTextures: string[][];
   /** Custom user-uploaded or URL texture definitions */
   customTextures: TextureAsset[];
+  /** One line per custom model the level uses that this library lacks (set by parseLevelJson) */
+  missingModelWarnings?: string[];
   /** Placed 3D entities (.glb Enemies and Objects) */
   entities: PlacedEntity[];
   /** Optional per-cell tag numbers for event triggers */

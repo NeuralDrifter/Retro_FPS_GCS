@@ -137,7 +137,7 @@ export function useModelLibrary(params: {
         const { [modelId]: _settings, ...modelSettings } = prev.modelSettings;
         return { ...prev, modelFolder, modelTags, modelSettings };
       });
-      onLogRef.current('Library: Removed model from the library (placed copies stay in the level).');
+      onLogRef.current('Library: Deleted the model and its copies from this level.');
     },
     [onRemoveModel]
   );

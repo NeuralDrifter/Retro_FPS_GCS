@@ -62,13 +62,30 @@ describe('Model cache & model sources', () => {
     );
     assert.deepEqual(
       modelCacheKey(
-        { blueprintId: 'custom-glb', modelAssetId: 'glb-gone', customGlbUrl: 'blob:http://x/1' },
+        { blueprintId: 'custom-glb', modelAssetId: 'glb-gone', customGlbUrl: 'blob:http://x/1', category: 'characters' },
         lookups
       ),
-      { key: 'builtin:custom-glb' }
+      { key: 'builtin:sentinel-bot', builtinId: 'sentinel-bot', missing: true }
     );
     assert.deepEqual(modelCacheKey({ blueprintId: 'sentinel-bot' }, lookups), {
       key: 'builtin:sentinel-bot',
+      builtinId: 'sentinel-bot',
     });
+  });
+
+  it('a missing non-character model stands in as the supply crate, a missing character as the robot', () => {
+    const none = { hasFile: () => false, urlFor: () => undefined };
+    assert.deepEqual(
+      modelCacheKey({ blueprintId: 'custom-glb', modelAssetId: 'glb-gone', category: 'buildings' }, none),
+      { key: 'builtin:supply-crate', builtinId: 'supply-crate', missing: true }
+    );
+    assert.deepEqual(
+      modelCacheKey({ blueprintId: 'custom-glb', modelAssetId: 'glb-gone', isEnemy: false }, none),
+      { key: 'builtin:supply-crate', builtinId: 'supply-crate', missing: true }
+    );
+    assert.deepEqual(
+      modelCacheKey({ blueprintId: 'custom-glb', modelAssetId: 'glb-gone' }, none),
+      { key: 'builtin:sentinel-bot', builtinId: 'sentinel-bot', missing: true }
+    );
   });
 });

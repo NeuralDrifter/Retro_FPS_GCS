@@ -86,7 +86,12 @@ export class EntityLoader {
     blueprintId: EntityArchetypeId
   ): Promise<CachedGltfAsset> {
     const file = source.fileId ? AssetRegistry.getModelFile(source.fileId) : undefined;
-    if (!file) return this.fetchOrGenerateGltfAsset(blueprintId, source.url);
+    if (!file) {
+      return this.fetchOrGenerateGltfAsset(
+        (source.builtinId as EntityArchetypeId | undefined) ?? blueprintId,
+        source.url
+      );
+    }
     // The link exists only while the loader reads the file
     const link = URL.createObjectURL(file);
     return this.fetchOrGenerateGltfAsset(blueprintId, link).finally(() =>
