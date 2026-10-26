@@ -8,6 +8,9 @@
  * follows the level instead of growing with every model ever loaded.
  */
 
+import type { ModelCategoryId } from '../types/modelLibrary';
+import { resolveEntityCategory } from './modelLibrary/categories';
+
 export interface ModelSourceLookups {
   /** True when an uploaded file is kept for this model id */
   hasFile: (modelId: string) => boolean;
@@ -21,15 +24,26 @@ export interface ModelSource {
   fileId?: string;
   /** Load from this URL */
   url?: string;
+  /** Built-in model to generate (the blueprint's own, or a stand-in for a missing model) */
+  builtinId?: string;
+  /** True when a custom model is not in the library and a stand-in is shown */
+  missing?: true;
 }
 
 /**
  * Where a placed copy's model comes from. A stored file wins, then a permanent
  * URL; `blob:` links saved on old copies are dead after a reload and ignored.
- * With neither, the copy uses its built-in blueprint model.
+ * Built-in blueprints use their own model. A custom model that is not in the
+ * library stands in as the robot (characters) or the supply crate (anything else).
  */
 export function modelCacheKey(
-  entity: { blueprintId: string; modelAssetId?: string; customGlbUrl?: string },
+  entity: {
+    blueprintId: string;
+    modelAssetId?: string;
+    customGlbUrl?: string;
+    category?: ModelCategoryId;
+    isEnemy?: boolean;
+  },
   lookups: ModelSourceLookups
 ): ModelSource {
   const id = entity.modelAssetId;
@@ -37,7 +51,12 @@ export function modelCacheKey(
   const savedUrl = entity.customGlbUrl?.startsWith('blob:') ? undefined : entity.customGlbUrl;
   const url = (id && lookups.urlFor(id)) || savedUrl;
   if (url) return { key: `url:${url}`, url };
-  return { key: `builtin:${entity.blueprintId}` };
+  if (entity.blueprintId !== 'custom-glb') {
+    return { key: `builtin:${entity.blueprintId}`, builtinId: entity.blueprintId };
+  }
+  const standIn =
+    resolveEntityCategory(entity) === 'characters' ? 'sentinel-bot' : 'supply-crate';
+  return { key: `builtin:${standIn}`, builtinId: standIn, missing: true };
 }
 
 export class ModelCache<T> {

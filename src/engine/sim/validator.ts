@@ -833,16 +833,21 @@ export function validateLevelDataV3(
       validateEntityPlacement(ent, ePath, gridSize, errors);
       if (
         ent.modelAssetId !== undefined &&
-        (typeof ent.modelAssetId !== 'string' ||
-          !SAFE_ID_REGEX.test(ent.modelAssetId) ||
-          !allowedModels.has(ent.modelAssetId))
+        (typeof ent.modelAssetId !== 'string' || !SAFE_ID_REGEX.test(ent.modelAssetId))
       ) {
         errors.push({
           path: `${ePath}.modelAssetId`,
           code: 'UNREGISTERED_ASSET_ID',
-          message: `Model '${String(ent.modelAssetId)}' used by '${String(
+          message: `Entity '${String(ent.id)}' modelAssetId must be a safe asset id.`,
+        });
+      } else if (ent.modelAssetId !== undefined && !allowedModels.has(ent.modelAssetId)) {
+        // The level still loads; the copy shows a stand-in until the model is added back
+        warnings.push({
+          path: `${ePath}.modelAssetId`,
+          code: 'MISSING_MODEL_ASSET',
+          message: `Model '${ent.modelAssetId}' used by '${String(
             ent.name ?? ent.id
-          )}' is not available in this browser. Add the model to the library (upload it again or put it in src/assets/models/), then reload the level.`,
+          )}' is not in this library.`,
         });
       }
     });

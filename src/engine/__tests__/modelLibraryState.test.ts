@@ -24,6 +24,7 @@ import {
   findPlacementConflicts,
   getEntitiesCoveringCell,
   remapEntityModelIds,
+  removeModelCopies,
 } from '../modelLibrary/placement';
 import { parseModelDiskPath } from '../modelLibrary/diskPaths';
 import {
@@ -340,6 +341,16 @@ describe('Model library state, filtering & variants', () => {
     assert.equal(next[0].modelAssetId, 'glb-new');
     assert.equal(next[1], ents[1]);
     assert.equal(remapEntityModelIds(ents, { 'glb-zzz': 'glb-new' }), ents);
+  });
+
+  it('removeModelCopies deletes every placed copy of a model and nothing else', () => {
+    const ents = [
+      placed('a', { modelAssetId: 'glb-gone' }),
+      placed('b'),
+      placed('c', { modelAssetId: 'glb-gone' }),
+    ];
+    assert.deepEqual(removeModelCopies(ents, 'glb-gone').map((e) => e.id), ['b']);
+    assert.equal(removeModelCopies(ents, 'glb-zzz'), ents);
   });
 
   it('a database open that is blocked and then succeeds closes the late connection', async () => {
