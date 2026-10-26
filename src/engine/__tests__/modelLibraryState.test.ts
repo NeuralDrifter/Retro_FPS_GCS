@@ -8,6 +8,7 @@ import {
   ensureFolderPath,
   filterModels,
   getFolderCategory,
+  measuredFootprintAtScale,
   mergeDiscoveredFolders,
   moveModelToFolder,
   renameFolder,
@@ -34,6 +35,7 @@ import {
   deleteUploadedModel,
   getAllUploadedModels,
   putUploadedModel,
+  recordToAsset,
   uploadedModelId,
 } from '../modelLibrary/uploadStore';
 
@@ -347,5 +349,37 @@ describe('Model library state, filtering & variants', () => {
     const lamp = placed('ent-2', { row: 9, col: 9 });
     const far = placed('ent-3', { row: 12, col: 1 });
     assert.deepEqual(entitiesFittingGrid([house, lamp, far], 10).map((e) => e.id), ['ent-2']);
+  });
+
+  it('footprints follow the measured size in meters at the current scale', () => {
+    const tower = asset('glb-tower', { category: 'buildings' });
+    const at = (scale: number) =>
+      resolveModelSettings(
+        setModelSettings(createEmptyLibraryState(), 'glb-tower', {
+          measuredSizeMeters: { width: 9, depth: 4.1 },
+          scale,
+        }),
+        tower
+      );
+    assert.deepEqual([at(1).footprintW, at(1).footprintD], [3, 2]);
+    assert.deepEqual([at(2).footprintW, at(2).footprintD], [5, 3]);
+    assert.deepEqual(measuredFootprintAtScale({ measuredSizeMeters: { width: 9, depth: 4.1 } }, 0.5), { w: 2, d: 1 });
+    assert.equal(measuredFootprintAtScale({}, 1), null);
+  });
+
+  it('recordToAsset restores uploaded files from their blob and URL models from their saved URL', () => {
+    const fromFile = recordToAsset(
+      { id: 'glb-a', name: 'a.glb', blob: new Blob(['x']), meta: { name: 'Tower', category: 'buildings' } },
+      () => 'blob:restored'
+    );
+    assert.equal(fromFile?.customGlbUrl, 'blob:restored');
+    assert.equal(fromFile?.name, 'Tower');
+    assert.equal(fromFile?.category, 'buildings');
+    const fromUrl = recordToAsset(
+      { id: 'glb-b', name: 'Remote', blob: null, meta: { sourceType: 'url', customGlbUrl: 'https://example.com/m.glb' } },
+      () => 'blob:unused'
+    );
+    assert.equal(fromUrl?.customGlbUrl, 'https://example.com/m.glb');
+    assert.equal(recordToAsset({ id: 'glb-c', name: 'c', blob: null, meta: {} }, () => 'x'), null);
   });
 });

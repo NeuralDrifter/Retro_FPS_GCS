@@ -23,6 +23,7 @@ import {
   getCategoryInfo,
   resolveEntityCategory,
 } from './categories';
+import { measuredFootprintFromSize } from './footprint';
 
 const FALLBACK_CATEGORY: ModelCategoryId = 'decorations';
 
@@ -205,6 +206,15 @@ export function resolveModelFolder(s: ModelLibraryState, asset: Model3DAsset): s
   return categoryFolderId(category);
 }
 
+/** Footprint of the measured real size at `scale`, or null when the model was never measured */
+export function measuredFootprintAtScale(
+  settings: Pick<ModelSettings, 'measuredSizeMeters'>,
+  scale: number
+): { w: number; d: number } | null {
+  const size = settings.measuredSizeMeters;
+  return size ? measuredFootprintFromSize(size.width * scale, size.depth * scale) : null;
+}
+
 /** Effective settings: category defaults, then asset values, then stored library overrides */
 export function resolveModelSettings(
   s: ModelLibraryState,
@@ -216,7 +226,11 @@ export function resolveModelSettings(
     asset.category ??
     resolveEntityCategory({ isEnemy: asset.isEnemy });
   const info = getCategoryInfo(category);
-  const measured = stored.measuredFootprint ?? asset.measuredFootprint;
+  const scale = stored.scale ?? 1;
+  const measured =
+    measuredFootprintAtScale(stored, scale) ??
+    stored.measuredFootprint ??
+    asset.measuredFootprint;
   const footprint =
     stored.footprintOverride && stored.footprintW && stored.footprintD
       ? { w: stored.footprintW, d: stored.footprintD }
@@ -230,7 +244,8 @@ export function resolveModelSettings(
     collision: stored.collision ?? asset.collision ?? info.defaultCollision,
     footprintW: footprint.w,
     footprintD: footprint.d,
-    scale: stored.scale ?? 1,
+    ...(measured ? { measuredFootprint: measured } : {}),
+    scale,
     isEnemy: isCharacter ? stored.isEnemy ?? asset.isEnemy : false,
     maxHealth: stored.maxHealth ?? asset.defaultHealth,
     moveSpeed: isCharacter ? stored.moveSpeed ?? asset.moveSpeed : 0,

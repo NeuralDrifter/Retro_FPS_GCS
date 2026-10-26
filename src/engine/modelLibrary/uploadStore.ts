@@ -2,7 +2,8 @@
  * ============================================================================
  * PIE3D UPLOADED MODEL FILE STORE (INDEXEDDB)
  * ============================================================================
- * Keeps `.glb` files uploaded through the app across page reloads. Every
+ * Keeps `.glb` files uploaded through the app (and URL-linked models, as just
+ * their URL) across page reloads. Every
  * function resolves (never rejects): when IndexedDB is missing, blocked, or
  * full, writes report `false` and reads return nothing, so uploads still work
  * for the current session.
@@ -17,8 +18,24 @@ const STORE_NAME = 'uploads';
 export interface UploadedModelRecord {
   id: string;
   name: string;
-  blob: Blob;
+  /** The uploaded file, or null for a URL-linked model (its URL is in `meta.customGlbUrl`) */
+  blob: Blob | null;
   meta: Partial<Model3DAsset>;
+}
+
+/** Rebuilds a library model from a stored record, or null when it has no file or URL */
+export function recordToAsset(
+  record: UploadedModelRecord,
+  createObjectUrl: (blob: Blob) => string
+): Model3DAsset | null {
+  const url = record.blob ? createObjectUrl(record.blob) : record.meta.customGlbUrl;
+  if (!url) return null;
+  return {
+    ...(record.meta as Model3DAsset),
+    id: record.id,
+    name: record.meta.name ?? record.name,
+    customGlbUrl: url,
+  };
 }
 
 /**

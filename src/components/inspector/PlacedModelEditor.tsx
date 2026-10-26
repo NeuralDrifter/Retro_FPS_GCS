@@ -4,12 +4,17 @@ import {
   EntityArchetypeId,
   PlacedEntity,
 } from '../../types/engine';
-import type { ModelCollision, ResolvedModelSettings } from '../../types/modelLibrary';
+import type {
+  ModelCategoryId,
+  ModelCollision,
+  ResolvedModelSettings,
+} from '../../types/modelLibrary';
 import { SIM_CONFIG } from '../../engine/sim/types';
 import {
-  getCategoryInfo,
+  MODEL_CATEGORIES,
   resolveEntityCategory,
 } from '../../engine/modelLibrary/categories';
+import { measuredFootprintAtScale } from '../../engine/modelLibrary/libraryState';
 import { RotateCcw, Trash2 } from 'lucide-react';
 
 interface PlacedModelEditorProps {
@@ -40,19 +45,25 @@ const OverrideBadge: React.FC<{ overridden: boolean | null }> = ({ overridden })
 export const PlacedModelEditor: React.FC<PlacedModelEditorProps> = ({
   entity,
   librarySettings,
-  onUpdate,
+  onUpdate: onUpdateRaw,
   onRemove,
 }) => {
   const category = resolveEntityCategory(entity);
+  // Legacy copies have no stored category; writing it makes collision and footprint edits take effect
+  const onUpdate = (updated: PlacedEntity) =>
+    onUpdateRaw({ ...updated, category: updated.category ?? category });
   const isCharacter = category === 'characters';
   const collision: ModelCollision = entity.collision ?? 'solid';
   const footprintW = entity.footprintW ?? 1;
   const footprintD = entity.footprintD ?? 1;
   const differs = (a: unknown, b: unknown) => (librarySettings ? a !== b : null);
-  const measured = librarySettings?.measuredFootprint ?? {
-    w: librarySettings?.footprintW ?? 1,
-    d: librarySettings?.footprintD ?? 1,
-  };
+  // Measured footprint at this copy's own scale (falls back to the library's footprint)
+  const measuredAt = (scale: number) =>
+    (librarySettings && measuredFootprintAtScale(librarySettings, scale)) ?? {
+      w: librarySettings?.footprintW ?? footprintW,
+      d: librarySettings?.footprintD ?? footprintD,
+    };
+  const measured = measuredAt(entity.scale);
 
   return (
     <div className="space-y-2.5">
@@ -68,9 +79,24 @@ export const PlacedModelEditor: React.FC<PlacedModelEditorProps> = ({
 
       <div className="flex items-center justify-between gap-2">
         <span className="ide-label">Category</span>
-        <span className="font-mono text-[11px] text-[#cccccc]">
-          {getCategoryInfo(category).label}
-        </span>
+        <select
+          value={category}
+          onChange={(e) => {
+            const next = e.target.value as ModelCategoryId;
+            onUpdate({
+              ...entity,
+              category: next,
+              ...(next === 'characters' ? {} : { isEnemy: false }),
+            });
+          }}
+          className="ide-select w-40"
+        >
+          {MODEL_CATEGORIES.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="flex items-center justify-between gap-2">
@@ -244,21 +270,25 @@ export const PlacedModelEditor: React.FC<PlacedModelEditorProps> = ({
       <div className="grid grid-cols-2 gap-1.5">
         <div>
           <label className="ide-label flex items-center gap-1.5 mb-0.5">
-            Scale ({entity.scale.toFixed(1)}x){' '}
+            Scale ({entity.scale.toFixed(2)}x){' '}
             <OverrideBadge overridden={differs(entity.scale, librarySettings?.scale)} />
           </label>
           <input
             type="number"
-            min={0.1}
+            min={0.01}
             max={5}
-            step={0.1}
+            step={0.01}
             value={entity.scale}
-            onChange={(e) =>
+            onChange={(e) => {
+              const scale = Math.max(0.01, Math.min(5, Number(e.target.value) || 1));
+              // Unless the footprint was set by hand, it follows the model's scaled size
+              const footprint = entity.footprintOverride ? null : measuredAt(scale);
               onUpdate({
                 ...entity,
-                scale: Math.max(0.1, Math.min(5, Number(e.target.value) || 1)),
-              })
-            }
+                scale,
+                ...(footprint ? { footprintW: footprint.w, footprintD: footprint.d } : {}),
+              });
+            }}
             className="ide-input w-full font-mono"
           />
         </div>

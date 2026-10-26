@@ -48,6 +48,8 @@ export interface ModelSettings {
   moveSpeed?: number;
   attackDamage?: number;
   measuredFootprint?: { w: number; d: number };
+  /** Model's real size in meters at scale 1, so footprints can follow scale changes */
+  measuredSizeMeters?: { width: number; depth: number };
 }
 
 export type ResolvedModelSettings = ModelSettings &

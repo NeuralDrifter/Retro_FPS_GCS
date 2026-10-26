@@ -68,7 +68,6 @@ import {
   setModelSettings,
 } from './engine/modelLibrary/libraryState';
 import { getCategoryInfo } from './engine/modelLibrary/categories';
-import { measuredFootprintFromSize } from './engine/modelLibrary/footprint';
 import {
   entitiesFittingGrid,
   findPlacementConflicts,
@@ -311,7 +310,7 @@ export default function App() {
         continue;
       }
       const settings = resolveModelSettings(libraryState, asset);
-      if (getCategoryInfo(settings.category).sizing !== 'real' || settings.measuredFootprint) {
+      if (getCategoryInfo(settings.category).sizing !== 'real' || settings.measuredSizeMeters) {
         continue;
       }
       measuredAttemptsRef.current.add(asset.id);
@@ -319,10 +318,7 @@ export default function App() {
         if (!size) return;
         setLibraryState((prev) =>
           setModelSettings(prev, asset.id, {
-            measuredFootprint: measuredFootprintFromSize(
-              size.width * settings.scale,
-              size.depth * settings.scale
-            ),
+            measuredSizeMeters: { width: size.width, depth: size.depth },
           })
         );
       });
@@ -726,9 +722,8 @@ export default function App() {
         setEngineLog('Placement blocked: that variant is no longer in the level.');
         return;
       }
-      recordHistorySnapshot(`Place '${source.name}' variant at [X:${col}, Z:${row}]`);
       setSelectedCell({ row, col });
-      placeEntityAtCell(row, col, asset, {
+      const placed = placeEntityAtCell(row, col, asset, {
         category: source.category,
         collision: source.collision,
         footprintW: source.footprintW,
@@ -740,6 +735,9 @@ export default function App() {
         moveSpeed: source.moveSpeed,
         attackDamage: source.attackDamage,
       });
+      if (placed) {
+        recordHistorySnapshot(`Place '${source.name}' variant at [X:${col}, Z:${row}]`);
+      }
     },
     [allModel3DAssets, recordHistorySnapshot, placeEntityAtCell]
   );
@@ -753,12 +751,13 @@ export default function App() {
       const modelAsset = allModel3DAssets.find((m) => m.id === modelAssetId);
       if (!modelAsset) return;
 
+      setSelectedCell({ row, col });
+      setSelectedModelAssetId(modelAsset.id);
+      // The snapshot still captures the pre-drop design (state updates apply on the next render)
+      if (!placeEntityAtCell(row, col, modelAsset)) return;
       recordHistorySnapshot(
         `Drop 3D Model '${modelAsset.name}' at [X:${col}, Z:${row}]`
       );
-      setSelectedCell({ row, col });
-      setSelectedModelAssetId(modelAsset.id);
-      placeEntityAtCell(row, col, modelAsset);
       setEngineLog(
         `Asset Library Drop: Spawned 3D model '${modelAsset.name}' at [X:${col}, Z:${row}].`
       );
@@ -768,8 +767,9 @@ export default function App() {
 
   const handlePlaceEntityFromInspector = useCallback(
     (row: number, col: number) => {
-      recordHistorySnapshot(`Spawn Entity at [X:${col}, Z:${row}]`);
-      placeEntityAtCell(row, col);
+      if (placeEntityAtCell(row, col)) {
+        recordHistorySnapshot(`Spawn Entity at [X:${col}, Z:${row}]`);
+      }
     },
     [recordHistorySnapshot, placeEntityAtCell]
   );
@@ -1474,7 +1474,7 @@ export default function App() {
             setSelectedModelAssetId(variant.modelAssetId);
             setToolMode('entity');
           }}
-          onModelFileUploaded={modelLibrary.handleModelFileUploaded}
+          onModelAdded={modelLibrary.handleModelAdded}
           onRemoveUploadedModel={modelLibrary.handleRemoveUploadedModel}
           onExportLibrary={modelLibrary.handleExportLibrary}
           onImportLibraryFile={modelLibrary.handleImportLibraryFile}

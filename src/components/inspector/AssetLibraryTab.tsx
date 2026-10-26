@@ -19,8 +19,10 @@ import {
   renameFolder,
   resolveModelFolder,
   resolveModelSettings,
+  setModelSettings,
   setModelTags,
 } from '../../engine/modelLibrary/libraryState';
+import { ModelDefaultsEditor } from './modelLibrary/ModelDefaultsEditor';
 import { getCategoryInfo } from '../../engine/modelLibrary/categories';
 import { groupPlacementsIntoVariants } from '../../engine/modelLibrary/variants';
 import { ModelFolderTree } from './modelLibrary/ModelFolderTree';
@@ -48,12 +50,12 @@ interface AssetLibraryTabProps {
   onSelectModelAsset: (assetId: string) => void;
   onAddCustomModel3DAsset: (asset: Model3DAsset) => void;
   libraryState: ModelLibraryState;
-  onLibraryChange: (next: ModelLibraryState) => void;
+  onLibraryChange: React.Dispatch<React.SetStateAction<ModelLibraryState>>;
   placedEntities: PlacedEntity[];
   selectedVariantKey: string | null;
   onPickVariant: (variant: PlacementVariant) => void;
-  /** Called with the original file so it can be kept across reloads */
-  onModelFileUploaded: (file: File, asset: Model3DAsset) => void;
+  /** Called for every new upload (with its file) or URL model so it can be kept across reloads */
+  onModelAdded: (asset: Model3DAsset, file?: File) => void;
   onRemoveUploadedModel: (modelId: string) => void;
   onExportLibrary: () => void;
   onImportLibraryFile: (file: File) => void;
@@ -119,7 +121,7 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
   placedEntities,
   selectedVariantKey,
   onPickVariant,
-  onModelFileUploaded,
+  onModelAdded,
   onRemoveUploadedModel,
   onExportLibrary,
   onImportLibraryFile,
@@ -182,7 +184,8 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
 
   const addModelToLibrary = (newModel: Model3DAsset) => {
     onAddCustomModel3DAsset(newModel);
-    onLibraryChange(moveModelToFolder(libraryState, newModel.id, uploadFolderId));
+    // Functional update: several files dropped at once must all land in the folder
+    onLibraryChange((prev) => moveModelToFolder(prev, newModel.id, uploadFolderId));
     onSelectModelAsset(newModel.id);
   };
 
@@ -249,7 +252,7 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
       })
     );
     addModelToLibrary(newModel);
-    onModelFileUploaded(file, newModel);
+    onModelAdded(newModel, file);
   };
 
   const handleGlbFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -275,6 +278,7 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
       })
     );
     addModelToLibrary(newModel);
+    onModelAdded(newModel);
     setGlbUrlInput('');
   };
 
@@ -515,7 +519,7 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
               if (selectedFolderId === id) setSelectedFolderId(null);
             }}
             onDropModel={(modelId, folderId) =>
-              onLibraryChange(moveModelToFolder(libraryState, modelId, folderId))
+              onLibraryChange((prev) => moveModelToFolder(prev, modelId, folderId))
             }
           />
 
@@ -656,7 +660,18 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
               <ModelTagEditor
                 tags={libraryState.modelTags[selectedModel.id] ?? selectedModel.tags ?? []}
                 onChange={(tags) =>
-                  onLibraryChange(setModelTags(libraryState, selectedModel.id, tags))
+                  onLibraryChange((prev) => setModelTags(prev, selectedModel.id, tags))
+                }
+              />
+              <ModelDefaultsEditor
+                settings={resolveModelSettings(libraryState, selectedModel)}
+                onChangeCategory={(category) =>
+                  onLibraryChange((prev) =>
+                    moveModelToFolder(prev, selectedModel.id, `cat:${category}`)
+                  )
+                }
+                onChangeSettings={(patch) =>
+                  onLibraryChange((prev) => setModelSettings(prev, selectedModel.id, patch))
                 }
               />
             </div>
