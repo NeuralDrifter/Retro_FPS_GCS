@@ -78,6 +78,10 @@ export interface TextureAsset {
   /** DataURL or remote URL (for 'file' and 'url' textures) or thumbnail preview */
   previewUrl: string;
   recommendedSurface: SurfaceTarget | 'any';
+  /** True for textures shipped with the project (`src/assets/textures/` or the public manifest) */
+  fromProject?: boolean;
+  /** Disk subfolder under `src/assets/textures/`, e.g. "Horror/Brick" */
+  folderPath?: string;
 }
 
 /**

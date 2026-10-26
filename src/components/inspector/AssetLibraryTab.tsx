@@ -23,6 +23,11 @@ import {
   setModelTags,
 } from '../../engine/modelLibrary/libraryState';
 import { ModelDefaultsEditor } from './modelLibrary/ModelDefaultsEditor';
+import {
+  TextureFolderFilter,
+  buildTextureFolderTree,
+  filterTextures,
+} from '../../engine/textureLibrary';
 import { getCategoryInfo } from '../../engine/modelLibrary/categories';
 import { groupPlacementsIntoVariants } from '../../engine/modelLibrary/variants';
 import { ModelFolderTree } from './modelLibrary/ModelFolderTree';
@@ -130,7 +135,8 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
   onExportLibrary,
   onImportLibraryFile,
 }) => {
-  const [texFilter, setTexFilter] = useState<'all' | 'uploaded'>('all');
+  const [texFolder, setTexFolder] = useState<TextureFolderFilter>('all');
+  const [texSearch, setTexSearch] = useState('');
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [modelSearch, setModelSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -154,11 +160,11 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
   // Model waiting for the delete confirmation
   const [confirmDeleteModelId, setConfirmDeleteModelId] = useState<string | null>(null);
 
-  const uploadedTextures = textures.filter(
-    (t) => t.sourceType === 'file' || t.sourceType === 'url'
+  const textureFolders = useMemo(() => buildTextureFolderTree(textures), [textures]);
+  const displayedTextures = useMemo(
+    () => filterTextures(textures, texFolder, texSearch),
+    [textures, texFolder, texSearch]
   );
-  const displayedTextures =
-    texFilter === 'uploaded' ? uploadedTextures : textures;
 
   const uploadedModels = model3DAssets.filter(
     (m) => m.sourceType === 'file' || m.sourceType === 'url'
@@ -240,7 +246,7 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
     if (!trimmed) return;
     const newAsset = AssetRegistry.registerTexture({
       id: computeDeterministicAssetId('tex', trimmed),
-      name: `URL Tex #${uploadedTextures.length + 1}`,
+      name: `URL Tex #${filterTextures(textures, 'uploaded', '').length + 1}`,
       sourceType: 'url',
       previewUrl: trimmed,
       recommendedSurface: targetSurface,
@@ -384,26 +390,21 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
           </div>
 
           <div className="flex items-center justify-between gap-1 pt-0.5">
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setTexFilter('all')}
-                className={`ide-btn !h-[18px] !px-2 !text-[10px] ${
-                  texFilter === 'all' ? 'ide-btn--active' : ''
-                }`}
-              >
-                All ({textures.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setTexFilter('uploaded')}
-                className={`ide-btn !h-[18px] !px-2 !text-[10px] ${
-                  texFilter === 'uploaded' ? 'ide-btn--active' : ''
-                }`}
-              >
-                Uploaded ({uploadedTextures.length})
-              </button>
-            </div>
+            <select
+              value={texFolder}
+              onChange={(e) => setTexFolder(e.target.value)}
+              aria-label="Texture folder"
+              className="ide-select flex-1 min-w-0"
+            >
+              <option value="all">All textures ({textures.length})</option>
+              <option value="builtin">Built-in</option>
+              <option value="uploaded">Uploaded</option>
+              {textureFolders.map((node) => (
+                <option key={node.path} value={node.path}>
+                  {`${'\u00a0\u00a0'.repeat(node.depth + 1)}${node.name} (${node.count})`}
+                </option>
+              ))}
+            </select>
 
             <button
               type="button"
@@ -418,10 +419,18 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
             </button>
           </div>
 
+          <input
+            type="search"
+            value={texSearch}
+            onChange={(e) => setTexSearch(e.target.value)}
+            placeholder="Search textures by name"
+            className="ide-input w-full"
+          />
+
           {displayedTextures.length === 0 ? (
             <div className="p-3 bg-[#181818] border border-dashed border-[#3e3e42] text-center text-[11px] text-[#858585]">
-              No custom textures uploaded yet. Upload an image file below or
-              switch to &ldquo;All&rdquo; to drag built-in textures.
+              No textures here. Pick another folder, clear the search, or upload
+              an image file below.
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-1.5">
@@ -449,6 +458,8 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
                         src={tex.previewUrl}
                         alt={tex.name}
                         draggable={false}
+                        loading="lazy"
+                        decoding="async"
                         referrerPolicy="no-referrer"
                         className="w-full h-full object-cover pointer-events-none"
                       />

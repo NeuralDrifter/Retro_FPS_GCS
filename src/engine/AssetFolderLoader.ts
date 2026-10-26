@@ -6,10 +6,11 @@
  * `.svg`) and 3D models (`.glb`, `.gltf`) in dedicated project folders instead
  * of baking them into TypeScript code:
  *
- *  1. Zero-Config Folder Scan (`/src/assets/textures/*` & `/src/assets/models/**`):
+ *  1. Zero-Config Folder Scan (`/src/assets/textures/**` & `/src/assets/models/**`):
  *     Uses Vite's `import.meta.glob` to automatically discover any files dropped
- *     into `/src/assets/textures/` or `/src/assets/models/` (model subfolders
- *     pick the library category and folder; see `modelLibrary/diskPaths.ts`).
+ *     into `/src/assets/textures/` or `/src/assets/models/` (texture subfolders
+ *     become texture folders, see `textureLibrary.ts`; model subfolders pick the
+ *     library category and folder, see `modelLibrary/diskPaths.ts`).
  *
  *  2. Static Public Folder Manifest (`/public/assets/manifest.json`):
  *     Fetches `/assets/manifest.json` at startup to register static files placed
@@ -20,6 +21,7 @@ import { Model3DAsset, TextureAsset } from '../types/engine';
 import type { ModelCategoryId } from '../types/modelLibrary';
 import { isModelCategoryId } from './modelLibrary/categories';
 import { parseModelDiskPath } from './modelLibrary/diskPaths';
+import { parseTextureDiskPath } from './textureLibrary';
 
 export interface PublicAssetManifest {
   textures?: {
@@ -45,7 +47,7 @@ export interface PublicAssetManifest {
 
 // 1. Vite build-time/dev-server glob discovery for /src/assets/
 const globTextureUrls = import.meta.glob(
-  '/src/assets/textures/*.{png,jpg,jpeg,webp,gif,svg}',
+  '/src/assets/textures/**/*.{png,jpg,jpeg,webp,gif,svg}',
   {
     eager: true,
     query: '?url',
@@ -123,13 +125,18 @@ export class AssetFolderLoader {
     models: Model3DAsset[];
   } {
     const textures: TextureAsset[] = Object.entries(globTextureUrls).map(
-      ([filePath, resolvedUrl]) => ({
-        id: `folder-tex-${slugifyPath(filePath)}`,
-        name: formatFilenameToLabel(filePath),
-        sourceType: 'file',
-        previewUrl: resolvedUrl,
-        recommendedSurface: 'wall',
-      })
+      ([filePath, resolvedUrl]) => {
+        const { id, name, folderPath } = parseTextureDiskPath(filePath);
+        return {
+          id,
+          name,
+          sourceType: 'file',
+          previewUrl: resolvedUrl,
+          recommendedSurface: 'any',
+          fromProject: true,
+          ...(folderPath ? { folderPath } : {}),
+        };
+      }
     );
 
     const models: Model3DAsset[] = Object.entries(globModelUrls).map(
@@ -175,6 +182,7 @@ export class AssetFolderLoader {
           sourceType: 'file',
           previewUrl: item.file,
           recommendedSurface: 'wall',
+          fromProject: true,
         }));
 
       const models: Model3DAsset[] = (manifest.models || [])

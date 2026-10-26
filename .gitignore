@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Original texture packs and zips; converted copies live in src/assets/textures/
+openart/

@@ -6,7 +6,7 @@ You do **not** need to bake textures or 3D `.glb` models into the TypeScript sou
 
 ## Option A: Zero-Config Auto-Discovery (`/src/assets/`)
 Drop files directly into these two folders and Vite will automatically discover and add them to the **Inspector → Asset Library** tab on startup:
-- **`/src/assets/textures/`** — Drop any `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, or `.svg` image here.
+- **`/src/assets/textures/`** — Drop any `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, or `.svg` image here. Subfolders become texture folders in the Asset Library's folder list, e.g. `textures/Horror/Brick/brick_01.webp` → **Horror › Brick**. Keep each pack's license file in its folder.
 - **`/src/assets/models/`** — Drop any `.glb` or `.gltf` 3D model here. Subfolders organize the **Model Library**:
   - `models/<category>/...` puts the model in that category: `characters`, `decorations`, `items`, `buildings` or `vehicles`. Deeper folders become library folders inside it, e.g. `models/vehicles/cars/truck.glb` → **Vehicles › cars**.
   - Any other top-level folder becomes a custom library folder in **Decorations**, e.g. `models/props/lamps/lamp.glb`.
