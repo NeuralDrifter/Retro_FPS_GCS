@@ -62,6 +62,20 @@ import { TopMenuBar } from './components/ide/TopMenuBar';
 import { LeftToolPalette } from './components/ide/LeftToolPalette';
 import { BottomStatusBar } from './components/ide/BottomStatusBar';
 import { useModelLibrary } from './components/inspector/modelLibrary/useModelLibrary';
+import type { ModelSettings } from './types/modelLibrary';
+import {
+  resolveModelSettings,
+  setModelSettings,
+} from './engine/modelLibrary/libraryState';
+import { getCategoryInfo } from './engine/modelLibrary/categories';
+import { measuredFootprintFromSize } from './engine/modelLibrary/footprint';
+import {
+  entitiesFittingGrid,
+  findPlacementConflicts,
+  getEntitiesCoveringCell,
+  getEntityRect,
+} from './engine/modelLibrary/placement';
+import { EntityLoader } from './engine/EntityLoader';
 
 export default function App() {
   const initialPreset = MAP_PRESETS[0];
@@ -278,6 +292,52 @@ export default function App() {
     onRestoredUploads: handleRestoredUploads,
     onRemoveModel: handleRemoveModelAsset,
   });
+  const { libraryState, setLibraryState, selectedVariant } = modelLibrary;
+
+  // When off, new placements may not overlap models, walls or doors (existing ones are untouched)
+  const [allowOverlap, setAllowOverlap] = useState<boolean>(false);
+  const allowOverlapRef = useRef(allowOverlap);
+  allowOverlapRef.current = allowOverlap;
+
+  // Measure each real-size custom model once so its footprint is known before placing
+  const measuredAttemptsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const asset of allModel3DAssets) {
+      if (
+        asset.blueprintId !== 'custom-glb' ||
+        !asset.customGlbUrl ||
+        measuredAttemptsRef.current.has(asset.id)
+      ) {
+        continue;
+      }
+      const settings = resolveModelSettings(libraryState, asset);
+      if (getCategoryInfo(settings.category).sizing !== 'real' || settings.measuredFootprint) {
+        continue;
+      }
+      measuredAttemptsRef.current.add(asset.id);
+      EntityLoader.measureModelSize(asset.customGlbUrl).then((size) => {
+        if (!size) return;
+        setLibraryState((prev) =>
+          setModelSettings(prev, asset.id, {
+            measuredFootprint: measuredFootprintFromSize(
+              size.width * settings.scale,
+              size.depth * settings.scale
+            ),
+          })
+        );
+      });
+    }
+  }, [allModel3DAssets, libraryState, setLibraryState]);
+
+  const getLibrarySettings = useCallback(
+    (entity: PlacedEntity) => {
+      const asset = allModel3DAssets.find(
+        (m) => m.id === (entity.modelAssetId ?? entity.blueprintId)
+      );
+      return asset ? resolveModelSettings(libraryState, asset) : null;
+    },
+    [allModel3DAssets, libraryState]
+  );
 
   // --------------------------------------------------------------------------
   // 5. GLOBAL HISTORY MANAGEMENT SYSTEM (UNDO / REDO STACKS)
@@ -578,25 +638,34 @@ export default function App() {
     [recordHistorySnapshot]
   );
 
+  /**
+   * Places a model anchored at [row, col] using its library settings (or a
+   * picked variant's / `settingsOverride`). Returns false when the footprint
+   * leaves the map, or overlaps something while overlap is off.
+   */
   const placeEntityAtCell = useCallback(
-    (row: number, col: number, assetOverride?: Model3DAsset) => {
+    (
+      row: number,
+      col: number,
+      assetOverride?: Model3DAsset,
+      settingsOverride?: ModelSettings
+    ): boolean => {
       const targetAsset =
         assetOverride ||
         allModel3DAssets.find((m) => m.id === selectedModelAssetId) ||
         allModel3DAssets[0];
-      if (!targetAsset) return;
+      if (!targetAsset) return false;
 
-      setGrid((prev) => {
-        if (prev[row][col] !== CellType.WALL) return prev;
-        const next = prev.map((r) => [...r]);
-        next[row][col] = CellType.EMPTY;
-        return next;
-      });
+      const variantSettings =
+        selectedVariant && selectedVariant.modelAssetId === targetAsset.id
+          ? selectedVariant.settings
+          : {};
+      const settings = {
+        ...resolveModelSettings(libraryState, targetAsset),
+        ...(settingsOverride ?? variantSettings),
+      };
 
       const allocatedIdNum = nextEntityIdRef.current;
-      nextEntityIdRef.current = allocatedIdNum + 1;
-      setNextEntityId(allocatedIdNum + 1);
-
       // The asset's own id is stable across reloads; ids derived from object URLs are not
       const modelAssetId = AssetRegistry.registerModel(targetAsset).id;
 
@@ -608,23 +677,71 @@ export default function App() {
         modelAssetId,
         name: targetAsset.name,
         yaw: 0,
-        scale: 1.0,
+        scale: settings.scale ?? 1,
         customGlbUrl: targetAsset.customGlbUrl,
-        isEnemy: targetAsset.isEnemy,
-        maxHealth: targetAsset.defaultHealth ?? 75,
-        moveSpeed: targetAsset.moveSpeed ?? 4.5,
-        attackDamage: targetAsset.attackDamage ?? 12,
+        category: settings.category,
+        collision: settings.collision,
+        footprintW: settings.footprintW,
+        footprintD: settings.footprintD,
+        ...(settings.footprintOverride ? { footprintOverride: true } : {}),
+        isEnemy: settings.isEnemy,
+        maxHealth: settings.maxHealth ?? 75,
+        moveSpeed: settings.moveSpeed ?? 0,
+        attackDamage: settings.attackDamage ?? 0,
       };
 
-      setEntities((prev) => [
-        ...prev.filter((e) => !(e.row === row && e.col === col)),
-        newEntity,
-      ]);
+      const { grid: currentGrid, entities: currentEntities } = currentDesignRef.current;
+      const reasons = findPlacementConflicts(currentGrid, currentEntities, newEntity);
+      if (
+        reasons.includes('off the map edge') ||
+        (!allowOverlapRef.current && reasons.length > 0)
+      ) {
+        setEngineLog(`Placement blocked: ${reasons.join('; ')}`);
+        return false;
+      }
+
+      nextEntityIdRef.current = allocatedIdNum + 1;
+      setNextEntityId(allocatedIdNum + 1);
+      setEntities((prev) => [...prev, newEntity]);
       setEngineLog(
         `Entity: Placed '${newEntity.name}' (${newEntity.id}) at cell [X:${col}, Z:${row}].`
       );
+      return true;
     },
-    [allModel3DAssets, selectedModelAssetId]
+    [allModel3DAssets, selectedModelAssetId, libraryState, selectedVariant]
+  );
+
+  /** Places a copy with the same settings as an already placed model (variant drag) */
+  const handleDropVariantOnCell = useCallback(
+    (row: number, col: number, sourceEntityId: string) => {
+      const source = currentDesignRef.current.entities.find(
+        (e) => e.id === sourceEntityId
+      );
+      const asset = source
+        ? allModel3DAssets.find(
+            (m) => m.id === (source.modelAssetId ?? source.blueprintId)
+          )
+        : undefined;
+      if (!source || !asset) {
+        setEngineLog('Placement blocked: that variant is no longer in the level.');
+        return;
+      }
+      recordHistorySnapshot(`Place '${source.name}' variant at [X:${col}, Z:${row}]`);
+      setSelectedCell({ row, col });
+      placeEntityAtCell(row, col, asset, {
+        category: source.category,
+        collision: source.collision,
+        footprintW: source.footprintW,
+        footprintD: source.footprintD,
+        footprintOverride: source.footprintOverride,
+        scale: source.scale,
+        isEnemy: source.isEnemy,
+        maxHealth: source.maxHealth,
+        moveSpeed: source.moveSpeed,
+        attackDamage: source.attackDamage,
+      });
+    },
+    [allModel3DAssets, recordHistorySnapshot, placeEntityAtCell]
   );
 
   /**
@@ -679,18 +796,14 @@ export default function App() {
           allModel3DAssets.find((m) => m.id === selectedModelAssetId) ||
           allModel3DAssets[0];
 
-        const existingAtCell = entities.find(
-          (e) => e.row === row && e.col === col
-        );
-        if (
-          existingAtCell &&
-          activeAsset &&
-          existingAtCell.blueprintId === activeAsset.blueprintId &&
-          existingAtCell.name === activeAsset.name
-        ) {
-          setEntities((prev) =>
-            prev.filter((e) => !(e.row === row && e.col === col))
-          );
+        // Clicking a cell covered by the active model removes that copy
+        const existingAtCell = activeAsset
+          ? getEntitiesCoveringCell(entities, row, col).find(
+              (e) => (e.modelAssetId ?? e.blueprintId) === activeAsset.id
+            )
+          : undefined;
+        if (existingAtCell) {
+          setEntities((prev) => prev.filter((e) => e.id !== existingAtCell.id));
           setEngineLog(
             `Entity: Removed '${existingAtCell.name}' from [X:${col}, Z:${row}].`
           );
@@ -747,9 +860,12 @@ export default function App() {
           next[row][col] = CellType.EMPTY;
           return next;
         });
-        setEntities((ents) =>
-          ents.filter((e) => !(e.row === row && e.col === col))
-        );
+        setEntities((ents) => {
+          const covering = new Set(
+            getEntitiesCoveringCell(ents, row, col).map((e) => e.id)
+          );
+          return ents.filter((e) => !covering.has(e.id));
+        });
       } else if (toolMode === 'door') {
         setGrid((prev) => {
           const next = prev.map((r) => [...r]);
@@ -797,6 +913,27 @@ export default function App() {
 
   const handleUpdateEntity = useCallback(
     (updated: PlacedEntity) => {
+      // Moving, rotating or resizing a footprint must still fit (and not overlap while overlap is off)
+      const { grid: currentGrid, entities: currentEntities } = currentDesignRef.current;
+      const previous = currentEntities.find((e) => e.id === updated.id);
+      if (
+        previous &&
+        JSON.stringify(getEntityRect(previous)) !== JSON.stringify(getEntityRect(updated))
+      ) {
+        const reasons = findPlacementConflicts(
+          currentGrid,
+          currentEntities,
+          updated,
+          updated.id
+        );
+        if (
+          reasons.includes('off the map edge') ||
+          (!allowOverlapRef.current && reasons.length > 0)
+        ) {
+          setEngineLog(`Placement blocked: ${reasons.join('; ')}`);
+          return;
+        }
+      }
       recordHistorySnapshot(
         `Edit Entity '${updated.name}' at [X:${updated.col}, Z:${updated.row}]`
       );
@@ -807,13 +944,13 @@ export default function App() {
     [recordHistorySnapshot]
   );
 
-  const handleRemoveEntityAtCell = useCallback(
-    (row: number, col: number) => {
-      recordHistorySnapshot(`Delete Entity at [X:${col}, Z:${row}]`);
-      setEntities((prev) =>
-        prev.filter((e) => !(e.row === row && e.col === col))
-      );
-      setEngineLog(`Inspector: Removed entity at [X:${col}, Z:${row}].`);
+  const handleRemoveEntity = useCallback(
+    (entityId: string) => {
+      const target = currentDesignRef.current.entities.find((e) => e.id === entityId);
+      if (!target) return;
+      recordHistorySnapshot(`Delete '${target.name}'`);
+      setEntities((prev) => prev.filter((e) => e.id !== entityId));
+      setEngineLog(`Inspector: Removed '${target.name}'.`);
     },
     [recordHistorySnapshot]
   );
@@ -1072,7 +1209,7 @@ export default function App() {
       setCeilingTextures((prev) =>
         resizeSquareMatrix(prev, size, 'ceiling-coffer')
       );
-      setEntities((prev) => prev.filter((e) => e.row <= maxIdx && e.col <= maxIdx));
+      setEntities((prev) => entitiesFittingGrid(prev, size));
       setSpawn((prev) => ({
         ...prev,
         row: Math.min(prev.row, maxIdx),
@@ -1196,6 +1333,9 @@ export default function App() {
                 spawn={spawn}
                 onClearGrid={handleClearGrid}
                 onBorderWalls={handleBorderWalls}
+                onDropVariantOnCell={handleDropVariantOnCell}
+                allowOverlap={allowOverlap}
+                onToggleAllowOverlap={() => setAllowOverlap((prev) => !prev)}
                 collectedKeys={collectedKeys}
                 openDoors={openDoors}
               />
@@ -1289,6 +1429,8 @@ export default function App() {
           selectedModelAssetId={selectedModelAssetId}
           onSelectModelAsset={(assetId) => {
             setSelectedModelAssetId(assetId);
+            // Picking a library model places it with library settings, not a variant's
+            modelLibrary.setSelectedVariant(null);
             setToolMode('entity');
           }}
           onAddCustomModel3DAsset={(asset) => {
@@ -1304,7 +1446,8 @@ export default function App() {
           }}
           onUpdateEntity={handleUpdateEntity}
           onPlaceEntityAtCell={handlePlaceEntityFromInspector}
-          onRemoveEntityAtCell={handleRemoveEntityAtCell}
+          onRemoveEntity={handleRemoveEntity}
+          getLibrarySettings={getLibrarySettings}
           skyboxTheme={skyboxTheme}
           onChangeSkyboxTheme={(theme) => {
             setSkyboxTheme(theme);
@@ -1323,8 +1466,8 @@ export default function App() {
           onBorderWalls={handleBorderWalls}
           onClearGrid={handleClearGrid}
           onResizeMap={handleResizeMap}
-          libraryState={modelLibrary.libraryState}
-          onLibraryChange={modelLibrary.setLibraryState}
+          libraryState={libraryState}
+          onLibraryChange={setLibraryState}
           selectedVariantKey={modelLibrary.selectedVariant?.key ?? null}
           onPickVariant={(variant) => {
             modelLibrary.setSelectedVariant(variant);

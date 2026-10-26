@@ -17,6 +17,11 @@ import {
   setModelTags,
 } from '../modelLibrary/libraryState';
 import { groupPlacementsIntoVariants } from '../modelLibrary/variants';
+import {
+  entitiesFittingGrid,
+  findPlacementConflicts,
+  getEntitiesCoveringCell,
+} from '../modelLibrary/placement';
 import { parseModelDiskPath } from '../modelLibrary/diskPaths';
 import {
   LIBRARY_STORAGE_KEY,
@@ -294,5 +299,53 @@ describe('Model library state, filtering & variants', () => {
     assert.equal(s.modelFolder['glb-moved'], 'cat:vehicles');
     assert.equal(s.modelFolder['glb-plain'], undefined);
     assert.deepEqual(mergeDiscoveredFolders(s, assets), s);
+  });
+
+  it('getEntitiesCoveringCell finds a 3x2 building from any covered cell', () => {
+    const house = placed('ent-1', { row: 2, col: 3, footprintW: 3, footprintD: 2, category: 'buildings' });
+    const lamp = placed('ent-2', { row: 3, col: 4 });
+    const at = (r: number, c: number) => getEntitiesCoveringCell([house, lamp], r, c).map((e) => e.id);
+    assert.deepEqual(at(2, 3), ['ent-1']);
+    assert.deepEqual(at(3, 5), ['ent-1']);
+    assert.deepEqual(at(3, 4), ['ent-1', 'ent-2']);
+    assert.deepEqual(at(4, 3), []);
+  });
+
+  it('findPlacementConflicts reports walls, doors and other models, and the map edge', () => {
+    const grid = Array.from({ length: 10 }, () => Array.from({ length: 10 }, () => 0));
+    grid[2][4] = 1;
+    grid[3][3] = 2;
+    const tree = placed('ent-9', { row: 3, col: 5, name: 'Oak Tree' });
+    const house = placed('ent-1', { row: 2, col: 3, footprintW: 3, footprintD: 2, name: 'House' });
+    assert.deepEqual(findPlacementConflicts(grid, [tree], house), [
+      'wall at [X:4, Z:2]',
+      'door at [X:3, Z:3]',
+      'overlaps Oak Tree',
+    ]);
+    assert.deepEqual(findPlacementConflicts(grid, [tree, house], house, 'ent-1'), [
+      'wall at [X:4, Z:2]',
+      'door at [X:3, Z:3]',
+      'overlaps Oak Tree',
+    ]);
+    assert.deepEqual(
+      findPlacementConflicts(grid, [], placed('ent-2', { row: 6, col: 8, footprintW: 3 })),
+      ['off the map edge']
+    );
+    assert.deepEqual(findPlacementConflicts(grid, [], placed('ent-3', { row: 6, col: 6 })), []);
+  });
+
+  it('findPlacementConflicts refuses a rotation that leaves the map', () => {
+    const grid = Array.from({ length: 10 }, () => Array.from({ length: 10 }, () => 0));
+    const bench = placed('ent-1', { row: 8, col: 2, footprintW: 3, footprintD: 1 });
+    assert.deepEqual(findPlacementConflicts(grid, [bench], bench, 'ent-1'), []);
+    const rotated = { ...bench, yaw: Math.PI / 2 };
+    assert.ok(findPlacementConflicts(grid, [bench], rotated, 'ent-1').includes('off the map edge'));
+  });
+
+  it('entitiesFittingGrid drops a model whose footprint crosses a shrunk edge', () => {
+    const house = placed('ent-1', { row: 4, col: 8, footprintW: 3, footprintD: 2 });
+    const lamp = placed('ent-2', { row: 9, col: 9 });
+    const far = placed('ent-3', { row: 12, col: 1 });
+    assert.deepEqual(entitiesFittingGrid([house, lamp, far], 10).map((e) => e.id), ['ent-2']);
   });
 });
