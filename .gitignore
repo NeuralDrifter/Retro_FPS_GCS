@@ -7,5 +7,5 @@ coverage/
 .env*
 !.env.example
 
-# Original texture packs and zips; converted copies live in src/assets/textures/
+# Original asset packs and zips; the converted collections are kept outside the repository
 openart/
