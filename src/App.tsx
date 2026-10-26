@@ -73,6 +73,7 @@ import {
   findPlacementConflicts,
   getEntitiesCoveringCell,
   getEntityRect,
+  remapEntityModelIds,
 } from './engine/modelLibrary/placement';
 import { EntityLoader } from './engine/EntityLoader';
 
@@ -285,11 +286,21 @@ export default function App() {
   const handleRemoveModelAsset = useCallback((modelId: string) => {
     setCustomModel3DAssets((prev) => prev.filter((m) => m.id !== modelId));
   }, []);
+  // Placed copies (and undo / redo steps) follow stored models that moved to new ids
+  const handleModelIdsRenamed = useCallback((renamed: Record<string, string>) => {
+    const remapSnapshots = (snaps: DesignStateSnapshot[]) =>
+      snaps.map((snap) => ({ ...snap, entities: remapEntityModelIds(snap.entities, renamed) }));
+    setEntities((prev) => remapEntityModelIds(prev, renamed));
+    setPastHistory(remapSnapshots);
+    setFutureHistory(remapSnapshots);
+    setSelectedModelAssetId((prev) => renamed[prev] ?? prev);
+  }, []);
   const modelLibrary = useModelLibrary({
     models: allModel3DAssets,
     onLog: setEngineLog,
     onRestoredUploads: handleRestoredUploads,
     onRemoveModel: handleRemoveModelAsset,
+    onModelIdsRenamed: handleModelIdsRenamed,
   });
   const { libraryState, setLibraryState, selectedVariant } = modelLibrary;
 

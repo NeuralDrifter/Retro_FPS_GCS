@@ -12,7 +12,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Model3DAsset } from '../../../types/engine';
 import type { ModelLibraryState, PlacementVariant } from '../../../types/modelLibrary';
 import { AssetRegistry } from '../../../engine/AssetRegistry';
-import { mergeDiscoveredFolders } from '../../../engine/modelLibrary/libraryState';
+import {
+  mergeDiscoveredFolders,
+  remapLibraryModelIds,
+} from '../../../engine/modelLibrary/libraryState';
 import {
   exportLibraryJson,
   getBrowserStorage,
@@ -25,6 +28,7 @@ import {
   getAllUploadedModels,
   putUploadedModel,
   recordToAsset,
+  rekeyUploadedRecords,
 } from '../../../engine/modelLibrary/uploadStore';
 
 const STORAGE_WARNING =
@@ -41,8 +45,10 @@ export function useModelLibrary(params: {
   /** Uploaded models restored from browser storage on startup */
   onRestoredUploads: (assets: Model3DAsset[]) => void;
   onRemoveModel: (modelId: string) => void;
+  /** Stored models moved to new ids on startup (old id to new); placed copies must follow */
+  onModelIdsRenamed: (renamed: Record<string, string>) => void;
 }) {
-  const { models, onLog, onRestoredUploads, onRemoveModel } = params;
+  const { models, onLog, onRestoredUploads, onRemoveModel, onModelIdsRenamed } = params;
   const [libraryState, setLibraryState] = useState<ModelLibraryState>(() =>
     loadLibraryState(getBrowserStorage())
   );
@@ -52,6 +58,8 @@ export function useModelLibrary(params: {
   onLogRef.current = onLog;
   const onRestoredUploadsRef = useRef(onRestoredUploads);
   onRestoredUploadsRef.current = onRestoredUploads;
+  const onModelIdsRenamedRef = useRef(onModelIdsRenamed);
+  onModelIdsRenamedRef.current = onModelIdsRenamed;
 
   useEffect(() => {
     if (!saveLibraryState(getBrowserStorage(), libraryState) && !warnedStorageRef.current) {
@@ -67,13 +75,37 @@ export function useModelLibrary(params: {
 
   useEffect(() => {
     let active = true;
-    getAllUploadedModels().then((records) => {
-      if (!active || records.length === 0) return;
-      const restored = records
-        .map((r) => recordToAsset(r, (blob) => URL.createObjectURL(blob)))
-        .filter((a): a is Model3DAsset => a !== null);
-      if (restored.length > 0) onRestoredUploadsRef.current(restored);
-    });
+    getAllUploadedModels()
+      .then(rekeyUploadedRecords)
+      .then(async ({ records, renamed }) => {
+        const oldIds = Object.keys(renamed);
+        if (oldIds.length > 0) {
+          // Store each moved model under its new id, then drop the old entries
+          const newIds = new Set(Object.values(renamed));
+          for (const r of records) if (newIds.has(r.id)) await putUploadedModel(r);
+          for (const oldId of oldIds) {
+            if (!records.some((r) => r.id === oldId)) await deleteUploadedModel(oldId);
+          }
+          if (active) {
+            setLibraryState((prev) => remapLibraryModelIds(prev, renamed));
+            onModelIdsRenamedRef.current(renamed);
+            onLogRef.current(
+              `Library: Moved ${oldIds.length} stored model(s) to content-based ids.`
+            );
+          }
+        }
+        return records;
+      })
+      .then((records) => {
+        if (!active || records.length === 0) return;
+        const restored = records
+          .map((r) => recordToAsset(r, (blob) => URL.createObjectURL(blob)))
+          .filter((a): a is Model3DAsset => a !== null);
+        if (restored.length > 0) onRestoredUploadsRef.current(restored);
+      })
+      .catch(() => {
+        if (active) onLogRef.current('Library: Could not restore uploaded models from browser storage.');
+      });
     return () => {
       active = false;
     };

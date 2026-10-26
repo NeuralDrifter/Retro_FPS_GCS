@@ -238,12 +238,13 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
     setUrlInput('');
   };
 
-  const processUploadedGlbFile = (file: File) => {
+  const processUploadedGlbFile = async (file: File) => {
+    const id = await uploadedModelId(await file.arrayBuffer());
     const objectUrl = URL.createObjectURL(file);
     const customCount = uploadedModels.length + 1;
     const newModel = AssetRegistry.registerModel(
       buildCustomModel3DAsset({
-        id: uploadedModelId(file.name, file.size),
+        id,
         name: sanitizeAssetLabel(file.name, `Custom .glb #${customCount}`),
         sourceType: 'file',
         category: uploadCategory,
@@ -258,7 +259,7 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
   const handleGlbFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    Array.from(files).forEach(processUploadedGlbFile);
+    Array.from(files).forEach((file) => void processUploadedGlbFile(file));
     e.target.value = '';
   };
 
