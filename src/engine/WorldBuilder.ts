@@ -481,6 +481,9 @@ export class WorldBuilder {
 
     const staticSolidMeshes: THREE.Object3D[] = [];
 
+    // Free loaded models this world no longer places
+    EntityLoader.releaseModelsNotUsedBy(entities);
+
     entities.forEach((entity) => {
       const isStatic = isStaticModel(entity);
       if (!isStatic && grid[entity.row]?.[entity.col] === CellType.WALL) return;

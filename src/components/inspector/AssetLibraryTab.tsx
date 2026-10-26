@@ -86,7 +86,8 @@ function buildCustomModel3DAsset(params: {
   sourceType: 'file' | 'url';
   category: ModelCategoryId;
   customCount: number;
-  customGlbUrl: string;
+  /** Web address of a URL model; uploaded files are kept in AssetRegistry instead */
+  customGlbUrl?: string;
 }): Model3DAsset {
   const isEnemy = params.category === 'characters';
   return {
@@ -102,7 +103,7 @@ function buildCustomModel3DAsset(params: {
     attackDamage: isEnemy ? DEFAULT_CUSTOM_ENEMY_DAMAGE : 0,
     accentHex: isEnemy ? '#10B981' : '#38BDF8',
     badgeText: `G${params.customCount}`,
-    customGlbUrl: params.customGlbUrl,
+    ...(params.customGlbUrl ? { customGlbUrl: params.customGlbUrl } : {}),
     category: params.category,
   };
 }
@@ -281,7 +282,7 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
 
   const addUploadedGlbFile = (file: File, id: string, nameSuffix = '') => {
     claimedModelIdsRef.current.add(id);
-    const objectUrl = URL.createObjectURL(file);
+    AssetRegistry.registerModelFile(id, file);
     const customCount = uploadedModels.length + 1;
     const newModel = AssetRegistry.registerModel(
       buildCustomModel3DAsset({
@@ -290,7 +291,6 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
         sourceType: 'file',
         category: uploadCategory,
         customCount,
-        customGlbUrl: objectUrl,
       })
     );
     addModelToLibrary(newModel);

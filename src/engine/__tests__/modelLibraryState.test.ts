@@ -450,19 +450,23 @@ describe('Model library state, filtering & variants', () => {
     assert.equal(measuredFootprintAtScale({}, 1), null);
   });
 
-  it('recordToAsset restores uploaded files from their blob and URL models from their saved URL', () => {
+  it('recordToAsset hands uploaded files to keepFile without a link and keeps URL models on their URL', () => {
+    const kept: string[] = [];
+    const keepFile = (id: string) => kept.push(id);
     const fromFile = recordToAsset(
       { id: 'glb-a', name: 'a.glb', blob: new Blob(['x']), meta: { name: 'Tower', category: 'buildings' } },
-      () => 'blob:restored'
+      keepFile
     );
-    assert.equal(fromFile?.customGlbUrl, 'blob:restored');
+    assert.equal(fromFile?.customGlbUrl, undefined);
+    assert.deepEqual(kept, ['glb-a']);
     assert.equal(fromFile?.name, 'Tower');
     assert.equal(fromFile?.category, 'buildings');
     const fromUrl = recordToAsset(
       { id: 'glb-b', name: 'Remote', blob: null, meta: { sourceType: 'url', customGlbUrl: 'https://example.com/m.glb' } },
-      () => 'blob:unused'
+      keepFile
     );
     assert.equal(fromUrl?.customGlbUrl, 'https://example.com/m.glb');
-    assert.equal(recordToAsset({ id: 'glb-c', name: 'c', blob: null, meta: {} }, () => 'x'), null);
+    assert.equal(recordToAsset({ id: 'glb-c', name: 'c', blob: null, meta: {} }, keepFile), null);
+    assert.deepEqual(kept, ['glb-a']);
   });
 });

@@ -26,6 +26,7 @@ import {
 } from '../types/engine';
 import { AssetRegistry } from './AssetRegistry';
 import { isStaticModel } from './modelLibrary/categories';
+import { ModelCache, ModelSource, modelCacheKey } from './modelCache';
 
 export interface EntityMaterialSnapshot {
   material: THREE.MeshStandardMaterial;
@@ -57,7 +58,58 @@ interface CachedGltfAsset {
 
 export class EntityLoader {
   private static gltfLoader: GLTFLoader | null = null;
-  private static assetCache = new Map<string, Promise<CachedGltfAsset>>();
+  // Models the current world uses; WorldBuilder frees the rest on every build
+  private static assetCache = new ModelCache<CachedGltfAsset>((asset) =>
+    EntityLoader.disposeGltfScene(asset.scene)
+  );
+
+  /** Where `entity`'s model comes from (stored file, URL, or built-in) */
+  public static getModelSource(entity: {
+    blueprintId: string;
+    modelAssetId?: string;
+    customGlbUrl?: string;
+  }): ModelSource {
+    return modelCacheKey(entity, {
+      hasFile: (id) => AssetRegistry.getModelFile(id) !== undefined,
+      urlFor: (id) => AssetRegistry.getCustomGlbUrlForModelId(id),
+    });
+  }
+
+  /** Frees every loaded custom model none of `entities` uses (built-ins are small and kept) */
+  public static releaseModelsNotUsedBy(entities: PlacedEntity[]): void {
+    const used = new Set(entities.map((e) => this.getModelSource(e).key));
+    this.assetCache.retainOnly(used, (key) => key.startsWith('builtin:'));
+  }
+
+  private static loadModelSource(
+    source: ModelSource,
+    blueprintId: EntityArchetypeId
+  ): Promise<CachedGltfAsset> {
+    const file = source.fileId ? AssetRegistry.getModelFile(source.fileId) : undefined;
+    if (!file) return this.fetchOrGenerateGltfAsset(blueprintId, source.url);
+    // The link exists only while the loader reads the file
+    const link = URL.createObjectURL(file);
+    return this.fetchOrGenerateGltfAsset(blueprintId, link).finally(() =>
+      URL.revokeObjectURL(link)
+    );
+  }
+
+  /** Frees the GPU and memory buffers held by a loaded model */
+  private static disposeGltfScene(scene: THREE.Object3D): void {
+    scene.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.geometry?.dispose();
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const material of materials) {
+        if (!material) continue;
+        for (const value of Object.values(material)) {
+          if ((value as THREE.Texture | null)?.isTexture) (value as THREE.Texture).dispose();
+        }
+        material.dispose();
+      }
+    });
+  }
 
   /**
    * Initializes and returns a singleton `GLTFLoader` configured with
@@ -89,12 +141,7 @@ export class EntityLoader {
     worldPos: { x: number; z: number },
     wireframe = false
   ): Promise<SpawnedEntityInstance> {
-    const resolvedGlbUrl =
-      entity.customGlbUrl ||
-      AssetRegistry.getCustomGlbUrlForModelId(entity.modelAssetId);
-    const cacheKey = resolvedGlbUrl
-      ? `url:${resolvedGlbUrl}`
-      : `builtin:${entity.blueprintId}`;
+    const source = this.getModelSource(entity);
 
     // Resolve default combat stats from blueprint if not explicitly set on entity
     const bp = DEFAULT_ENTITY_BLUEPRINTS.find(
@@ -115,22 +162,19 @@ export class EntityLoader {
       entity.attackDamage ?? bp?.attackDamage ?? (isEnemy ? 12 : 0);
 
     // 1. Load (or retrieve cached) GLTF scene + animation clips
-    if (!this.assetCache.has(cacheKey)) {
-      this.assetCache.set(
-        cacheKey,
-        this.fetchOrGenerateGltfAsset(entity.blueprintId, resolvedGlbUrl)
-      );
-    }
-
     let cached: CachedGltfAsset;
     try {
-      cached = await this.assetCache.get(cacheKey)!;
+      cached = await this.assetCache.get(source.key, () =>
+        this.loadModelSource(source, entity.blueprintId)
+      );
     } catch (error) {
       console.warn(
-        `[GridForge EntityLoader] Failed to load custom .glb (${resolvedGlbUrl}). Falling back to built-in Sentinel .glb.`,
+        `[GridForge EntityLoader] Failed to load custom .glb (${source.key}). Falling back to built-in Sentinel .glb.`,
         error
       );
-      cached = await this.fetchOrGenerateGltfAsset('sentinel-bot');
+      cached = await this.assetCache.get('builtin:sentinel-bot', () =>
+        this.fetchOrGenerateGltfAsset('sentinel-bot')
+      );
     }
 
     // 2. Clone the scene hierarchy using SkeletonUtils.clone()
@@ -341,25 +385,30 @@ export class EntityLoader {
   }
 
   /**
-   * Measures a `.glb` model's native size in meters (unscaled), or returns
-   * `null` when it cannot be loaded. Reuses the shared asset cache.
+   * Measures a library model's native size in meters (unscaled), or returns
+   * `null` when it cannot be loaded. A model the world already uses is
+   * measured from the cache; otherwise it is loaded, measured and freed.
    */
-  public static async measureModelSize(
-    glbUrl: string
-  ): Promise<{ width: number; depth: number; height: number } | null> {
-    const cacheKey = `url:${glbUrl}`;
-    if (!this.assetCache.has(cacheKey)) {
-      this.assetCache.set(
-        cacheKey,
-        this.fetchOrGenerateGltfAsset('custom-glb', glbUrl)
-      );
-    }
+  public static async measureModelSize(asset: {
+    id: string;
+    customGlbUrl?: string;
+  }): Promise<{ width: number; depth: number; height: number } | null> {
+    const source = this.getModelSource({
+      blueprintId: 'custom-glb',
+      modelAssetId: asset.id,
+      customGlbUrl: asset.customGlbUrl,
+    });
+    if (!source.fileId && !source.url) return null;
+    const cached = this.assetCache.has(source.key);
     try {
-      const cached = await this.assetCache.get(cacheKey)!;
-      cached.scene.updateMatrixWorld(true);
+      const loaded = cached
+        ? await this.assetCache.get(source.key, () => this.loadModelSource(source, 'custom-glb'))
+        : await this.loadModelSource(source, 'custom-glb');
+      loaded.scene.updateMatrixWorld(true);
       const size = new THREE.Box3()
-        .setFromObject(cached.scene)
+        .setFromObject(loaded.scene)
         .getSize(new THREE.Vector3());
+      if (!cached) this.disposeGltfScene(loaded.scene);
       if (![size.x, size.y, size.z].every(Number.isFinite)) return null;
       return { width: size.x, depth: size.z, height: size.y };
     } catch {
