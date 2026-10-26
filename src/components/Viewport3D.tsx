@@ -172,6 +172,8 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   const wallBlockGroupsRef = useRef<Map<string, THREE.Group>>(new Map());
   const doorMeshesRef = useRef<Map<string, THREE.Group>>(new Map());
   const keyMeshesRef = useRef<Map<string, THREE.Group>>(new Map());
+  const floorMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
+  const ceilingMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
   const enemyAIRef = useRef<EnemyAISystem | null>(null);
   const combatSystemRef = useRef<CombatSystem | null>(null);
 
@@ -340,6 +342,8 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     wallBlockGroupsRef.current = built.wallBlockGroups;
     doorMeshesRef.current = built.doorMeshes;
     keyMeshesRef.current = built.keyMeshes;
+    floorMeshesRef.current = built.floorMeshes;
+    ceilingMeshesRef.current = built.ceilingMeshes;
     enemyAIRef.current = built.enemyAI;
     scene.add(built.worldGroup);
   }, [
@@ -859,18 +863,51 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           UNITS_TO_METERS *
           SIM_CONFIG.TICKS_PER_SECOND;
 
+        const playerCellRow = Math.max(
+          0,
+          Math.min(
+            ENGINE_CONFIG.GRID_SIZE - 1,
+            Math.floor(interpZUnits / SIM_CONFIG.CELL_UNITS)
+          )
+        );
+        const playerCellCol = Math.max(
+          0,
+          Math.min(
+            ENGINE_CONFIG.GRID_SIZE - 1,
+            Math.floor(interpXUnits / SIM_CONFIG.CELL_UNITS)
+          )
+        );
+        const prevFloorH =
+          prevSim.floorHeights?.[playerCellRow]?.[playerCellCol] ?? 0;
+        const currFloorH =
+          curSim.floorHeights?.[playerCellRow]?.[playerCellCol] ?? 0;
+        const interpFloorH =
+          (prevFloorH + (currFloorH - prevFloorH) * alpha) * UNITS_TO_METERS;
+
         if (currP.speedUnitsPerTick > 0 && !isPlayerDead) {
           const isSprinting = Boolean(keys['ShiftLeft'] || keys['ShiftRight']);
           camera.position.y =
+            interpFloorH +
             ENGINE_CONFIG.PLAYER_EYE_HEIGHT +
             Math.sin(elapsedSec * (isSprinting ? 14 : 10)) * 0.055;
         } else {
           camera.position.y = THREE.MathUtils.damp(
             camera.position.y,
-            ENGINE_CONFIG.PLAYER_EYE_HEIGHT,
+            interpFloorH + ENGINE_CONFIG.PLAYER_EYE_HEIGHT,
             10,
             dtSec
           );
+        }
+
+        // Earthquake screen tremor
+        if (curSim.earthquake && curSim.earthquake.remainingTicks > 0) {
+          const shakeMag = (curSim.earthquake.intensity / 1000) * 0.25;
+          const tremorX =
+            Math.sin(curSim.tick * 1.7 + elapsedSec * 25) * shakeMag;
+          const tremorY =
+            Math.cos(curSim.tick * 2.3 + elapsedSec * 30) * shakeMag * 0.6;
+          camera.position.x += tremorX;
+          camera.position.y += tremorY;
         }
       }
 
@@ -1012,6 +1049,32 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           wallGroup.visible = false;
         }
       }
+
+      // Interpolate moving floor platform heights from simulation state
+      floorMeshesRef.current.forEach((floorMesh, cKey) => {
+        const [rStr, cStr] = cKey.split(',');
+        const r = Number(rStr);
+        const c = Number(cStr);
+        const prevH = prevSim.floorHeights?.[r]?.[c] ?? 0;
+        const currH = curSim.floorHeights?.[r]?.[c] ?? 0;
+        if (prevH !== 0 || currH !== 0) {
+          const interpH = prevH + (currH - prevH) * alpha;
+          floorMesh.position.y = interpH * UNITS_TO_METERS;
+        }
+      });
+
+      // Interpolate moving ceiling/crusher heights from simulation state
+      ceilingMeshesRef.current.forEach((ceilingMesh, cKey) => {
+        const [rStr, cStr] = cKey.split(',');
+        const r = Number(rStr);
+        const c = Number(cStr);
+        const prevH = prevSim.ceilingHeights?.[r]?.[c] ?? 1000;
+        const currH = curSim.ceilingHeights?.[r]?.[c] ?? 1000;
+        if (prevH !== 1000 || currH !== 1000) {
+          const interpH = prevH + (currH - prevH) * alpha;
+          ceilingMesh.position.y = interpH * UNITS_TO_METERS;
+        }
+      });
 
       if (elapsedSec - lastHudSyncTime > 0.05 && currP) {
         lastHudSyncTime = elapsedSec;

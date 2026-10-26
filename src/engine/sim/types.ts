@@ -126,6 +126,29 @@ export type TriggerSpec =
       name: string;
       op: 'eq' | 'gte' | 'lte' | 'gt' | 'lt';
       value: number;
+    }
+  | {
+      type: 'all_dead';
+      region?: string;
+      tag?: number;
+    }
+  | {
+      type: 'entity_killed';
+      entityId?: string;
+      tag?: number;
+      blueprintId?: string;
+    }
+  | {
+      type: 'entity_alerted';
+      entityId?: string;
+      tag?: number;
+    }
+  | {
+      type: 'stand_in_region';
+      region: string;
+      dwell_ticks?: number;
+      dwell_sec?: number;
+      who?: TriggerWhoFilter;
     };
 
 /**
@@ -155,6 +178,18 @@ export type ConditionSpec =
   | {
       type: 'player_ammo';
       op: 'lt' | 'lte' | 'gt' | 'gte' | 'eq';
+      value: number;
+    }
+  | {
+      type: 'all_dead';
+      region?: string;
+      tag?: number;
+    }
+  | {
+      type: 'entities_alive';
+      region?: string;
+      tag?: number;
+      op: 'eq' | 'neq' | 'lt' | 'lte' | 'gt' | 'gte';
       value: number;
     }
   | {
@@ -217,6 +252,85 @@ export type ActionSpec =
       direction: CardinalDirection;
       distance_cells?: number;
       speed_per_tick?: number;
+    }
+  | {
+      type: 'lower_floor';
+      tag?: number;
+      row?: number;
+      col?: number;
+      target_height_units: number;
+      speed_per_tick?: number;
+      wait_ticks?: number;
+      return_height_units?: number;
+    }
+  | {
+      type: 'raise_floor';
+      tag?: number;
+      row?: number;
+      col?: number;
+      target_height_units: number;
+      speed_per_tick?: number;
+      wait_ticks?: number;
+      return_height_units?: number;
+    }
+  | {
+      type: 'toggle_lift';
+      tag?: number;
+      row?: number;
+      col?: number;
+      lower_height_units?: number;
+      upper_height_units?: number;
+      speed_per_tick?: number;
+      wait_ticks?: number;
+    }
+  | {
+      type: 'start_crusher';
+      tag?: number;
+      row?: number;
+      col?: number;
+      lower_height_units?: number;
+      upper_height_units?: number;
+      speed_per_tick?: number;
+      damage?: number;
+    }
+  | {
+      type: 'stop_crusher';
+      tag?: number;
+      row?: number;
+      col?: number;
+    }
+  | {
+      type: 'build_stairs';
+      tag?: number;
+      step_height_units?: number;
+      speed_per_tick?: number;
+    }
+  | {
+      type: 'wake_entities';
+      tag?: number;
+      region?: string;
+    }
+  | {
+      type: 'spawn_entity';
+      blueprintId: 'sentinel-bot' | 'turret-guardian' | 'supply-crate' | 'custom-glb';
+      row: number;
+      col: number;
+      yaw_bam?: number;
+      tag?: number;
+      ambush?: boolean;
+      isEnemy?: boolean;
+      maxHealth?: number;
+    }
+  | {
+      type: 'remove_entity';
+      entityId?: string;
+      tag?: number;
+    }
+  | {
+      type: 'damage_entity';
+      entityId?: string;
+      tag?: number;
+      amount: number;
     }
   | {
       type: 'set_cell';
@@ -343,6 +457,55 @@ export type ActionSpec =
   | {
       type: 'exit_level';
       secret?: boolean;
+    }
+  | {
+      type: 'earthquake';
+      duration_ticks?: number;
+      duration_sec?: number;
+      intensity?: number;
+    }
+  | {
+      type: 'set_light_effect';
+      region?: string;
+      tag?: number;
+      effect: 'flicker' | 'strobe' | 'pulse' | 'glow';
+      speed_ticks?: number;
+    }
+  | {
+      type: 'stop_light_effect';
+      region?: string;
+      tag?: number;
+    }
+  | {
+      type: 'set_hazard_region';
+      region: string;
+      damage_per_interval: number;
+      interval_ticks?: number;
+    }
+  | {
+      type: 'clear_hazard_region';
+      region: string;
+    }
+  | {
+      type: 'if_then_else';
+      condition: ConditionSpec;
+      then_actions: ActionSpec[];
+      else_actions?: ActionSpec[];
+    }
+  | {
+      type: 'random_branch';
+      branches: {
+        weight: number;
+        actions: ActionSpec[];
+      }[];
+    }
+  | {
+      type: 'move_along_track';
+      tag: number;
+      waypoints: { row: number; col: number }[];
+      speed_per_tick?: number;
+      loop?: boolean;
+      ping_pong?: boolean;
     };
 
 export interface EventOptionsSpec {
@@ -382,13 +545,13 @@ export interface SimPlacedEntityV3 {
   col: number;
   blueprintId: 'sentinel-bot' | 'turret-guardian' | 'supply-crate' | 'custom-glb';
   modelAssetId?: string;
-  name: string;
-  yawBam: number; // Integer 16-bit BAM angle [0..65535]
-  scalePct: number; // Integer percentage (100 = 1.0x)
-  isEnemy: boolean;
-  maxHealth: number;
-  moveSpeedUnitsPerTick: number;
-  attackDamage: number;
+  name?: string;
+  yawBam?: number; // Integer 16-bit BAM angle [0..65535]
+  scalePct?: number; // Integer percentage (100 = 1.0x)
+  isEnemy?: boolean;
+  maxHealth?: number;
+  moveSpeedUnitsPerTick?: number;
+  attackDamage?: number;
   tag?: number;
   patrol?: boolean;
   ambush?: boolean;
@@ -467,18 +630,18 @@ export interface PlayerSimState {
 }
 
 /**
- * Mover Runtime Simulation State (Doors & Push Walls - Strict Integer-Only)
+ * Mover Runtime Simulation State (Doors, Push Walls, Lifts, Floors, Crushers - Strict Integer-Only)
  */
 export interface MoverSimState {
-  id: string; // e.g. "door:4,5" or "pushwall:2,3"
-  kind: 'door' | 'pushwall';
+  id: string; // e.g. "door:4,5", "pushwall:2,3", "lift:tag:2"
+  kind: 'door' | 'pushwall' | 'lift' | 'floor' | 'ceiling' | 'crusher' | 'track';
   row: number;
   col: number;
   tag: number;
   state: 'closed' | 'opening' | 'open' | 'closing' | 'active' | 'done';
   progress: number; // 0..10000 basis points
   speedPerTick: number; // Integer basis points per tick
-  waitTicks: number; // Remaining ticks to stay open before auto-closing (0 = manual)
+  waitTicks: number; // Remaining ticks to stay open/at target before auto-closing/returning (0 = manual)
   configuredWaitTicks: number;
   locked: boolean;
   requiredKey?: string;
@@ -487,6 +650,43 @@ export interface MoverSimState {
   distanceCells?: number;
   targetRow?: number;
   targetCol?: number;
+  startHeightUnits?: number;
+  targetHeightUnits?: number;
+  returnHeightUnits?: number;
+  currentHeightUnits?: number;
+  crushDamage?: number;
+  waypoints?: { row: number; col: number }[];
+  currentWaypointIndex?: number;
+  trackDirection?: 1 | -1;
+  trackLoop?: boolean;
+  trackPingPong?: boolean;
+}
+
+/**
+ * Runtime Simulation State for an Entity / Enemy in the 3D World (Strict Integer-Only)
+ */
+export interface SimEntityState {
+  id: string; // e.g. "ent-1"
+  blueprintId: 'sentinel-bot' | 'turret-guardian' | 'supply-crate' | 'custom-glb';
+  modelAssetId?: string;
+  name: string;
+  row: number;
+  col: number;
+  xUnits: number; // World X in millicells [-5000..5000]
+  zUnits: number; // World Z in millicells [-5000..5000]
+  yUnits: number; // World Y / Floor height in millicells
+  yawBam: number; // Integer 16-bit BAM angle [0..65535]
+  health: number;
+  maxHealth: number;
+  isEnemy: boolean;
+  state: 'idle' | 'patrol' | 'chase' | 'attack' | 'dead';
+  tag: number;
+  ambush: boolean;
+  attackDamage: number;
+  speedUnitsPerTick: number;
+  attackCooldownTicks: number;
+  hitFlashTicks: number;
+  memoryTicks: number;
 }
 
 /**
@@ -536,6 +736,7 @@ export interface SimulationState {
   ceilingHeights: number[][];
   players: Record<number, PlayerSimState>;
   movers: Record<string, MoverSimState>;
+  entities?: Record<string, SimEntityState>;
   collectedKeys: string[]; // Canonical cell keys e.g. "1,8"
   flags: Record<string, boolean>;
   counters: Record<string, number>;
@@ -557,6 +758,25 @@ export interface SimulationState {
     col?: number;
   }[];
   logs: SimLogEntry[];
+  earthquake?: {
+    remainingTicks: number;
+    intensity: number;
+  };
+  hazardRegions?: Record<
+    string,
+    {
+      damagePerInterval: number;
+      intervalTicks: number;
+    }
+  >;
+  lightEffects?: Record<
+    string,
+    {
+      effect: 'flicker' | 'strobe' | 'pulse' | 'glow';
+      speedTicks: number;
+    }
+  >;
+  regionDwellTicks?: Record<string, Record<number, number>>;
 }
 
 /**

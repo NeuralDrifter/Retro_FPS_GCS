@@ -187,3 +187,43 @@ export function lerpBamToRadians(fromBam: number, toBam: number, alpha: number):
   const interpBam = (Math.trunc(fromBam) + delta * clamped + BAM_FULL_TURN) % BAM_FULL_TURN;
   return (interpBam / BAM_FULL_TURN) * (Math.PI * 2);
 }
+
+/**
+ * Deterministic integer angle towards target offset (dxUnits, dzUnits).
+ * Forward vector is (-sin(yaw), -cos(yaw)).
+ * Returns integer 16-bit BAM angle in [0, 65535].
+ * Uses strictly integer math and binary search on QUARTER_SIN_TABLE_1024.
+ */
+export function bamAtan2(dxUnits: number, dzUnits: number): number {
+  const dx = Math.trunc(dxUnits);
+  const dz = Math.trunc(dzUnits);
+  if (dx === 0 && dz === 0) return 0;
+
+  const absX = Math.abs(dx);
+  const absZ = Math.abs(dz);
+  const hypot = isqrt(absX * absX + absZ * absZ);
+  if (hypot === 0) return 0;
+
+  const targetSin = Math.min(TRIG_SCALE, Math.trunc((absX * TRIG_SCALE) / hypot));
+
+  let low = 0;
+  let high = 1024;
+  while (low < high) {
+    const mid = (low + high) >> 1;
+    if (QUARTER_SIN_TABLE_1024[mid] < targetSin) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  const baseBam = low << 4;
+
+  let yaw = 0;
+  if (dz <= 0) {
+    yaw = dx <= 0 ? baseBam : BAM_FULL_TURN - baseBam;
+  } else {
+    yaw = dx <= 0 ? BAM_HALF_TURN - baseBam : BAM_HALF_TURN + baseBam;
+  }
+  return normalizeBam(yaw);
+}
+

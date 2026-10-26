@@ -292,6 +292,43 @@ export const CellInspectorTab: React.FC<CellInspectorTabProps> = ({
 
               <div className="grid grid-cols-2 gap-1.5">
                 <div>
+                  <label className="ide-label block mb-0.5">Entity Tag #</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={9999}
+                    step={1}
+                    value={entityOnCell.tag ?? 0}
+                    onChange={(e) =>
+                      onUpdateEntity({
+                        ...entityOnCell,
+                        tag: Math.max(0, Math.trunc(Number(e.target.value) || 0)),
+                      })
+                    }
+                    className="ide-input w-full font-mono"
+                    placeholder="0 = none"
+                  />
+                </div>
+                <div className="flex flex-col justify-end pb-0.5">
+                  <label className="ide-label flex items-center gap-1.5 cursor-pointer py-1">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(entityOnCell.ambush)}
+                      onChange={(e) =>
+                        onUpdateEntity({
+                          ...entityOnCell,
+                          ambush: e.target.checked,
+                        })
+                      }
+                      className="accent-[#478cbf]"
+                    />
+                    <span className="text-[11px] text-[#cccccc]">Ambush (Closet)</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5">
+                <div>
                   <label className="ide-label block mb-0.5">
                     Scale ({entityOnCell.scale.toFixed(1)}x)
                   </label>

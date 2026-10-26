@@ -158,6 +158,10 @@ const TRIGGER_ALLOWED_KEYS: Record<string, readonly string[]> = {
   timer_fired: ['type', 'timer'],
   flag_changed: ['type', 'name', 'is'],
   counter_reached: ['type', 'name', 'op', 'value'],
+  all_dead: ['type', 'region', 'tag'],
+  entity_killed: ['type', 'entityId', 'tag', 'blueprintId'],
+  entity_alerted: ['type', 'entityId', 'tag'],
+  stand_in_region: ['type', 'region', 'dwell_ticks', 'dwell_sec', 'who'],
 };
 
 const CONDITION_ALLOWED_KEYS: Record<string, readonly string[]> = {
@@ -166,6 +170,8 @@ const CONDITION_ALLOWED_KEYS: Record<string, readonly string[]> = {
   has_item: ['type', 'item'],
   player_health: ['type', 'op', 'value'],
   player_ammo: ['type', 'op', 'value'],
+  all_dead: ['type', 'region', 'tag'],
+  entities_alive: ['type', 'region', 'tag', 'op', 'value'],
   mover_state: ['type', 'row', 'col', 'tag', 'state'],
   chance: ['type', 'percent'],
 };
@@ -184,6 +190,62 @@ const ACTION_ALLOWED_KEYS: Record<string, readonly string[]> = {
     'distance_cells',
     'speed_per_tick',
   ],
+  lower_floor: [
+    'type',
+    'tag',
+    'row',
+    'col',
+    'target_height_units',
+    'speed_per_tick',
+    'wait_ticks',
+    'return_height_units',
+  ],
+  raise_floor: [
+    'type',
+    'tag',
+    'row',
+    'col',
+    'target_height_units',
+    'speed_per_tick',
+    'wait_ticks',
+    'return_height_units',
+  ],
+  toggle_lift: [
+    'type',
+    'tag',
+    'row',
+    'col',
+    'lower_height_units',
+    'upper_height_units',
+    'speed_per_tick',
+    'wait_ticks',
+  ],
+  start_crusher: [
+    'type',
+    'tag',
+    'row',
+    'col',
+    'lower_height_units',
+    'upper_height_units',
+    'speed_per_tick',
+    'damage',
+  ],
+  stop_crusher: ['type', 'tag', 'row', 'col'],
+  build_stairs: ['type', 'tag', 'step_height_units', 'speed_per_tick'],
+  wake_entities: ['type', 'tag', 'region'],
+  spawn_entity: [
+    'type',
+    'blueprintId',
+    'row',
+    'col',
+    'yaw_bam',
+    'tag',
+    'ambush',
+    'isEnemy',
+    'maxHealth',
+  ],
+  remove_entity: ['type', 'entityId', 'tag'],
+  damage_entity: ['type', 'entityId', 'tag', 'amount'],
   set_cell: ['type', 'row', 'col', 'cell_type'],
   set_wall_texture: ['type', 'row', 'col', 'texture_id'],
   set_floor_texture: ['type', 'row', 'col', 'texture_id'],
@@ -209,7 +271,98 @@ const ACTION_ALLOWED_KEYS: Record<string, readonly string[]> = {
   show_message: ['type', 'text', 'target'],
   play_sound: ['type', 'sound_id', 'row', 'col'],
   exit_level: ['type', 'secret'],
+  earthquake: ['type', 'duration_ticks', 'duration_sec', 'intensity'],
+  set_light_effect: ['type', 'region', 'tag', 'effect', 'speed_ticks'],
+  stop_light_effect: ['type', 'region', 'tag'],
+  set_hazard_region: [
+    'type',
+    'region',
+    'damage_per_interval',
+    'interval_ticks',
+  ],
+  clear_hazard_region: ['type', 'region'],
+  if_then_else: ['type', 'condition', 'then_actions', 'else_actions'],
+  random_branch: ['type', 'branches'],
+  move_along_track: [
+    'type',
+    'tag',
+    'waypoints',
+    'speed_per_tick',
+    'loop',
+    'ping_pong',
+  ],
 };
+
+/**
+ * Converts any author-facing `delay_sec` / `cooldown_sec` / `duration_sec` on events
+ * to integer ticks (`TICKS_PER_SECOND = 30`) so runtime state is 100% integer-only.
+ */
+function normalizeSingleAction(act: ActionSpec): ActionSpec {
+  if (act.type === 'delay') {
+    const ticks =
+      typeof act.delay_ticks === 'number'
+        ? Math.trunc(act.delay_ticks)
+        : typeof act.delay_sec === 'number'
+        ? Math.max(1, Math.round(act.delay_sec * SIM_CONFIG.TICKS_PER_SECOND))
+        : 1;
+    return {
+      type: 'delay',
+      delay_ticks: ticks,
+    };
+  }
+  if (act.type === 'start_timer') {
+    const ticks =
+      typeof act.duration_ticks === 'number'
+        ? Math.trunc(act.duration_ticks)
+        : typeof act.duration_sec === 'number'
+        ? Math.max(
+            1,
+            Math.round(act.duration_sec * SIM_CONFIG.TICKS_PER_SECOND)
+          )
+        : SIM_CONFIG.TICKS_PER_SECOND;
+    return {
+      type: 'start_timer',
+      timer: act.timer,
+      duration_ticks: ticks,
+    };
+  }
+  if (act.type === 'earthquake') {
+    const ticks =
+      typeof act.duration_ticks === 'number'
+        ? Math.trunc(act.duration_ticks)
+        : typeof act.duration_sec === 'number'
+        ? Math.max(
+            1,
+            Math.round(act.duration_sec * SIM_CONFIG.TICKS_PER_SECOND)
+          )
+        : SIM_CONFIG.TICKS_PER_SECOND;
+    return {
+      type: 'earthquake',
+      duration_ticks: ticks,
+      intensity: act.intensity ?? 30,
+    };
+  }
+  if (act.type === 'if_then_else') {
+    return {
+      type: 'if_then_else',
+      condition: { ...act.condition },
+      then_actions: act.then_actions.map(normalizeSingleAction),
+      ...(act.else_actions
+        ? { else_actions: act.else_actions.map(normalizeSingleAction) }
+        : {}),
+    };
+  }
+  if (act.type === 'random_branch') {
+    return {
+      type: 'random_branch',
+      branches: act.branches.map((b) => ({
+        weight: Math.max(1, Math.trunc(b.weight || 1)),
+        actions: b.actions.map(normalizeSingleAction),
+      })),
+    };
+  }
+  return { ...act };
+}
 
 /**
  * Converts any author-facing `delay_sec` / `cooldown_sec` / `duration_sec` on events
@@ -219,40 +372,22 @@ export function normalizeEventsToIntegerTicks(
   events: EventDefinition[]
 ): EventDefinition[] {
   return events.map((evt) => {
-    const normalizedActions: ActionSpec[] = evt.actions.map((act) => {
-      if (act.type === 'delay') {
-        const ticks =
-          typeof act.delay_ticks === 'number'
-            ? Math.trunc(act.delay_ticks)
-            : typeof act.delay_sec === 'number'
-            ? Math.max(
-                1,
-                Math.round(act.delay_sec * SIM_CONFIG.TICKS_PER_SECOND)
-              )
-            : 1;
-        return {
-          type: 'delay',
-          delay_ticks: ticks,
-        };
-      }
-      if (act.type === 'start_timer') {
-        const ticks =
-          typeof act.duration_ticks === 'number'
-            ? Math.trunc(act.duration_ticks)
-            : typeof act.duration_sec === 'number'
-            ? Math.max(
-                1,
-                Math.round(act.duration_sec * SIM_CONFIG.TICKS_PER_SECOND)
-              )
-            : SIM_CONFIG.TICKS_PER_SECOND;
-        return {
-          type: 'start_timer',
-          timer: act.timer,
-          duration_ticks: ticks,
-        };
-      }
-      return { ...act };
-    });
+    const normalizedTrigger = { ...evt.trigger };
+    if (normalizedTrigger.type === 'stand_in_region') {
+      const dwell =
+        typeof normalizedTrigger.dwell_ticks === 'number'
+          ? Math.trunc(normalizedTrigger.dwell_ticks)
+          : typeof normalizedTrigger.dwell_sec === 'number'
+          ? Math.max(
+              1,
+              Math.round(normalizedTrigger.dwell_sec * SIM_CONFIG.TICKS_PER_SECOND)
+            )
+          : SIM_CONFIG.TICKS_PER_SECOND;
+      normalizedTrigger.dwell_ticks = dwell;
+      delete normalizedTrigger.dwell_sec;
+    }
+
+    const normalizedActions: ActionSpec[] = evt.actions.map(normalizeSingleAction);
 
     const normalizedOptions = evt.options ? { ...evt.options } : undefined;
     if (normalizedOptions) {
@@ -272,6 +407,7 @@ export function normalizeEventsToIntegerTicks(
 
     return {
       ...evt,
+      trigger: normalizedTrigger,
       conditions: evt.conditions.map((c) => ({ ...c })),
       actions: normalizedActions,
       ...(normalizedOptions ? { options: normalizedOptions } : {}),
@@ -1036,7 +1172,8 @@ export function validateLevelDataV3(
             declaredTimers,
             allowedTextures,
             allowedSounds,
-            errors
+            errors,
+            regionIds
           );
         });
       }
@@ -1152,6 +1289,33 @@ function validateTriggerFields(
           path: `${path}.value`,
           code: 'INVALID_COUNTER_VALUE',
           message: 'counter_reached value must be an integer.',
+        });
+      }
+      break;
+    }
+    case 'stand_in_region': {
+      if (typeof trig.region !== 'string' || !regionIds.has(trig.region)) {
+        errors.push({
+          path: `${path}.region`,
+          code: 'UNKNOWN_REGION',
+          message: `Trigger references undeclared region '${String(trig.region)}'.`,
+        });
+      }
+      const hasTicks =
+        trig.dwell_ticks !== undefined &&
+        isSafeInt(trig.dwell_ticks) &&
+        trig.dwell_ticks >= 1;
+      const hasSec =
+        trig.dwell_sec !== undefined &&
+        typeof trig.dwell_sec === 'number' &&
+        Number.isFinite(trig.dwell_sec) &&
+        trig.dwell_sec > 0;
+      if (!hasTicks && !hasSec) {
+        errors.push({
+          path,
+          code: 'INVALID_DWELL_TIME',
+          message:
+            'stand_in_region trigger requires a positive dwell_ticks or dwell_sec.',
         });
       }
       break;
@@ -1272,7 +1436,8 @@ function validateActionFields(
   declaredTimers: Set<string>,
   allowedTextures: ReadonlySet<string>,
   allowedSounds: ReadonlySet<string>,
-  errors: ValidationErrorItem[]
+  errors: ValidationErrorItem[],
+  regionIds?: Set<string>
 ): void {
   switch (act.type) {
     case 'open_door':
@@ -1346,6 +1511,113 @@ function validateActionFields(
           path: `${path}.direction`,
           code: 'INVALID_DIRECTION',
           message: 'slide_wall direction must be N, S, E, or W.',
+        });
+      }
+      break;
+    }
+    case 'lower_floor':
+    case 'raise_floor':
+    case 'toggle_lift':
+    case 'start_crusher': {
+      const hasCoords = act.row !== undefined || act.col !== undefined;
+      const hasTag = act.tag !== undefined && act.tag > 0;
+      if (!hasCoords && !hasTag) {
+        errors.push({
+          path,
+          code: 'MISSING_MOVER_TARGET',
+          message: `Action '${act.type}' must specify either (row, col) or a non-zero tag.`,
+        });
+      }
+      if (hasCoords) {
+        if (
+          !isSafeInt(act.row) ||
+          act.row < 0 ||
+          act.row >= gridSize ||
+          !isSafeInt(act.col) ||
+          act.col < 0 ||
+          act.col >= gridSize
+        ) {
+          errors.push({
+            path,
+            code: 'OUT_OF_RANGE_COORD',
+            message: `Action '${act.type}' target coordinates out of bounds.`,
+          });
+        }
+      }
+      break;
+    }
+    case 'stop_crusher': {
+      const hasCoords = act.row !== undefined || act.col !== undefined;
+      const hasTag = act.tag !== undefined && act.tag > 0;
+      if (!hasCoords && !hasTag) {
+        errors.push({
+          path,
+          code: 'MISSING_MOVER_TARGET',
+          message: `Action '${act.type}' must specify either (row, col) or a non-zero tag.`,
+        });
+      }
+      break;
+    }
+    case 'build_stairs': {
+      if (act.tag === undefined || act.tag <= 0) {
+        errors.push({
+          path,
+          code: 'MISSING_TAG',
+          message: 'build_stairs requires a positive tag.',
+        });
+      }
+      break;
+    }
+    case 'wake_entities': {
+      if ((act.tag === undefined || act.tag <= 0) && !act.region) {
+        errors.push({
+          path,
+          code: 'MISSING_TARGET',
+          message: 'wake_entities requires either a tag or a region.',
+        });
+      }
+      break;
+    }
+    case 'spawn_entity': {
+      if (
+        !isSafeInt(act.row) ||
+        act.row < 0 ||
+        act.row >= gridSize ||
+        !isSafeInt(act.col) ||
+        act.col < 0 ||
+        act.col >= gridSize
+      ) {
+        errors.push({
+          path,
+          code: 'OUT_OF_RANGE_COORD',
+          message: 'spawn_entity coordinates out of bounds.',
+        });
+      }
+      break;
+    }
+    case 'remove_entity': {
+      if (!act.entityId && (act.tag === undefined || act.tag <= 0)) {
+        errors.push({
+          path,
+          code: 'MISSING_ENTITY_TARGET',
+          message: 'remove_entity requires either entityId or tag.',
+        });
+      }
+      break;
+    }
+    case 'damage_entity': {
+      if (!act.entityId && (act.tag === undefined || act.tag <= 0)) {
+        errors.push({
+          path,
+          code: 'MISSING_ENTITY_TARGET',
+          message: 'damage_entity requires either entityId or tag.',
+        });
+      }
+      if (!isSafeInt(act.amount) || act.amount <= 0) {
+        errors.push({
+          path: `${path}.amount`,
+          code: 'INVALID_AMOUNT',
+          message: 'damage_entity amount must be a positive integer.',
         });
       }
       break;
@@ -1623,6 +1895,394 @@ function validateActionFields(
     case 'mark_secret_found':
     case 'exit_level':
       break;
+    case 'earthquake': {
+      const hasTicks =
+        act.duration_ticks !== undefined &&
+        isSafeInt(act.duration_ticks) &&
+        act.duration_ticks >= 1;
+      const hasSec =
+        act.duration_sec !== undefined &&
+        typeof act.duration_sec === 'number' &&
+        Number.isFinite(act.duration_sec) &&
+        act.duration_sec > 0;
+      if (!hasTicks && !hasSec) {
+        errors.push({
+          path,
+          code: 'INVALID_DURATION',
+          message:
+            'earthquake requires a positive integer duration_ticks or positive duration_sec.',
+        });
+      }
+      if (
+        act.intensity !== undefined &&
+        (!isSafeInt(act.intensity) || act.intensity < 1 || act.intensity > 1000)
+      ) {
+        errors.push({
+          path: `${path}.intensity`,
+          code: 'INVALID_INTENSITY',
+          message: 'earthquake intensity must be an integer in [1, 1000].',
+        });
+      }
+      break;
+    }
+    case 'set_light_effect': {
+      const allowedEffects = ['flicker', 'strobe', 'pulse', 'glow'];
+      if (!allowedEffects.includes(act.effect)) {
+        errors.push({
+          path: `${path}.effect`,
+          code: 'INVALID_LIGHT_EFFECT',
+          message: `Light effect must be one of ${allowedEffects.join(', ')}.`,
+        });
+      }
+      if (!act.region && (act.tag === undefined || act.tag <= 0)) {
+        errors.push({
+          path,
+          code: 'MISSING_TARGET',
+          message:
+            'set_light_effect requires either a region or a positive tag.',
+        });
+      }
+      if (act.region && regionIds && !regionIds.has(act.region)) {
+        errors.push({
+          path: `${path}.region`,
+          code: 'UNKNOWN_REGION',
+          message: `set_light_effect references unknown region '${act.region}'.`,
+        });
+      }
+      if (
+        act.speed_ticks !== undefined &&
+        (!isSafeInt(act.speed_ticks) || act.speed_ticks < 1)
+      ) {
+        errors.push({
+          path: `${path}.speed_ticks`,
+          code: 'INVALID_SPEED_TICKS',
+          message: 'speed_ticks must be a positive integer.',
+        });
+      }
+      break;
+    }
+    case 'stop_light_effect': {
+      if (!act.region && (act.tag === undefined || act.tag <= 0)) {
+        errors.push({
+          path,
+          code: 'MISSING_TARGET',
+          message:
+            'stop_light_effect requires either a region or a positive tag.',
+        });
+      }
+      if (act.region && regionIds && !regionIds.has(act.region)) {
+        errors.push({
+          path: `${path}.region`,
+          code: 'UNKNOWN_REGION',
+          message: `stop_light_effect references unknown region '${act.region}'.`,
+        });
+      }
+      break;
+    }
+    case 'set_hazard_region': {
+      if (!act.region || (regionIds && !regionIds.has(act.region))) {
+        errors.push({
+          path: `${path}.region`,
+          code: 'UNKNOWN_REGION',
+          message: `set_hazard_region references unknown region '${act.region}'.`,
+        });
+      }
+      if (!isSafeInt(act.damage_per_interval) || act.damage_per_interval < 0) {
+        errors.push({
+          path: `${path}.damage_per_interval`,
+          code: 'INVALID_HAZARD_DAMAGE',
+          message: 'damage_per_interval must be a non-negative integer.',
+        });
+      }
+      if (!isSafeInt(act.interval_ticks) || act.interval_ticks < 1) {
+        errors.push({
+          path: `${path}.interval_ticks`,
+          code: 'INVALID_HAZARD_INTERVAL',
+          message: 'interval_ticks must be a positive integer.',
+        });
+      }
+      break;
+    }
+    case 'clear_hazard_region': {
+      if (!act.region || (regionIds && !regionIds.has(act.region))) {
+        errors.push({
+          path: `${path}.region`,
+          code: 'UNKNOWN_REGION',
+          message: `clear_hazard_region references unknown region '${act.region}'.`,
+        });
+      }
+      break;
+    }
+    case 'if_then_else': {
+      if (!isPlainObject(act.condition)) {
+        errors.push({
+          path: `${path}.condition`,
+          code: 'INVALID_CONDITION',
+          message: 'if_then_else condition must be an object.',
+        });
+      } else {
+        const cType = act.condition.type;
+        if (typeof cType !== 'string' || !(cType in CONDITION_ALLOWED_KEYS)) {
+          errors.push({
+            path: `${path}.condition.type`,
+            code: 'UNKNOWN_CONDITION_TYPE',
+            message: `Unknown condition type '${String(cType)}'.`,
+          });
+        } else {
+          checkAllowedKeys(
+            act.condition,
+            CONDITION_ALLOWED_KEYS[cType],
+            `${path}.condition`,
+            errors
+          );
+          validateConditionFields(
+            act.condition as unknown as ConditionSpec,
+            `${path}.condition`,
+            gridSize,
+            declaredFlags,
+            declaredCounters,
+            errors
+          );
+        }
+      }
+      if (!Array.isArray(act.then_actions) || act.then_actions.length === 0) {
+        errors.push({
+          path: `${path}.then_actions`,
+          code: 'INVALID_ACTIONS',
+          message: 'then_actions must be a non-empty array.',
+        });
+      } else {
+        act.then_actions.forEach((subAct, idx) => {
+          const subPath = `${path}.then_actions[${idx}]`;
+          if (!isPlainObject(subAct)) {
+            errors.push({
+              path: subPath,
+              code: 'INVALID_ACTION',
+              message: 'Action must be an object.',
+            });
+            return;
+          }
+          const sType = subAct.type;
+          if (typeof sType !== 'string' || !(sType in ACTION_ALLOWED_KEYS)) {
+            errors.push({
+              path: `${subPath}.type`,
+              code: 'UNKNOWN_ACTION_TYPE',
+              message: `Unknown action type '${String(sType)}'.`,
+            });
+            return;
+          }
+          checkAllowedKeys(subAct, ACTION_ALLOWED_KEYS[sType], subPath, errors);
+          validateActionFields(
+            subAct as unknown as ActionSpec,
+            subPath,
+            gridSize,
+            grid,
+            eventIds,
+            declaredFlags,
+            declaredCounters,
+            declaredTimers,
+            allowedTextures,
+            allowedSounds,
+            errors,
+            regionIds
+          );
+        });
+      }
+      if (act.else_actions !== undefined) {
+        if (!Array.isArray(act.else_actions)) {
+          errors.push({
+            path: `${path}.else_actions`,
+            code: 'INVALID_ACTIONS',
+            message: 'else_actions must be an array.',
+          });
+        } else {
+          act.else_actions.forEach((subAct, idx) => {
+            const subPath = `${path}.else_actions[${idx}]`;
+            if (!isPlainObject(subAct)) {
+              errors.push({
+                path: subPath,
+                code: 'INVALID_ACTION',
+                message: 'Action must be an object.',
+              });
+              return;
+            }
+            const sType = subAct.type;
+            if (typeof sType !== 'string' || !(sType in ACTION_ALLOWED_KEYS)) {
+              errors.push({
+                path: `${subPath}.type`,
+                code: 'UNKNOWN_ACTION_TYPE',
+                message: `Unknown action type '${String(sType)}'.`,
+              });
+              return;
+            }
+            checkAllowedKeys(
+              subAct,
+              ACTION_ALLOWED_KEYS[sType],
+              subPath,
+              errors
+            );
+            validateActionFields(
+              subAct as unknown as ActionSpec,
+              subPath,
+              gridSize,
+              grid,
+              eventIds,
+              declaredFlags,
+              declaredCounters,
+              declaredTimers,
+              allowedTextures,
+              allowedSounds,
+              errors,
+              regionIds
+            );
+          });
+        }
+      }
+      break;
+    }
+    case 'random_branch': {
+      if (!Array.isArray(act.branches) || act.branches.length === 0) {
+        errors.push({
+          path: `${path}.branches`,
+          code: 'INVALID_BRANCHES',
+          message: 'random_branch branches must be a non-empty array.',
+        });
+      } else {
+        act.branches.forEach((branch, bIdx) => {
+          const bPath = `${path}.branches[${bIdx}]`;
+          if (!isPlainObject(branch)) {
+            errors.push({
+              path: bPath,
+              code: 'INVALID_BRANCH',
+              message: 'Branch must be an object.',
+            });
+            return;
+          }
+          checkAllowedKeys(branch, ['weight', 'actions'], bPath, errors);
+          if (!isSafeInt(branch.weight) || branch.weight < 1) {
+            errors.push({
+              path: `${bPath}.weight`,
+              code: 'INVALID_BRANCH_WEIGHT',
+              message: 'Branch weight must be an integer >= 1.',
+            });
+          }
+          if (!Array.isArray(branch.actions) || branch.actions.length === 0) {
+            errors.push({
+              path: `${bPath}.actions`,
+              code: 'INVALID_ACTIONS',
+              message: 'Branch actions must be a non-empty array.',
+            });
+          } else {
+            branch.actions.forEach((subAct, idx) => {
+              const subPath = `${bPath}.actions[${idx}]`;
+              if (!isPlainObject(subAct)) {
+                errors.push({
+                  path: subPath,
+                  code: 'INVALID_ACTION',
+                  message: 'Action must be an object.',
+                });
+                return;
+              }
+              const sType = subAct.type;
+              if (typeof sType !== 'string' || !(sType in ACTION_ALLOWED_KEYS)) {
+                errors.push({
+                  path: `${subPath}.type`,
+                  code: 'UNKNOWN_ACTION_TYPE',
+                  message: `Unknown action type '${String(sType)}'.`,
+                });
+                return;
+              }
+              checkAllowedKeys(
+                subAct,
+                ACTION_ALLOWED_KEYS[sType],
+                subPath,
+                errors
+              );
+              validateActionFields(
+                subAct as unknown as ActionSpec,
+                subPath,
+                gridSize,
+                grid,
+                eventIds,
+                declaredFlags,
+                declaredCounters,
+                declaredTimers,
+                allowedTextures,
+                allowedSounds,
+                errors,
+                regionIds
+              );
+            });
+          }
+        });
+      }
+      break;
+    }
+    case 'move_along_track': {
+      if (act.tag === undefined || act.tag <= 0) {
+        errors.push({
+          path: `${path}.tag`,
+          code: 'MISSING_TAG',
+          message: 'move_along_track requires a positive integer tag.',
+        });
+      }
+      if (!Array.isArray(act.waypoints) || act.waypoints.length < 2) {
+        errors.push({
+          path: `${path}.waypoints`,
+          code: 'INVALID_WAYPOINTS',
+          message: 'move_along_track requires at least 2 waypoints.',
+        });
+      } else {
+        act.waypoints.forEach((wp, wIdx) => {
+          const wPath = `${path}.waypoints[${wIdx}]`;
+          if (!isPlainObject(wp)) {
+            errors.push({
+              path: wPath,
+              code: 'INVALID_WAYPOINT',
+              message: 'Waypoint must be an object.',
+            });
+            return;
+          }
+          checkAllowedKeys(
+            wp,
+            [
+              'row',
+              'col',
+              'floorHeightUnits',
+              'ceilingHeightUnits',
+              'waitTicks',
+            ],
+            wPath,
+            errors
+          );
+          if (
+            !isSafeInt(wp.row) ||
+            wp.row < 0 ||
+            wp.row >= gridSize ||
+            !isSafeInt(wp.col) ||
+            wp.col < 0 ||
+            wp.col >= gridSize
+          ) {
+            errors.push({
+              path: wPath,
+              code: 'OUT_OF_RANGE_COORD',
+              message: 'Waypoint row/col out of bounds.',
+            });
+          }
+        });
+      }
+      if (
+        act.speed_per_tick !== undefined &&
+        (!isSafeInt(act.speed_per_tick) || act.speed_per_tick < 1)
+      ) {
+        errors.push({
+          path: `${path}.speed_per_tick`,
+          code: 'INVALID_SPEED_PER_TICK',
+          message: 'speed_per_tick must be a positive integer.',
+        });
+      }
+      break;
+    }
   }
 }
 
@@ -1913,6 +2573,189 @@ export function validateSimulationState(
           code: 'INVALID_MOVER_PROGRESS',
           message: `Mover '${mk}' progress must be in [0, ${SIM_CONFIG.MOVER_MAX_PROGRESS}].`,
         });
+      }
+    }
+  }
+
+  // Validate entities if present
+  if (input.entities !== undefined) {
+    if (!isPlainObject(input.entities)) {
+      errors.push({
+        path: '$.entities',
+        code: 'INVALID_ENTITIES',
+        message: 'entities must be an object.',
+      });
+    } else {
+      const entKeys = Object.keys(input.entities);
+      if (entKeys.length > SIM_CONFIG.MAX_ENTITIES) {
+        errors.push({
+          path: '$.entities',
+          code: 'BUDGET_EXCEEDED',
+          message: `entities count exceeds ${SIM_CONFIG.MAX_ENTITIES}.`,
+        });
+      }
+    }
+  }
+
+  // Validate earthquake if present
+  if (input.earthquake !== undefined) {
+    if (!isPlainObject(input.earthquake)) {
+      errors.push({
+        path: '$.earthquake',
+        code: 'INVALID_EARTHQUAKE',
+        message: 'earthquake must be an object.',
+      });
+    } else {
+      checkAllowedKeys(
+        input.earthquake,
+        ['remainingTicks', 'intensity'],
+        '$.earthquake',
+        errors
+      );
+      if (
+        !isSafeInt(input.earthquake.remainingTicks) ||
+        input.earthquake.remainingTicks < 0
+      ) {
+        errors.push({
+          path: '$.earthquake.remainingTicks',
+          code: 'INVALID_EARTHQUAKE_TICKS',
+          message: 'earthquake.remainingTicks must be a non-negative integer.',
+        });
+      }
+      if (
+        !isSafeInt(input.earthquake.intensity) ||
+        input.earthquake.intensity < 0
+      ) {
+        errors.push({
+          path: '$.earthquake.intensity',
+          code: 'INVALID_EARTHQUAKE_INTENSITY',
+          message: 'earthquake.intensity must be a non-negative integer.',
+        });
+      }
+    }
+  }
+
+  // Validate hazardRegions if present
+  if (input.hazardRegions !== undefined) {
+    if (!isPlainObject(input.hazardRegions)) {
+      errors.push({
+        path: '$.hazardRegions',
+        code: 'INVALID_HAZARDS',
+        message: 'hazardRegions must be an object.',
+      });
+    } else {
+      for (const [rId, h] of Object.entries(input.hazardRegions)) {
+        if (!isPlainObject(h)) {
+          errors.push({
+            path: `$.hazardRegions.${rId}`,
+            code: 'INVALID_HAZARD',
+            message: 'hazard region entry must be an object.',
+          });
+        } else {
+          checkAllowedKeys(
+            h,
+            ['damagePerInterval', 'intervalTicks'],
+            `$.hazardRegions.${rId}`,
+            errors
+          );
+          if (
+            !isSafeInt(h.damagePerInterval) ||
+            (h.damagePerInterval as number) < 0
+          ) {
+            errors.push({
+              path: `$.hazardRegions.${rId}.damagePerInterval`,
+              code: 'INVALID_HAZARD_DAMAGE',
+              message: 'damagePerInterval must be a non-negative integer.',
+            });
+          }
+          if (
+            !isSafeInt(h.intervalTicks) ||
+            (h.intervalTicks as number) < 1
+          ) {
+            errors.push({
+              path: `$.hazardRegions.${rId}.intervalTicks`,
+              code: 'INVALID_HAZARD_INTERVAL',
+              message: 'intervalTicks must be a positive integer.',
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Validate lightEffects if present
+  if (input.lightEffects !== undefined) {
+    if (!isPlainObject(input.lightEffects)) {
+      errors.push({
+        path: '$.lightEffects',
+        code: 'INVALID_LIGHT_EFFECTS',
+        message: 'lightEffects must be an object.',
+      });
+    } else {
+      const allowedEffects = new Set(['flicker', 'strobe', 'pulse', 'glow']);
+      for (const [k, le] of Object.entries(input.lightEffects)) {
+        if (!isPlainObject(le)) {
+          errors.push({
+            path: `$.lightEffects.${k}`,
+            code: 'INVALID_LIGHT_EFFECT',
+            message: 'light effect entry must be an object.',
+          });
+        } else {
+          checkAllowedKeys(
+            le,
+            ['effect', 'speedTicks'],
+            `$.lightEffects.${k}`,
+            errors
+          );
+          if (
+            typeof le.effect !== 'string' ||
+            !allowedEffects.has(le.effect)
+          ) {
+            errors.push({
+              path: `$.lightEffects.${k}.effect`,
+              code: 'INVALID_LIGHT_EFFECT_TYPE',
+              message: 'Invalid light effect type.',
+            });
+          }
+          if (!isSafeInt(le.speedTicks) || (le.speedTicks as number) < 1) {
+            errors.push({
+              path: `$.lightEffects.${k}.speedTicks`,
+              code: 'INVALID_LIGHT_SPEED',
+              message: 'speedTicks must be a positive integer.',
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Validate regionDwellTicks if present
+  if (input.regionDwellTicks !== undefined) {
+    if (!isPlainObject(input.regionDwellTicks)) {
+      errors.push({
+        path: '$.regionDwellTicks',
+        code: 'INVALID_REGION_DWELL',
+        message: 'regionDwellTicks must be an object.',
+      });
+    } else {
+      for (const [rId, players] of Object.entries(input.regionDwellTicks)) {
+        if (!isPlainObject(players)) {
+          errors.push({
+            path: `$.regionDwellTicks.${rId}`,
+            code: 'INVALID_REGION_DWELL_PLAYERS',
+            message: 'regionDwellTicks entry must be an object.',
+          });
+        } else {
+          for (const [pId, dwell] of Object.entries(players)) {
+            if (!isSafeInt(dwell) || (dwell as number) < 0) {
+              errors.push({
+                path: `$.regionDwellTicks.${rId}.${pId}`,
+                code: 'INVALID_DWELL_TICKS',
+                message: 'dwell ticks must be a non-negative integer.',
+              });
+            }
+          }
+        }
       }
     }
   }

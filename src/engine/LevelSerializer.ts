@@ -506,21 +506,21 @@ export class LevelSerializer {
       col: e.col,
       blueprintId: e.blueprintId,
       modelAssetId: e.modelAssetId,
-      name: e.name,
-      yaw: bamToRadians(e.yawBam),
-      scale: e.scalePct / 100,
+      name: e.name || (e.blueprintId === 'sentinel-bot' ? 'Cyber Sentinel Bot' : e.blueprintId === 'turret-guardian' ? 'Heavy Mech Stalker' : 'Supply Crate'),
+      yaw: bamToRadians(e.yawBam ?? 0),
+      scale: (e.scalePct ?? 100) / 100,
       customGlbUrl: AssetRegistry.getCustomGlbUrlForModelId(e.modelAssetId),
-      isEnemy: e.isEnemy,
-      maxHealth: e.maxHealth,
+      isEnemy: e.isEnemy !== false && e.blueprintId !== 'supply-crate',
+      maxHealth: e.maxHealth ?? 75,
       moveSpeed: Number(
         (
-          (e.moveSpeedUnitsPerTick *
+          ((e.moveSpeedUnitsPerTick ?? 40) *
             SIM_CONFIG.TICKS_PER_SECOND *
             ENGINE_CONFIG.CELL_SIZE) /
           SIM_CONFIG.CELL_UNITS
         ).toFixed(2)
       ),
-      attackDamage: e.attackDamage,
+      attackDamage: e.attackDamage ?? 12,
       tag: e.tag,
       patrol: e.patrol,
       ambush: e.ambush,
