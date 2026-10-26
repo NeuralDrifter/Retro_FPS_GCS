@@ -16,6 +16,7 @@ import {
   setModelTags,
 } from '../modelLibrary/libraryState';
 import { groupPlacementsIntoVariants } from '../modelLibrary/variants';
+import { parseModelDiskPath } from '../modelLibrary/diskPaths';
 
 function asset(id: string, extra: Partial<Model3DAsset> = {}): Model3DAsset {
   return {
@@ -191,5 +192,16 @@ describe('Model library state, filtering & variants', () => {
         [1, 'nonSolid', 'ent-5'],
       ]
     );
+  });
+
+  it('parseModelDiskPath classifies category folders, custom folders and legacy root files', () => {
+    const p = (rel: string) => parseModelDiskPath(`/src/assets/models/${rel}`);
+    assert.deepEqual(p('vehicles/cars/truck.glb'), { category: 'vehicles', folderPath: 'cars' });
+    assert.deepEqual(p('buildings/house.glb'), { category: 'buildings', folderPath: null });
+    assert.deepEqual(p('props/lamps/lamp.glb'), { category: 'decorations', folderPath: 'props/lamps' });
+    for (const file of ['prop_pillar.glb', 'crate_x.glb', 'static_x.glb', 'prop-x.glb']) {
+      assert.deepEqual(p(file), { category: 'decorations', folderPath: null }, file);
+    }
+    assert.deepEqual(p('zombie_guard.glb'), { category: 'characters', folderPath: null });
   });
 });

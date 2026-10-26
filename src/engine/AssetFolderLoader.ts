@@ -6,9 +6,10 @@
  * `.svg`) and 3D models (`.glb`, `.gltf`) in dedicated project folders instead
  * of baking them into TypeScript code:
  *
- *  1. Zero-Config Folder Scan (`/src/assets/textures/*` & `/src/assets/models/*`):
+ *  1. Zero-Config Folder Scan (`/src/assets/textures/*` & `/src/assets/models/**`):
  *     Uses Vite's `import.meta.glob` to automatically discover any files dropped
- *     into `/src/assets/textures/` or `/src/assets/models/`.
+ *     into `/src/assets/textures/` or `/src/assets/models/` (model subfolders
+ *     pick the library category and folder; see `modelLibrary/diskPaths.ts`).
  *
  *  2. Static Public Folder Manifest (`/public/assets/manifest.json`):
  *     Fetches `/assets/manifest.json` at startup to register static files placed
@@ -16,6 +17,9 @@
  */
 
 import { Model3DAsset, TextureAsset } from '../types/engine';
+import type { ModelCategoryId } from '../types/modelLibrary';
+import { isModelCategoryId } from './modelLibrary/categories';
+import { parseModelDiskPath } from './modelLibrary/diskPaths';
 
 export interface PublicAssetManifest {
   textures?: {
@@ -31,6 +35,11 @@ export interface PublicAssetManifest {
     defaultHealth?: number;
     moveSpeed?: number;
     attackDamage?: number;
+    /** characters | decorations | items | buildings | vehicles */
+    category?: string;
+    /** Slash path of a custom library folder, e.g. "town/shops" */
+    folder?: string;
+    tags?: string[];
   }[];
 }
 
@@ -44,7 +53,7 @@ const globTextureUrls = import.meta.glob(
   }
 ) as Record<string, string>;
 
-const globModelUrls = import.meta.glob('/src/assets/models/*.{glb,gltf}', {
+const globModelUrls = import.meta.glob('/src/assets/models/**/*.{glb,gltf}', {
   eager: true,
   query: '?url',
   import: 'default',
@@ -64,6 +73,42 @@ function slugifyPath(filePath: string): string {
     .toLowerCase()
     .replace(/\.[^/.]+$/, '')
     .replace(/[^a-z0-9]+/g, '-');
+}
+
+/**
+ * Builds a library model for a discovered file. Only characters fight and
+ * move; every other category gets zero combat stats.
+ */
+function createDiscoveredModelAsset(params: {
+  id: string;
+  name: string;
+  url: string;
+  category: ModelCategoryId;
+  folderPath: string | null;
+  tags?: string[];
+  isEnemy?: boolean;
+  defaultHealth?: number;
+  moveSpeed?: number;
+  attackDamage?: number;
+}): Model3DAsset {
+  const isCharacter = params.category === 'characters';
+  const isEnemy = isCharacter && params.isEnemy !== false;
+  return {
+    id: params.id,
+    blueprintId: 'custom-glb',
+    name: params.name,
+    sourceType: 'file',
+    isEnemy,
+    defaultHealth: params.defaultHealth ?? (isEnemy ? 85 : 0),
+    moveSpeed: isCharacter ? params.moveSpeed ?? (isEnemy ? 4.5 : 0) : 0,
+    attackDamage: isCharacter ? params.attackDamage ?? (isEnemy ? 14 : 0) : 0,
+    accentHex: isEnemy ? '#f43f5e' : '#38bdf8',
+    badgeText: isEnemy ? 'FOE' : 'PROP',
+    customGlbUrl: params.url,
+    category: params.category,
+    ...(params.folderPath ? { folderPath: params.folderPath } : {}),
+    ...(params.tags && params.tags.length > 0 ? { tags: params.tags } : {}),
+  };
 }
 
 export class AssetFolderLoader {
@@ -87,27 +132,14 @@ export class AssetFolderLoader {
 
     const models: Model3DAsset[] = Object.entries(globModelUrls).map(
       ([filePath, resolvedUrl]) => {
-        const fileNameLower = (filePath.split('/').pop() || '').toLowerCase();
-        const isProp =
-          fileNameLower.startsWith('prop_') ||
-          fileNameLower.startsWith('prop-') ||
-          fileNameLower.startsWith('crate_') ||
-          fileNameLower.startsWith('static_');
-        const isEnemy = !isProp;
-
-        return {
+        const { category, folderPath } = parseModelDiskPath(filePath);
+        return createDiscoveredModelAsset({
           id: `folder-glb-${slugifyPath(filePath)}`,
-          blueprintId: 'custom-glb',
           name: `${formatFilenameToLabel(filePath)} (.glb)`,
-          sourceType: 'file',
-          isEnemy,
-          defaultHealth: isEnemy ? 85 : 0,
-          moveSpeed: isEnemy ? 4.5 : 0,
-          attackDamage: isEnemy ? 14 : 0,
-          accentHex: isEnemy ? '#f43f5e' : '#38bdf8',
-          badgeText: isEnemy ? 'FOE' : 'PROP',
-          customGlbUrl: resolvedUrl,
-        };
+          url: resolvedUrl,
+          category,
+          folderPath,
+        });
       }
     );
 
@@ -144,22 +176,29 @@ export class AssetFolderLoader {
 
       const models: Model3DAsset[] = (manifest.models || [])
         .filter((item) => item && typeof item.file === 'string' && item.file.trim())
-        .map((item) => {
-          const isEnemy = item.isEnemy !== false;
-          return {
+        .map((item) =>
+          createDiscoveredModelAsset({
             id: item.id || `pub-glb-${slugifyPath(item.file)}`,
-            blueprintId: 'custom-glb',
             name: item.name || `${formatFilenameToLabel(item.file)} (.glb)`,
-            sourceType: 'file',
-            isEnemy,
-            defaultHealth: item.defaultHealth ?? (isEnemy ? 85 : 0),
-            moveSpeed: item.moveSpeed ?? (isEnemy ? 4.5 : 0),
-            attackDamage: item.attackDamage ?? (isEnemy ? 14 : 0),
-            accentHex: isEnemy ? '#f43f5e' : '#38bdf8',
-            badgeText: isEnemy ? 'FOE' : 'PROP',
-            customGlbUrl: item.file,
-          };
-        });
+            url: item.file,
+            category: isModelCategoryId(item.category)
+              ? item.category
+              : item.isEnemy === false
+              ? 'decorations'
+              : 'characters',
+            folderPath:
+              typeof item.folder === 'string' && item.folder.trim()
+                ? item.folder.trim()
+                : null,
+            tags: Array.isArray(item.tags)
+              ? item.tags.filter((t): t is string => typeof t === 'string')
+              : undefined,
+            isEnemy: item.isEnemy,
+            defaultHealth: item.defaultHealth,
+            moveSpeed: item.moveSpeed,
+            attackDamage: item.attackDamage,
+          })
+        );
 
       return { textures, models };
     } catch {
