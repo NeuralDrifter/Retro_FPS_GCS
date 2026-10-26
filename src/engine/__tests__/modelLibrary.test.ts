@@ -24,6 +24,8 @@ import {
   validateLevelDataV3,
 } from '../sim';
 import { LevelSerializer } from '../LevelSerializer';
+import { CollisionSystem } from '../CollisionSystem';
+import { ENGINE_CONFIG } from '../../types/engine';
 import { createSizedTestLevelV3 } from './testLevels';
 
 function staticModel(
@@ -334,5 +336,19 @@ describe('Model library & multi-cell placement', () => {
     for (let t = 0; t < 200; t++) sim = step(sim, {});
     assert.ok((sim.entities?.['ent-2'].col ?? 0) >= 6, `enemy reached col ${sim.entities?.['ent-2'].col}`);
     assertNoFloatsInState(sim);
+  });
+
+  // ==========================================================================
+  // RUNTIME (THREE.JS SIDE) COLLISION
+  // ==========================================================================
+  it('CollisionSystem treats solid footprint cells as walls', () => {
+    const grid = Array.from({ length: 10 }, () => Array.from({ length: 10 }, () => 0));
+    const solid = Array.from({ length: 10 }, () => Array.from({ length: 10 }, () => 0));
+    solid[2][3] = 1;
+    const at = CollisionSystem.gridToWorld(2, 3, 10);
+    const r = ENGINE_CONFIG.PLAYER_RADIUS;
+    assert.equal(CollisionSystem.checkCircleCollision(at.x, at.z, r, grid, new Set(), solid), true);
+    assert.equal(CollisionSystem.checkCircleCollision(at.x, at.z, r, grid, new Set()), false);
+    assert.equal(CollisionSystem.isCellSolid(grid, 2, 3, new Set(), solid), true);
   });
 });

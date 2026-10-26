@@ -969,7 +969,8 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
                 `Loot: Picked up +${amount} Plasma Cells from defeated enemy.`
               );
             },
-          }
+          },
+          curSim.solidFootprint
         );
       }
 
