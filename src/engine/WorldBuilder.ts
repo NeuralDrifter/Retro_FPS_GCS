@@ -33,6 +33,8 @@ export interface WorldBuildResult {
   wallBlockGroups: Map<string, THREE.Group>;
   doorMeshes: Map<string, THREE.Group>;
   keyMeshes: Map<string, THREE.Group>;
+  floorMeshes: Map<string, THREE.Mesh>;
+  ceilingMeshes: Map<string, THREE.Mesh>;
   enemyAI: EnemyAISystem;
   wallCount: number;
 }
@@ -67,6 +69,8 @@ export class WorldBuilder {
     const wallBlockGroups = new Map<string, THREE.Group>();
     const doorMeshes = new Map<string, THREE.Group>();
     const keyMeshes = new Map<string, THREE.Group>();
+    const floorMeshes = new Map<string, THREE.Mesh>();
+    const ceilingMeshes = new Map<string, THREE.Mesh>();
 
     const lootContainer = new THREE.Group();
     lootContainer.name = 'Pie3D_AmmoLootContainer';
@@ -183,6 +187,7 @@ export class WorldBuilder {
         floorTile.position.set(x, 0, z);
         floorTile.receiveShadow = true;
         worldGroup.add(floorTile);
+        floorMeshes.set(cellKey, floorTile);
 
         // B. Optional Per-Cell Ceiling Tile
         if (options.showCeiling) {
@@ -195,6 +200,7 @@ export class WorldBuilder {
           ceilingTile.rotation.x = Math.PI / 2;
           ceilingTile.position.set(x, wallHeight, z);
           worldGroup.add(ceilingTile);
+          ceilingMeshes.set(cellKey, ceilingTile);
         }
 
         // C. Extruded Solid Wall Block
@@ -355,6 +361,8 @@ export class WorldBuilder {
       wallBlockGroups,
       doorMeshes,
       keyMeshes,
+      floorMeshes,
+      ceilingMeshes,
       enemyAI,
       wallCount,
     };

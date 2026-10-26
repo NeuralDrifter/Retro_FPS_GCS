@@ -109,7 +109,7 @@ export function canonicalizeSimulationState(state: SimulationState): string {
     };
   }
 
-  const normalized = {
+  const normalized: Record<string, unknown> = {
     ...state,
     players: sortedPlayers,
     collectedKeys: [...state.collectedKeys].sort(),
@@ -121,6 +121,60 @@ export function canonicalizeSimulationState(state: SimulationState): string {
     events: [...state.events].sort((a, b) => a.id.localeCompare(b.id)),
     regions: [...state.regions].sort((a, b) => a.id.localeCompare(b.id)),
   };
+
+  if (state.entities && Object.keys(state.entities).length > 0) {
+    const sortedEntities: Record<string, unknown> = {};
+    const entKeys = Object.keys(state.entities).sort();
+    for (const k of entKeys) {
+      sortedEntities[k] = { ...state.entities[k] };
+    }
+    normalized.entities = sortedEntities;
+  } else {
+    delete normalized.entities;
+  }
+
+  if (state.earthquake && state.earthquake.remainingTicks > 0) {
+    normalized.earthquake = {
+      intensity: state.earthquake.intensity,
+      remainingTicks: state.earthquake.remainingTicks,
+    };
+  } else {
+    delete normalized.earthquake;
+  }
+
+  if (state.hazardRegions && Object.keys(state.hazardRegions).length > 0) {
+    const sortedHazards: Record<string, unknown> = {};
+    for (const k of Object.keys(state.hazardRegions).sort()) {
+      sortedHazards[k] = { ...state.hazardRegions[k] };
+    }
+    normalized.hazardRegions = sortedHazards;
+  } else {
+    delete normalized.hazardRegions;
+  }
+
+  if (state.lightEffects && Object.keys(state.lightEffects).length > 0) {
+    const sortedLights: Record<string, unknown> = {};
+    for (const k of Object.keys(state.lightEffects).sort()) {
+      sortedLights[k] = { ...state.lightEffects[k] };
+    }
+    normalized.lightEffects = sortedLights;
+  } else {
+    delete normalized.lightEffects;
+  }
+
+  if (state.regionDwellTicks && Object.keys(state.regionDwellTicks).length > 0) {
+    const sortedDwell: Record<string, unknown> = {};
+    for (const rk of Object.keys(state.regionDwellTicks).sort()) {
+      const pDwell: Record<string, number> = {};
+      for (const pk of Object.keys(state.regionDwellTicks[rk]).sort()) {
+        pDwell[pk] = state.regionDwellTicks[rk][Number(pk)];
+      }
+      sortedDwell[rk] = pDwell;
+    }
+    normalized.regionDwellTicks = sortedDwell;
+  } else {
+    delete normalized.regionDwellTicks;
+  }
 
   return JSON.stringify(sortKeysDeep(normalized));
 }

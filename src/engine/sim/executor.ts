@@ -24,17 +24,20 @@ import {
   PlayerTickInput,
   SIM_CONFIG,
   SimCellType,
+  SimEntityState,
   SimulationState,
 } from './types';
 import {
   BAM_MASK,
   TRIG_SCALE,
+  bamAtan2,
   bamCos,
   bamSin,
   isqrt,
   normalizeBam,
+  shortestBamDelta,
 } from './trigTable';
-import { normalizeRngSeed, rollPercentChance } from './rng';
+import { nextUint32, normalizeRngSeed, rollPercentChance } from './rng';
 import {
   castGridRayDDA,
   gridToWorldUnits,
@@ -57,6 +60,7 @@ interface QueuedTriggerEvent {
   counterName?: string;
   counterValue?: number;
   moverState?: 'open' | 'closed' | 'done';
+  entityId?: string;
 }
 
 interface TickExecutionBudget {
@@ -81,7 +85,19 @@ export function cloneSimulationState(state: SimulationState): SimulationState {
 
   const moversCopy: Record<string, MoverSimState> = {};
   for (const k of Object.keys(state.movers)) {
-    moversCopy[k] = { ...state.movers[k] };
+    const m = state.movers[k];
+    moversCopy[k] = {
+      ...m,
+      ...(m.waypoints ? { waypoints: m.waypoints.map((w) => ({ ...w })) } : {}),
+    };
+  }
+
+  let entitiesCopy: Record<string, SimEntityState> | undefined = undefined;
+  if (state.entities) {
+    entitiesCopy = {};
+    for (const k of Object.keys(state.entities)) {
+      entitiesCopy[k] = { ...state.entities[k] };
+    }
   }
 
   return {
@@ -104,6 +120,38 @@ export function cloneSimulationState(state: SimulationState): SimulationState {
     ceilingHeights: state.ceilingHeights.map((r) => [...r]),
     players: playersCopy,
     movers: moversCopy,
+    ...(entitiesCopy ? { entities: entitiesCopy } : {}),
+    ...(state.earthquake ? { earthquake: { ...state.earthquake } } : {}),
+    ...(state.hazardRegions
+      ? {
+          hazardRegions: Object.fromEntries(
+            Object.entries(state.hazardRegions).map(([rk, rv]) => [
+              rk,
+              { ...rv },
+            ])
+          ),
+        }
+      : {}),
+    ...(state.lightEffects
+      ? {
+          lightEffects: Object.fromEntries(
+            Object.entries(state.lightEffects).map(([lk, lv]) => [
+              lk,
+              { ...lv },
+            ])
+          ),
+        }
+      : {}),
+    ...(state.regionDwellTicks
+      ? {
+          regionDwellTicks: Object.fromEntries(
+            Object.entries(state.regionDwellTicks).map(([rk, rv]) => [
+              rk,
+              { ...rv },
+            ])
+          ),
+        }
+      : {}),
     collectedKeys: [...state.collectedKeys],
     flags: { ...state.flags },
     counters: { ...state.counters },
@@ -234,6 +282,45 @@ export function createInitialSimulationState(
     (a, b) => a.id.localeCompare(b.id)
   );
 
+  const entities: Record<string, SimEntityState> = {};
+  if (level.entities && level.entities.length > 0) {
+    for (const ent of level.entities) {
+      const world = gridToWorldUnits(ent.row, ent.col);
+      entities[ent.id] = {
+        id: ent.id,
+        blueprintId: ent.blueprintId,
+        ...(ent.modelAssetId ? { modelAssetId: ent.modelAssetId } : {}),
+        name:
+          ent.name ||
+          (ent.blueprintId === 'sentinel-bot'
+            ? 'Cyber Sentinel Bot'
+            : ent.blueprintId === 'turret-guardian'
+            ? 'Heavy Mech Stalker'
+            : 'Supply Crate'),
+        row: Math.trunc(ent.row),
+        col: Math.trunc(ent.col),
+        xUnits: world.xUnits,
+        zUnits: world.zUnits,
+        yUnits: floorHeights[ent.row]?.[ent.col] ?? 0,
+        yawBam: normalizeBam(ent.yawBam || 0),
+        health: Math.max(1, Math.trunc(ent.maxHealth ?? 75)),
+        maxHealth: Math.max(1, Math.trunc(ent.maxHealth ?? 75)),
+        isEnemy: ent.isEnemy !== false && ent.blueprintId !== 'supply-crate',
+        state: ent.ambush ? 'idle' : ent.patrol ? 'patrol' : 'idle',
+        tag: Math.trunc(ent.tag || 0),
+        ambush: Boolean(ent.ambush),
+        attackDamage: Math.max(1, Math.trunc(ent.attackDamage ?? 12)),
+        speedUnitsPerTick: Math.max(
+          10,
+          Math.trunc(ent.moveSpeedUnitsPerTick || 40)
+        ),
+        attackCooldownTicks: 0,
+        hitFlashTicks: 0,
+        memoryTicks: 0,
+      };
+    }
+  }
+
   const state: SimulationState = {
     formatVersion: 1,
     tick: 0,
@@ -254,6 +341,7 @@ export function createInitialSimulationState(
     ceilingHeights,
     players,
     movers,
+    ...(Object.keys(entities).length > 0 ? { entities } : {}),
     collectedKeys: [],
     flags: { ...level.variables.flags },
     counters: { ...level.variables.counters },
@@ -404,6 +492,14 @@ export function step(
 
   if (state.levelEnded) {
     return state;
+  }
+
+  // Decrement earthquake if active
+  if (state.earthquake && state.earthquake.remainingTicks > 0) {
+    state.earthquake.remainingTicks -= 1;
+    if (state.earthquake.remainingTicks === 0) {
+      delete state.earthquake;
+    }
   }
 
   const budget: TickExecutionBudget = {
@@ -624,7 +720,63 @@ export function step(
         floorHeights: state.floorHeights,
         ceilingHeights: state.ceilingHeights,
       });
-      if (rayHit.hit) {
+
+      let hitEnemy: SimEntityState | undefined = undefined;
+      let minEnemyDist = rayHit.hit
+        ? rayHit.distanceUnits
+        : state.gridSize * SIM_CONFIG.CELL_UNITS;
+
+      if (state.entities) {
+        const pCos = bamCos(player.yawBam);
+        const pSin = bamSin(player.yawBam);
+        const dirX = -pSin;
+        const dirZ = -pCos;
+
+        for (const ent of Object.values(state.entities)) {
+          if (!ent.isEnemy || ent.state === 'dead') continue;
+          const ex = ent.xUnits - player.xUnits;
+          const ez = ent.zUnits - player.zUnits;
+          const projDist = Math.trunc(
+            (ex * dirX + ez * dirZ) / TRIG_SCALE
+          );
+          if (projDist > 0 && projDist < minEnemyDist) {
+            const perpSq = ex * ex + ez * ez - projDist * projDist;
+            if (perpSq >= 0 && perpSq <= 350 * 350) {
+              minEnemyDist = projDist;
+              hitEnemy = ent;
+            }
+          }
+        }
+      }
+
+      if (hitEnemy) {
+        hitEnemy.health = Math.max(0, hitEnemy.health - 35);
+        hitEnemy.hitFlashTicks = 4;
+        if (hitEnemy.health <= 0) {
+          hitEnemy.state = 'dead';
+          state.soundsPlayed.push({
+            tick: state.tick,
+            soundId: 'enemy_death',
+            row: hitEnemy.row,
+            col: hitEnemy.col,
+          });
+          budget.queuedTriggers.push({
+            type: 'entity_killed',
+            activator,
+            entityId: hitEnemy.id,
+            tag: hitEnemy.tag,
+            item: hitEnemy.blueprintId,
+          });
+          checkAllDeadTriggers(state, budget, activator);
+        } else {
+          if (hitEnemy.state === 'idle') {
+            hitEnemy.state = 'chase';
+            hitEnemy.ambush = false;
+          }
+        }
+      }
+
+      if (rayHit.hit && (!hitEnemy || rayHit.distanceUnits < minEnemyDist)) {
         budget.queuedTriggers.push({
           type: 'shoot',
           activator,
@@ -632,6 +784,108 @@ export function step(
           col: rayHit.col,
           tag: state.cellTags[rayHit.row]?.[rayHit.col] ?? 0,
         });
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // 1a. REGION DWELL TRACKING (FOR STAND_IN_REGION TRIGGERS)
+  // --------------------------------------------------------------------------
+  for (const pid of playerIds) {
+    const player = state.players[pid];
+    if (!player || player.isDead) continue;
+
+    for (const reg of state.regions) {
+      const hasDwellEvent = state.events.some(
+        (evt) =>
+          evt.enabled &&
+          evt.trigger.type === 'stand_in_region' &&
+          evt.trigger.region === reg.id
+      );
+      if (!hasDwellEvent) continue;
+
+      const inside = isPlayerInRegion(
+        player.gridRow,
+        player.gridCol,
+        reg.id,
+        state
+      );
+      if (inside) {
+        state.regionDwellTicks = state.regionDwellTicks ?? {};
+        state.regionDwellTicks[reg.id] = state.regionDwellTicks[reg.id] ?? {};
+        const curDwell = (state.regionDwellTicks[reg.id][pid] ?? 0) + 1;
+        state.regionDwellTicks[reg.id][pid] = curDwell;
+
+        for (const evt of state.events) {
+          if (
+            evt.enabled &&
+            evt.trigger.type === 'stand_in_region' &&
+            evt.trigger.region === reg.id
+          ) {
+            const reqTicks =
+              typeof evt.trigger.dwell_ticks === 'number'
+                ? evt.trigger.dwell_ticks
+                : typeof evt.trigger.dwell_sec === 'number'
+                ? Math.max(
+                    1,
+                    Math.round(
+                      evt.trigger.dwell_sec * SIM_CONFIG.TICKS_PER_SECOND
+                    )
+                  )
+                : 1;
+            if (curDwell === reqTicks) {
+              budget.queuedTriggers.push({
+                type: 'stand_in_region',
+                activator: {
+                  kind: 'player',
+                  playerId: pid,
+                  row: player.gridRow,
+                  col: player.gridCol,
+                },
+                region: reg.id,
+              });
+            }
+          }
+        }
+      } else {
+        if (state.regionDwellTicks?.[reg.id]?.[pid]) {
+          delete state.regionDwellTicks[reg.id][pid];
+          if (Object.keys(state.regionDwellTicks[reg.id]).length === 0) {
+            delete state.regionDwellTicks[reg.id];
+          }
+        }
+      }
+    }
+  }
+  if (
+    state.regionDwellTicks &&
+    Object.keys(state.regionDwellTicks).length === 0
+  ) {
+    delete state.regionDwellTicks;
+  }
+
+  // --------------------------------------------------------------------------
+  // 1b. HAZARD REGIONS PERIODIC DAMAGE
+  // --------------------------------------------------------------------------
+  if (state.hazardRegions) {
+    for (const [rId, hazard] of Object.entries(state.hazardRegions)) {
+      if (hazard.intervalTicks > 0 && state.tick % hazard.intervalTicks === 0) {
+        for (const pid of playerIds) {
+          const p = state.players[pid];
+          if (!p || p.isDead) continue;
+          if (isPlayerInRegion(p.gridRow, p.gridCol, rId, state)) {
+            p.health = Math.max(0, p.health - hazard.damagePerInterval);
+            if (p.health === 0) {
+              p.isDead = true;
+            }
+            state.soundsPlayed.push({
+              tick: state.tick,
+              soundId: 'hazard_sizzle',
+              row: p.gridRow,
+              col: p.gridCol,
+            });
+          }
+        }
       }
     }
   }
@@ -656,17 +910,22 @@ export function step(
   }
 
   // --------------------------------------------------------------------------
-  // 3. UPDATE MOVERS (DOORS & PUSH WALLS)
+  // 3. UPDATE MOVERS (DOORS, PUSH WALLS, LIFTS, CRUSHERS)
   // --------------------------------------------------------------------------
   updateMoversForTick(state, budget);
 
   // --------------------------------------------------------------------------
-  // 4. PROCESS PENDING DELAYED CONTINUATIONS
+  // 4. UPDATE ENTITIES (ENEMY AI, AMBUSH, PATROL, ATTACK)
+  // --------------------------------------------------------------------------
+  updateEntitiesForTick(state, budget);
+
+  // --------------------------------------------------------------------------
+  // 5. PROCESS PENDING DELAYED CONTINUATIONS
   // --------------------------------------------------------------------------
   processPendingContinuationsForTick(state, budget);
 
   // --------------------------------------------------------------------------
-  // 5. EVALUATE & EXECUTE QUEUED TRIGGERS
+  // 6. EVALUATE & EXECUTE QUEUED TRIGGERS
   // --------------------------------------------------------------------------
   drainQueuedTriggers(state, budget);
 
@@ -837,6 +1096,228 @@ function updateMoversForTick(
           });
         }
       }
+    } else if (
+      mover.kind === 'lift' ||
+      mover.kind === 'floor' ||
+      mover.kind === 'ceiling'
+    ) {
+      const startH = mover.startHeightUnits ?? 0;
+      const targetH = mover.targetHeightUnits ?? 0;
+      const totalDelta = targetH - startH;
+
+      if (mover.state === 'opening' || mover.state === 'active') {
+        mover.progress = Math.min(
+          SIM_CONFIG.MOVER_MAX_PROGRESS,
+          mover.progress + mover.speedPerTick
+        );
+        const curH =
+          startH +
+          Math.trunc(
+            (totalDelta * mover.progress) / SIM_CONFIG.MOVER_MAX_PROGRESS
+          );
+        mover.currentHeightUnits = curH;
+        if (state.floorHeights[mover.row]) {
+          state.floorHeights[mover.row][mover.col] = curH;
+        }
+
+        if (mover.progress >= SIM_CONFIG.MOVER_MAX_PROGRESS) {
+          mover.progress = SIM_CONFIG.MOVER_MAX_PROGRESS;
+          mover.currentHeightUnits = targetH;
+          if (state.floorHeights[mover.row]) {
+            state.floorHeights[mover.row][mover.col] = targetH;
+          }
+          mover.state = 'open';
+          mover.waitTicks = mover.configuredWaitTicks;
+          state.soundsPlayed.push({
+            tick: state.tick,
+            soundId: 'lift_stop',
+            row: mover.row,
+            col: mover.col,
+          });
+          budget.queuedTriggers.push({
+            type: 'mover_finished',
+            activator: { kind: 'system', playerId: 0 },
+            row: mover.row,
+            col: mover.col,
+            tag: mover.tag,
+            moverState: 'open',
+          });
+        }
+      } else if (mover.state === 'open') {
+        if (mover.waitTicks > 0) {
+          mover.waitTicks -= 1;
+          if (mover.waitTicks === 0 && mover.returnHeightUnits !== undefined) {
+            mover.state = 'closing';
+            state.soundsPlayed.push({
+              tick: state.tick,
+              soundId: 'lift_start',
+              row: mover.row,
+              col: mover.col,
+            });
+          }
+        }
+      } else if (mover.state === 'closing') {
+        const retH = mover.returnHeightUnits ?? startH;
+        mover.progress = Math.max(0, mover.progress - mover.speedPerTick);
+        const curH =
+          retH +
+          Math.trunc(
+            ((targetH - retH) * mover.progress) / SIM_CONFIG.MOVER_MAX_PROGRESS
+          );
+        mover.currentHeightUnits = curH;
+        if (state.floorHeights[mover.row]) {
+          state.floorHeights[mover.row][mover.col] = curH;
+        }
+
+        if (mover.progress <= 0) {
+          mover.progress = 0;
+          mover.currentHeightUnits = retH;
+          if (state.floorHeights[mover.row]) {
+            state.floorHeights[mover.row][mover.col] = retH;
+          }
+          mover.state = 'closed';
+          state.soundsPlayed.push({
+            tick: state.tick,
+            soundId: 'lift_stop',
+            row: mover.row,
+            col: mover.col,
+          });
+          budget.queuedTriggers.push({
+            type: 'mover_finished',
+            activator: { kind: 'system', playerId: 0 },
+            row: mover.row,
+            col: mover.col,
+            tag: mover.tag,
+            moverState: 'closed',
+          });
+        }
+      }
+    } else if (mover.kind === 'crusher') {
+      const lowerH = mover.targetHeightUnits ?? 0;
+      const upperH =
+        mover.startHeightUnits ?? SIM_CONFIG.DEFAULT_CEILING_HEIGHT_UNITS;
+      if (mover.state === 'closing' || mover.state === 'active') {
+        mover.progress = Math.min(
+          SIM_CONFIG.MOVER_MAX_PROGRESS,
+          mover.progress + mover.speedPerTick
+        );
+        const curH =
+          upperH -
+          Math.trunc(
+            ((upperH - lowerH) * mover.progress) / SIM_CONFIG.MOVER_MAX_PROGRESS
+          );
+        mover.currentHeightUnits = curH;
+        if (state.ceilingHeights[mover.row]) {
+          state.ceilingHeights[mover.row][mover.col] = curH;
+        }
+        // Check crushing occupants
+        if (curH <= (state.floorHeights[mover.row]?.[mover.col] ?? 0) + 300) {
+          const dmg = mover.crushDamage ?? 20;
+          for (const p of Object.values(state.players)) {
+            if (
+              !p.isDead &&
+              p.gridRow === mover.row &&
+              p.gridCol === mover.col
+            ) {
+              p.health = Math.max(0, p.health - dmg);
+              if (p.health === 0) p.isDead = true;
+              state.soundsPlayed.push({
+                tick: state.tick,
+                soundId: 'crusher_hit',
+                row: mover.row,
+                col: mover.col,
+              });
+            }
+          }
+        }
+        if (mover.progress >= SIM_CONFIG.MOVER_MAX_PROGRESS) {
+          mover.progress = SIM_CONFIG.MOVER_MAX_PROGRESS;
+          mover.state = 'opening';
+        }
+      } else if (mover.state === 'opening') {
+        mover.progress = Math.max(0, mover.progress - mover.speedPerTick);
+        const curH =
+          upperH -
+          Math.trunc(
+            ((upperH - lowerH) * mover.progress) / SIM_CONFIG.MOVER_MAX_PROGRESS
+          );
+        mover.currentHeightUnits = curH;
+        if (state.ceilingHeights[mover.row]) {
+          state.ceilingHeights[mover.row][mover.col] = curH;
+        }
+        if (mover.progress <= 0) {
+          mover.progress = 0;
+          mover.state = 'closing';
+        }
+      }
+    } else if (mover.kind === 'track') {
+      if (
+        mover.state === 'active' &&
+        mover.waypoints &&
+        mover.waypoints.length >= 2
+      ) {
+        mover.progress = Math.min(
+          SIM_CONFIG.MOVER_MAX_PROGRESS,
+          mover.progress + mover.speedPerTick
+        );
+        if (mover.progress >= SIM_CONFIG.MOVER_MAX_PROGRESS) {
+          mover.progress = 0;
+          const targetIndex = mover.currentWaypointIndex ?? 1;
+          const targetWp = mover.waypoints[targetIndex];
+          if (targetWp) {
+            mover.row = targetWp.row;
+            mover.col = targetWp.col;
+          }
+
+          const dir = mover.trackDirection ?? 1;
+          if (dir === 1) {
+            if (targetIndex + 1 < mover.waypoints.length) {
+              mover.currentWaypointIndex = targetIndex + 1;
+            } else {
+              if (mover.trackLoop) {
+                mover.currentWaypointIndex = 0;
+              } else if (mover.trackPingPong) {
+                mover.trackDirection = -1;
+                mover.currentWaypointIndex = Math.max(
+                  0,
+                  mover.waypoints.length - 2
+                );
+              } else {
+                mover.state = 'done';
+                budget.queuedTriggers.push({
+                  type: 'mover_finished',
+                  activator: { kind: 'system', playerId: 0 },
+                  row: mover.row,
+                  col: mover.col,
+                  tag: mover.tag,
+                  moverState: 'done',
+                });
+              }
+            }
+          } else {
+            if (targetIndex - 1 >= 0) {
+              mover.currentWaypointIndex = targetIndex - 1;
+            } else {
+              if (mover.trackLoop) {
+                mover.currentWaypointIndex = mover.waypoints.length - 1;
+              } else if (mover.trackPingPong) {
+                mover.trackDirection = 1;
+                mover.currentWaypointIndex = 1;
+              } else {
+                mover.state = 'done';
+                budget.queuedTriggers.push({
+                  type: 'mover_finished',
+                  activator: { kind: 'system', playerId: 0 },
+                  row: mover.row,
+                  col: mover.col,
+                  tag: mover.tag,
+                  moverState: 'done',
+                });
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -969,6 +1450,32 @@ function doesTriggerMatch(
       if (spec.name !== fired.counterName) return false;
       const val = fired.counterValue ?? 0;
       return compareIntegers(val, spec.op, spec.value);
+    }
+
+    case 'all_dead': {
+      if (spec.tag !== undefined && spec.tag > 0 && spec.tag !== fired.tag)
+        return false;
+      if (spec.region && spec.region !== fired.region) return false;
+      return true;
+    }
+
+    case 'entity_killed': {
+      if (spec.entityId && spec.entityId !== fired.entityId) return false;
+      if (spec.tag !== undefined && spec.tag > 0 && spec.tag !== fired.tag)
+        return false;
+      if (spec.blueprintId && spec.blueprintId !== fired.item) return false;
+      return true;
+    }
+
+    case 'entity_alerted': {
+      if (spec.entityId && spec.entityId !== fired.entityId) return false;
+      if (spec.tag !== undefined && spec.tag > 0 && spec.tag !== fired.tag)
+        return false;
+      return true;
+    }
+
+    case 'stand_in_region': {
+      return spec.region === fired.region;
     }
   }
 }
@@ -1151,6 +1658,47 @@ function evaluateConditions(
           ) {
             return false;
           }
+        }
+        break;
+      }
+      case 'all_dead': {
+        const ents = Object.values(state.entities ?? {});
+        let targetEnts = ents.filter((e) => e.isEnemy);
+        if (cond.tag !== undefined && cond.tag > 0) {
+          targetEnts = targetEnts.filter((e) => e.tag === cond.tag);
+        }
+        if (cond.region) {
+          const reg = state.regions.find((r) => r.id === cond.region);
+          if (reg) {
+            targetEnts = targetEnts.filter((e) =>
+              reg.cells.some((c) => c.row === e.row && c.col === e.col)
+            );
+          }
+        }
+        if (
+          targetEnts.length > 0 &&
+          targetEnts.some((e) => e.state !== 'dead')
+        ) {
+          return false;
+        }
+        break;
+      }
+      case 'entities_alive': {
+        const ents = Object.values(state.entities ?? {});
+        let targetEnts = ents.filter((e) => e.isEnemy && e.state !== 'dead');
+        if (cond.tag !== undefined && cond.tag > 0) {
+          targetEnts = targetEnts.filter((e) => e.tag === cond.tag);
+        }
+        if (cond.region) {
+          const reg = state.regions.find((r) => r.id === cond.region);
+          if (reg) {
+            targetEnts = targetEnts.filter((e) =>
+              reg.cells.some((c) => c.row === e.row && c.col === e.col)
+            );
+          }
+        }
+        if (!compareIntegers(targetEnts.length, cond.op, cond.value)) {
+          return false;
         }
         break;
       }
@@ -1395,6 +1943,479 @@ export function toggleDoorMoverAtCell(
   }
 }
 
+export function applyFloorMoverAction(
+  state: SimulationState,
+  params: {
+    row?: number;
+    col?: number;
+    tag?: number;
+    kind: 'lift' | 'floor' | 'crusher';
+    targetHeightUnits: number;
+    speedPerTick?: number;
+    waitTicks?: number;
+    returnHeightUnits?: number;
+    damage?: number;
+  }
+): void {
+  const targets: { row: number; col: number }[] = [];
+  if (params.row !== undefined && params.col !== undefined) {
+    targets.push({ row: params.row, col: params.col });
+  } else if (params.tag !== undefined && params.tag > 0) {
+    for (let r = 0; r < state.gridSize; r++) {
+      for (let c = 0; c < state.gridSize; c++) {
+        if (state.cellTags[r]?.[c] === params.tag) {
+          targets.push({ row: r, col: c });
+        }
+      }
+    }
+  }
+
+  for (const t of targets) {
+    const id = `${params.kind}:${t.row},${t.col}`;
+    const startH =
+      params.kind === 'crusher'
+        ? state.ceilingHeights[t.row]?.[t.col] ??
+          SIM_CONFIG.DEFAULT_CEILING_HEIGHT_UNITS
+        : state.floorHeights[t.row]?.[t.col] ?? 0;
+    const speed = params.speedPerTick ?? 200;
+    const wait = params.waitTicks ?? 0;
+
+    state.movers[id] = {
+      id,
+      kind: params.kind,
+      row: t.row,
+      col: t.col,
+      tag: state.cellTags[t.row]?.[t.col] ?? (params.tag ?? 0),
+      state: 'active',
+      progress: 0,
+      speedPerTick: Math.max(10, Math.trunc(speed)),
+      waitTicks: wait,
+      configuredWaitTicks: wait,
+      locked: false,
+      blockedBehavior: 'wait',
+      startHeightUnits: startH,
+      targetHeightUnits: Math.trunc(params.targetHeightUnits),
+      currentHeightUnits: startH,
+      ...(params.returnHeightUnits !== undefined
+        ? { returnHeightUnits: Math.trunc(params.returnHeightUnits) }
+        : {}),
+      ...(params.damage !== undefined
+        ? { crushDamage: Math.trunc(params.damage) }
+        : {}),
+    };
+
+    state.soundsPlayed.push({
+      tick: state.tick,
+      soundId: 'lift_start',
+      row: t.row,
+      col: t.col,
+    });
+  }
+}
+
+export function toggleLiftMover(
+  state: SimulationState,
+  row?: number,
+  col?: number,
+  tag?: number,
+  lowerHeightUnits = -500,
+  upperHeightUnits = 0,
+  speedPerTick = 200,
+  waitTicks = 90
+): void {
+  const targets: { row: number; col: number }[] = [];
+  if (row !== undefined && col !== undefined) {
+    targets.push({ row, col });
+  } else if (tag !== undefined && tag > 0) {
+    for (let r = 0; r < state.gridSize; r++) {
+      for (let c = 0; c < state.gridSize; c++) {
+        if (state.cellTags[r]?.[c] === tag) {
+          targets.push({ row: r, col: c });
+        }
+      }
+    }
+  }
+
+  for (const t of targets) {
+    const curH = state.floorHeights[t.row]?.[t.col] ?? 0;
+    const isAtUpper =
+      Math.abs(curH - upperHeightUnits) <= Math.abs(curH - lowerHeightUnits);
+    const targetH = isAtUpper ? lowerHeightUnits : upperHeightUnits;
+    const returnH = isAtUpper ? upperHeightUnits : undefined;
+
+    applyFloorMoverAction(state, {
+      row: t.row,
+      col: t.col,
+      kind: 'lift',
+      targetHeightUnits: targetH,
+      returnHeightUnits: returnH,
+      speedPerTick,
+      waitTicks: isAtUpper ? waitTicks : 0,
+    });
+  }
+}
+
+export function stopCrusherMover(
+  state: SimulationState,
+  row?: number,
+  col?: number,
+  tag?: number
+): void {
+  for (const k of Object.keys(state.movers)) {
+    const m = state.movers[k];
+    if (m.kind === 'crusher') {
+      if (
+        (row !== undefined &&
+          col !== undefined &&
+          m.row === row &&
+          m.col === col) ||
+        (tag !== undefined && tag > 0 && m.tag === tag)
+      ) {
+        delete state.movers[k];
+      }
+    }
+  }
+}
+
+export function buildStairsMover(
+  state: SimulationState,
+  tag?: number,
+  stepHeightUnits = 200,
+  speedPerTick = 150
+): void {
+  if (tag === undefined || tag <= 0) return;
+  const taggedCells: { row: number; col: number }[] = [];
+  for (let r = 0; r < state.gridSize; r++) {
+    for (let c = 0; c < state.gridSize; c++) {
+      if (state.cellTags[r]?.[c] === tag) {
+        taggedCells.push({ row: r, col: c });
+      }
+    }
+  }
+  taggedCells.sort((a, b) => (a.row === b.row ? a.col - b.col : a.row - b.row));
+  for (let i = 0; i < taggedCells.length; i++) {
+    const cell = taggedCells[i];
+    const targetH = (i + 1) * Math.trunc(stepHeightUnits);
+    applyFloorMoverAction(state, {
+      row: cell.row,
+      col: cell.col,
+      kind: 'floor',
+      targetHeightUnits: targetH,
+      speedPerTick,
+      waitTicks: 0,
+    });
+  }
+}
+
+export function wakeEntitiesInSim(
+  state: SimulationState,
+  tag?: number,
+  regionId?: string
+): void {
+  if (!state.entities) return;
+
+  let alertedAny = false;
+  const reg = regionId
+    ? state.regions.find((r) => r.id === regionId)
+    : undefined;
+
+  for (const ent of Object.values(state.entities)) {
+    if (!ent.isEnemy || ent.state === 'dead') continue;
+
+    let matches = false;
+    if (tag !== undefined && tag > 0 && ent.tag === tag) {
+      matches = true;
+    }
+    if (reg && reg.cells.some((c) => c.row === ent.row && c.col === ent.col)) {
+      matches = true;
+    }
+    if (!tag && !regionId) {
+      matches = true;
+    }
+
+    if (matches) {
+      ent.ambush = false;
+      ent.state = 'chase';
+      alertedAny = true;
+    }
+  }
+
+  if (alertedAny) {
+    state.soundsPlayed.push({
+      tick: state.tick,
+      soundId: 'enemy_alert',
+    });
+  }
+}
+
+export function spawnEntityInSim(
+  state: SimulationState,
+  act: {
+    blueprintId:
+      | 'sentinel-bot'
+      | 'turret-guardian'
+      | 'supply-crate'
+      | 'custom-glb';
+    row: number;
+    col: number;
+    yaw_bam?: number;
+    tag?: number;
+    ambush?: boolean;
+    isEnemy?: boolean;
+    maxHealth?: number;
+  }
+): SimEntityState {
+  if (!state.entities) {
+    state.entities = {};
+  }
+  const newId = `ent-${state.nextEntityId}`;
+  state.nextEntityId += 1;
+
+  const world = gridToWorldUnits(act.row, act.col);
+  const ent: SimEntityState = {
+    id: newId,
+    blueprintId: act.blueprintId,
+    name:
+      act.blueprintId === 'sentinel-bot'
+        ? 'Cyber Sentinel Bot'
+        : act.blueprintId === 'turret-guardian'
+        ? 'Heavy Mech Stalker'
+        : 'Supply Crate',
+    row: Math.trunc(act.row),
+    col: Math.trunc(act.col),
+    xUnits: world.xUnits,
+    zUnits: world.zUnits,
+    yUnits: state.floorHeights[act.row]?.[act.col] ?? 0,
+    yawBam: normalizeBam(act.yaw_bam ?? 0),
+    health: Math.max(1, Math.trunc(act.maxHealth ?? 75)),
+    maxHealth: Math.max(1, Math.trunc(act.maxHealth ?? 75)),
+    isEnemy: act.isEnemy !== false && act.blueprintId !== 'supply-crate',
+    state: act.ambush ? 'idle' : 'chase',
+    tag: Math.trunc(act.tag ?? 0),
+    ambush: Boolean(act.ambush),
+    attackDamage: 12,
+    speedUnitsPerTick: 40,
+    attackCooldownTicks: 0,
+    hitFlashTicks: 0,
+    memoryTicks: 0,
+  };
+
+  state.entities[newId] = ent;
+  state.soundsPlayed.push({
+    tick: state.tick,
+    soundId: 'enemy_alert',
+    row: act.row,
+    col: act.col,
+  });
+  return ent;
+}
+
+export function removeEntityInSim(
+  state: SimulationState,
+  entityId?: string,
+  tag?: number
+): void {
+  if (!state.entities) return;
+  for (const k of Object.keys(state.entities)) {
+    const e = state.entities[k];
+    if (
+      (entityId && e.id === entityId) ||
+      (tag !== undefined && tag > 0 && e.tag === tag)
+    ) {
+      e.state = 'dead';
+      e.health = 0;
+    }
+  }
+}
+
+export function damageEntityInSim(
+  state: SimulationState,
+  entityId: string | undefined,
+  tag: number | undefined,
+  amount: number,
+  budget: TickExecutionBudget,
+  activator: ActivatorContext
+): void {
+  if (!state.entities) return;
+  for (const k of Object.keys(state.entities)) {
+    const ent = state.entities[k];
+    if (
+      ent.state !== 'dead' &&
+      ((entityId && ent.id === entityId) ||
+        (tag !== undefined && tag > 0 && ent.tag === tag))
+    ) {
+      ent.health = Math.max(0, ent.health - Math.trunc(amount));
+      ent.hitFlashTicks = 4;
+      if (ent.health <= 0) {
+        ent.state = 'dead';
+        state.soundsPlayed.push({
+          tick: state.tick,
+          soundId: 'enemy_death',
+          row: ent.row,
+          col: ent.col,
+        });
+        budget.queuedTriggers.push({
+          type: 'entity_killed',
+          activator,
+          entityId: ent.id,
+          tag: ent.tag,
+          item: ent.blueprintId,
+        });
+        checkAllDeadTriggers(state, budget, activator);
+      }
+    }
+  }
+}
+
+function checkAllDeadTriggers(
+  state: SimulationState,
+  budget: TickExecutionBudget,
+  activator: ActivatorContext
+): void {
+  const ents = Object.values(state.entities ?? {});
+  const livingEnemies = ents.filter((e) => e.isEnemy && e.state !== 'dead');
+
+  if (ents.some((e) => e.isEnemy) && livingEnemies.length === 0) {
+    budget.queuedTriggers.push({
+      type: 'all_dead',
+      activator,
+    });
+  }
+
+  for (const reg of state.regions) {
+    const regEnts = ents.filter(
+      (e) =>
+        e.isEnemy && reg.cells.some((c) => c.row === e.row && c.col === e.col)
+    );
+    if (regEnts.length > 0 && regEnts.every((e) => e.state === 'dead')) {
+      budget.queuedTriggers.push({
+        type: 'all_dead',
+        activator,
+        region: reg.id,
+      });
+    }
+  }
+
+  const tagsChecked = new Set<number>();
+  for (const ent of ents) {
+    if (ent.tag > 0 && !tagsChecked.has(ent.tag)) {
+      tagsChecked.add(ent.tag);
+      const tagged = ents.filter((e) => e.isEnemy && e.tag === ent.tag);
+      if (tagged.length > 0 && tagged.every((e) => e.state === 'dead')) {
+        budget.queuedTriggers.push({
+          type: 'all_dead',
+          activator,
+          tag: ent.tag,
+        });
+      }
+    }
+  }
+}
+
+function updateEntitiesForTick(
+  state: SimulationState,
+  budget: TickExecutionBudget
+): void {
+  if (!state.entities) return;
+
+  const entKeys = Object.keys(state.entities).sort();
+  const player = state.players[0];
+  if (!player || player.isDead) return;
+
+  for (const k of entKeys) {
+    const ent = state.entities[k];
+    if (!ent || !ent.isEnemy || ent.state === 'dead') continue;
+
+    if (ent.hitFlashTicks > 0) ent.hitFlashTicks -= 1;
+    if (ent.attackCooldownTicks > 0) ent.attackCooldownTicks -= 1;
+
+    const dx = player.xUnits - ent.xUnits;
+    const dz = player.zUnits - ent.zUnits;
+    const distSq = dx * dx + dz * dz;
+
+    if (ent.state === 'idle') {
+      if (!ent.ambush) {
+        if (distSq < 36_000_000) {
+          ent.state = 'chase';
+          state.soundsPlayed.push({
+            tick: state.tick,
+            soundId: 'enemy_alert',
+            row: ent.row,
+            col: ent.col,
+          });
+          budget.queuedTriggers.push({
+            type: 'entity_alerted',
+            activator: { kind: 'entity', playerId: 0, entityId: ent.id },
+            entityId: ent.id,
+            tag: ent.tag,
+          });
+        }
+      }
+      continue;
+    }
+
+    if (ent.state === 'chase' || ent.state === 'attack') {
+      const targetYaw = bamAtan2(dx, dz);
+      const deltaYaw = shortestBamDelta(ent.yawBam, targetYaw);
+      const maxTurn = 1024;
+      const turnStep = Math.max(-maxTurn, Math.min(maxTurn, deltaYaw));
+      ent.yawBam = normalizeBam(ent.yawBam + turnStep);
+
+      if (distSq <= 600 * 600) {
+        ent.state = 'attack';
+        if (ent.attackCooldownTicks === 0) {
+          ent.attackCooldownTicks = 20;
+          player.health = Math.max(0, player.health - ent.attackDamage);
+          if (player.health === 0) {
+            player.isDead = true;
+          }
+          state.soundsPlayed.push({
+            tick: state.tick,
+            soundId: 'enemy_alert',
+            row: ent.row,
+            col: ent.col,
+          });
+        }
+      } else {
+        ent.state = 'chase';
+        const sinYaw = bamSin(ent.yawBam);
+        const cosYaw = bamCos(ent.yawBam);
+        const stepX = Math.trunc(
+          (-sinYaw * ent.speedUnitsPerTick) / TRIG_SCALE
+        );
+        const stepZ = Math.trunc(
+          (-cosYaw * ent.speedUnitsPerTick) / TRIG_SCALE
+        );
+
+        const nextX = ent.xUnits + stepX;
+        const nextZ = ent.zUnits + stepZ;
+        const nextCell = worldUnitsToGrid(nextX, nextZ, state.gridSize);
+
+        const isWall =
+          state.grid[nextCell.row]?.[nextCell.col] === SimCellType.WALL;
+        const doorMover =
+          state.movers[`door:${nextCell.row},${nextCell.col}`];
+        const isClosedDoor = doorMover && doorMover.state !== 'open';
+
+        if (
+          !isWall &&
+          !isClosedDoor &&
+          nextCell.row >= 0 &&
+          nextCell.row < state.gridSize &&
+          nextCell.col >= 0 &&
+          nextCell.col < state.gridSize
+        ) {
+          ent.xUnits = nextX;
+          ent.zUnits = nextZ;
+          ent.row = nextCell.row;
+          ent.col = nextCell.col;
+          ent.yUnits = state.floorHeights[nextCell.row]?.[nextCell.col] ?? 0;
+        }
+      }
+    }
+  }
+}
+
 function getTargetPlayers(
   state: SimulationState,
   activator: ActivatorContext,
@@ -1545,6 +2566,103 @@ function executeSingleAction(
       break;
     }
 
+    case 'lower_floor': {
+      applyFloorMoverAction(state, {
+        row: act.row,
+        col: act.col,
+        tag: act.tag,
+        kind: 'floor',
+        targetHeightUnits: act.target_height_units,
+        speedPerTick: act.speed_per_tick,
+        waitTicks: act.wait_ticks,
+        returnHeightUnits: act.return_height_units,
+      });
+      break;
+    }
+
+    case 'raise_floor': {
+      applyFloorMoverAction(state, {
+        row: act.row,
+        col: act.col,
+        tag: act.tag,
+        kind: 'floor',
+        targetHeightUnits: act.target_height_units,
+        speedPerTick: act.speed_per_tick,
+        waitTicks: act.wait_ticks,
+        returnHeightUnits: act.return_height_units,
+      });
+      break;
+    }
+
+    case 'toggle_lift': {
+      toggleLiftMover(
+        state,
+        act.row,
+        act.col,
+        act.tag,
+        act.lower_height_units,
+        act.upper_height_units,
+        act.speed_per_tick,
+        act.wait_ticks
+      );
+      break;
+    }
+
+    case 'start_crusher': {
+      applyFloorMoverAction(state, {
+        row: act.row,
+        col: act.col,
+        tag: act.tag,
+        kind: 'crusher',
+        targetHeightUnits: act.lower_height_units ?? 0,
+        speedPerTick: act.speed_per_tick ?? 150,
+        damage: act.damage ?? 20,
+      });
+      break;
+    }
+
+    case 'stop_crusher': {
+      stopCrusherMover(state, act.row, act.col, act.tag);
+      break;
+    }
+
+    case 'build_stairs': {
+      buildStairsMover(
+        state,
+        act.tag,
+        act.step_height_units,
+        act.speed_per_tick
+      );
+      break;
+    }
+
+    case 'wake_entities': {
+      wakeEntitiesInSim(state, act.tag, act.region);
+      break;
+    }
+
+    case 'spawn_entity': {
+      spawnEntityInSim(state, act);
+      break;
+    }
+
+    case 'remove_entity': {
+      removeEntityInSim(state, act.entityId, act.tag);
+      break;
+    }
+
+    case 'damage_entity': {
+      damageEntityInSim(
+        state,
+        act.entityId,
+        act.tag,
+        act.amount,
+        budget,
+        activator
+      );
+      break;
+    }
+
     case 'set_cell': {
       if (state.grid[act.row]?.[act.col] !== undefined) {
         state.grid[act.row][act.col] = act.cell_type;
@@ -1635,6 +2753,12 @@ function executeSingleAction(
           p.yawBam = normalizeBam(act.yaw_bam);
         }
       }
+      state.soundsPlayed.push({
+        tick: state.tick,
+        soundId: 'teleport',
+        row: act.row,
+        col: act.col,
+      });
       break;
     }
 
@@ -1780,6 +2904,195 @@ function executeSingleAction(
         'info',
         'LEVEL_EXITED',
         act.secret ? 'Exited to secret level.' : 'Exited level.',
+        evt.id
+      );
+      break;
+    }
+
+    case 'earthquake': {
+      const ticks =
+        typeof act.duration_ticks === 'number'
+          ? Math.max(1, Math.trunc(act.duration_ticks))
+          : typeof act.duration_sec === 'number'
+          ? Math.max(
+              1,
+              Math.round(act.duration_sec * SIM_CONFIG.TICKS_PER_SECOND)
+            )
+          : SIM_CONFIG.TICKS_PER_SECOND;
+      state.earthquake = {
+        remainingTicks: ticks,
+        intensity: act.intensity ?? 30,
+      };
+      state.soundsPlayed.push({
+        tick: state.tick,
+        soundId: 'earthquake_rumble',
+      });
+      addSimLog(
+        state,
+        'info',
+        'EARTHQUAKE_STARTED',
+        `Earthquake started for ${ticks} ticks (intensity ${state.earthquake.intensity}).`,
+        evt.id
+      );
+      break;
+    }
+
+    case 'set_light_effect': {
+      state.lightEffects = state.lightEffects ?? {};
+      const key = act.region ? `region:${act.region}` : `tag:${act.tag}`;
+      state.lightEffects[key] = {
+        effect: act.effect,
+        speedTicks: act.speed_ticks ?? 15,
+      };
+      addSimLog(
+        state,
+        'info',
+        'LIGHT_EFFECT_SET',
+        `Light effect '${act.effect}' set for ${key}.`,
+        evt.id
+      );
+      break;
+    }
+
+    case 'stop_light_effect': {
+      if (state.lightEffects) {
+        const key = act.region ? `region:${act.region}` : `tag:${act.tag}`;
+        delete state.lightEffects[key];
+        if (Object.keys(state.lightEffects).length === 0) {
+          delete state.lightEffects;
+        }
+      }
+      addSimLog(
+        state,
+        'info',
+        'LIGHT_EFFECT_STOPPED',
+        `Light effect stopped.`,
+        evt.id
+      );
+      break;
+    }
+
+    case 'set_hazard_region': {
+      state.hazardRegions = state.hazardRegions ?? {};
+      const interval = Math.max(1, Math.trunc(act.interval_ticks ?? SIM_CONFIG.TICKS_PER_SECOND));
+      state.hazardRegions[act.region] = {
+        damagePerInterval: act.damage_per_interval,
+        intervalTicks: interval,
+      };
+      addSimLog(
+        state,
+        'info',
+        'HAZARD_REGION_SET',
+        `Hazard region set on '${act.region}' (${act.damage_per_interval} dmg / ${interval} ticks).`,
+        evt.id
+      );
+      break;
+    }
+
+    case 'clear_hazard_region': {
+      if (state.hazardRegions) {
+        delete state.hazardRegions[act.region];
+        if (Object.keys(state.hazardRegions).length === 0) {
+          delete state.hazardRegions;
+        }
+      }
+      addSimLog(
+        state,
+        'info',
+        'HAZARD_REGION_CLEARED',
+        `Hazard region cleared on '${act.region}'.`,
+        evt.id
+      );
+      break;
+    }
+
+    case 'if_then_else': {
+      const conditionPassed = evaluateConditions(
+        state,
+        [act.condition],
+        activator
+      );
+      const chosenActions = conditionPassed
+        ? act.then_actions
+        : act.else_actions ?? [];
+      for (const subAct of chosenActions) {
+        if (budget.actionsExecuted >= SIM_CONFIG.MAX_ACTIONS_PER_TICK) {
+          addSimLog(
+            state,
+            'warn',
+            'ACTION_BUDGET_EXCEEDED',
+            `Tick ${state.tick} action budget (${SIM_CONFIG.MAX_ACTIONS_PER_TICK}) reached in if_then_else; remaining actions dropped.`,
+            evt.id
+          );
+          return;
+        }
+        budget.actionsExecuted += 1;
+        executeSingleAction(state, evt, subAct, activator, depth, budget);
+      }
+      break;
+    }
+
+    case 'random_branch': {
+      if (!act.branches || act.branches.length === 0) break;
+      let totalWeight = 0;
+      for (const b of act.branches) {
+        totalWeight += Math.max(1, Math.trunc(b.weight));
+      }
+      const rngResult = nextUint32(state.rngState);
+      state.rngState = rngResult.nextState;
+      let roll = rngResult.value % totalWeight;
+      let selectedBranch = act.branches[0];
+      for (const b of act.branches) {
+        const w = Math.max(1, Math.trunc(b.weight));
+        if (roll < w) {
+          selectedBranch = b;
+          break;
+        }
+        roll -= w;
+      }
+      for (const subAct of selectedBranch.actions) {
+        if (budget.actionsExecuted >= SIM_CONFIG.MAX_ACTIONS_PER_TICK) {
+          addSimLog(
+            state,
+            'warn',
+            'ACTION_BUDGET_EXCEEDED',
+            `Tick ${state.tick} action budget reached in random_branch; remaining dropped.`,
+            evt.id
+          );
+          return;
+        }
+        budget.actionsExecuted += 1;
+        executeSingleAction(state, evt, subAct, activator, depth, budget);
+      }
+      break;
+    }
+
+    case 'move_along_track': {
+      const moverKey = `track:${act.tag}`;
+      state.movers[moverKey] = {
+        id: moverKey,
+        kind: 'track',
+        row: act.waypoints[0].row,
+        col: act.waypoints[0].col,
+        tag: act.tag,
+        state: 'active',
+        progress: 0,
+        speedPerTick: act.speed_per_tick ?? 250,
+        waitTicks: 0,
+        configuredWaitTicks: 0,
+        locked: false,
+        blockedBehavior: 'wait',
+        waypoints: act.waypoints.map((w) => ({ row: w.row, col: w.col })),
+        currentWaypointIndex: 1,
+        trackDirection: 1,
+        trackLoop: act.loop ?? false,
+        trackPingPong: act.ping_pong ?? false,
+      };
+      addSimLog(
+        state,
+        'info',
+        'TRACK_MOVER_STARTED',
+        `Track mover started for tag ${act.tag}.`,
         evt.id
       );
       break;

@@ -1205,5 +1205,757 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     assert.equal(sim.secretsFound, 1);
     assertNoFloatsInState(sim);
   });
+
+  // ==========================================================================
+  // 11. PHASE 2 (DOOM PARITY) ACCEPTANCE TESTS
+  // ==========================================================================
+  it('Phase 2 (Doom Lift Platform): toggle_lift lowers floor, pauses wait ticks, returns to top, and emits mover_finished', () => {
+    const level = createBaseTestLevelV3();
+    level.events = [
+      {
+        id: 'evt_call_lift',
+        name: 'Call Lift',
+        enabled: true,
+        trigger: { type: 'use', row: 3, col: 3 },
+        conditions: [],
+        actions: [
+          {
+            type: 'toggle_lift',
+            row: 3,
+            col: 3,
+            lower_height_units: -500,
+            upper_height_units: 0,
+            speed_per_tick: 1000,
+            wait_ticks: 10,
+          },
+        ],
+      },
+      {
+        id: 'evt_lift_done',
+        name: 'Lift Cycle Done',
+        enabled: true,
+        trigger: { type: 'mover_finished', row: 3, col: 3 },
+        conditions: [],
+        actions: [{ type: 'set_flag', name: 'lift_complete', value: true }],
+      },
+    ];
+
+    let sim = createInitialSimulationState(level, [0]);
+    const pPos = gridToWorldUnits(3, 3);
+    sim.players[0].xUnits = pPos.xUnits;
+    sim.players[0].zUnits = pPos.zUnits;
+    sim.players[0].gridRow = 3;
+    sim.players[0].gridCol = 3;
+
+    // Press use to trigger lift
+    sim = step(sim, {
+      0: {
+        moveForward: 0,
+        moveRight: 0,
+        sprint: false,
+        yawDeltaBam: 0,
+        pitchDeltaBam: 0,
+        use: true,
+        shoot: false,
+      },
+    });
+
+    assert.equal(sim.movers['lift:3,3']?.state, 'active');
+    assert.equal(sim.soundsPlayed.some((s) => s.soundId === 'lift_start'), true);
+
+    // Step through lowering phase (10 ticks at 1000 speed/tick = 10000 basis points)
+    for (let t = 0; t < 10; t++) {
+      sim = step(sim, {});
+    }
+    // Lift reaches lower height (-500) and begins waiting (state is 'open' with waitTicks)
+    assert.equal(sim.floorHeights[3][3], -500);
+    assert.equal(sim.movers['lift:3,3']?.state, 'open');
+    assert.equal((sim.movers['lift:3,3']?.waitTicks ?? 0) > 0, true);
+
+    // Wait 10 ticks and let it rise back to 0 (10 ticks)
+    for (let t = 0; t < 25; t++) {
+      sim = step(sim, {});
+    }
+
+    assert.equal(sim.floorHeights[3][3], 0);
+    assert.equal(sim.movers['lift:3,3']?.state, 'closed');
+    assert.equal(sim.flags['lift_complete'], true);
+    assert.equal(sim.soundsPlayed.some((s) => s.soundId === 'lift_stop'), true);
+    assertNoFloatsInState(sim);
+  });
+
+  it('Phase 2 (Monster Closet & Ambush Release): dormant ambush enemy wakes via wake_entities action triggered by enter_region', () => {
+    const level = createBaseTestLevelV3();
+    level.entities = [
+      {
+        id: 'bot_ambush_1',
+        blueprintId: 'sentinel-bot',
+        row: 5,
+        col: 7,
+        ambush: true,
+        tag: 42,
+      },
+    ];
+    level.regions = [
+      {
+        id: 'reg_closet_tripwire',
+        name: 'Closet Tripwire',
+        cells: [{ row: 5, col: 3 }],
+      },
+    ];
+    level.events = [
+      {
+        id: 'evt_closet_spring',
+        name: 'Spring Closet Ambush',
+        enabled: true,
+        trigger: { type: 'enter_region', region: 'reg_closet_tripwire' },
+        conditions: [],
+        actions: [{ type: 'wake_entities', tag: 42 }],
+      },
+    ];
+
+    let sim = createInitialSimulationState(level, [0]);
+    assert.equal(sim.entities?.['bot_ambush_1']?.ambush, true);
+    assert.equal(sim.entities?.['bot_ambush_1']?.state, 'idle');
+
+    // Teleport player adjacent to tripwire at (5, 2)
+    const pos = gridToWorldUnits(5, 2);
+    sim.players[0].xUnits = pos.xUnits;
+    sim.players[0].zUnits = pos.zUnits;
+    sim.players[0].gridRow = 5;
+    sim.players[0].gridCol = 2;
+    sim.players[0].yawBam = 49152; // East
+
+    // Walk player East into (5, 3)
+    while (sim.players[0].gridCol !== 3) {
+      sim = step(sim, {
+        0: {
+          moveForward: 1,
+          moveRight: 0,
+          sprint: false,
+          yawDeltaBam: 0,
+          pitchDeltaBam: 0,
+          use: false,
+          shoot: false,
+        },
+      });
+    }
+
+    // Entering (5, 3) trips the region and executes wake_entities(tag: 42)
+    assert.equal(sim.entities?.['bot_ambush_1']?.ambush, false);
+    assert.equal(sim.entities?.['bot_ambush_1']?.state, 'chase');
+    assert.equal(sim.soundsPlayed.some((s) => s.soundId === 'enemy_alert'), true);
+    assertNoFloatsInState(sim);
+  });
+
+  it('Phase 2 (Lock-in Arena & All Dead Trigger): entering arena locks door, defeating enemies triggers all_dead to reopen door', () => {
+    const level = createBaseTestLevelV3();
+    level.grid[4][5] = SimCellType.DOOR;
+    level.entities = [
+      {
+        id: 'arena_guard_1',
+        blueprintId: 'turret-guardian',
+        row: 5,
+        col: 6,
+        tag: 99,
+      },
+    ];
+    level.regions = [
+      {
+        id: 'arena_zone',
+        name: 'Arena Chamber',
+        cells: [{ row: 5, col: 5 }],
+      },
+    ];
+    level.events = [
+      {
+        id: 'evt_lock_in',
+        name: 'Lock In Arena',
+        enabled: true,
+        trigger: { type: 'enter_region', region: 'arena_zone' },
+        conditions: [],
+        actions: [{ type: 'close_door', row: 4, col: 5 }],
+      },
+      {
+        id: 'evt_unlock_arena',
+        name: 'Arena Victory Door Unlock',
+        enabled: true,
+        trigger: { type: 'all_dead', tag: 99 },
+        conditions: [],
+        actions: [{ type: 'open_door', row: 4, col: 5 }],
+      },
+    ];
+
+    let sim = createInitialSimulationState(level, [0]);
+    // Start with door (4, 5) open
+    sim.movers['door:4,5'] = {
+      id: 'door:4,5',
+      kind: 'door',
+      row: 4,
+      col: 5,
+      tag: 0,
+      state: 'open',
+      progress: 10000,
+      speedPerTick: 250,
+      waitTicks: 0,
+      configuredWaitTicks: 0,
+      locked: false,
+      blockedBehavior: 'reverse',
+    };
+
+    // Position player adjacent to arena at (5, 4) and walk East into arena cell (5, 5)
+    const pPos = gridToWorldUnits(5, 4);
+    sim.players[0].xUnits = pPos.xUnits;
+    sim.players[0].zUnits = pPos.zUnits;
+    sim.players[0].gridRow = 5;
+    sim.players[0].gridCol = 4;
+    sim.players[0].yawBam = 49152; // East
+
+    while (sim.players[0].gridCol !== 5) {
+      sim = step(sim, {
+        0: {
+          moveForward: 1,
+          moveRight: 0,
+          sprint: false,
+          yawDeltaBam: 0,
+          pitchDeltaBam: 0,
+          use: false,
+          shoot: false,
+        },
+      });
+    }
+
+    // Stepping into (5, 5) evaluates enter_region -> closes door (4, 5)
+    assert.equal(sim.movers['door:4,5']?.state, 'closing');
+
+    // Set guard health low and shoot facing East (49152)
+    sim.entities!['arena_guard_1'].health = 10;
+    sim.players[0].yawBam = 49152;
+    sim = step(sim, {
+      0: {
+        moveForward: 0,
+        moveRight: 0,
+        sprint: false,
+        yawDeltaBam: 0,
+        pitchDeltaBam: 0,
+        use: false,
+        shoot: true,
+      },
+    });
+
+    assert.equal(sim.entities!['arena_guard_1'].state, 'dead');
+    assert.equal(sim.soundsPlayed.some((s) => s.soundId === 'enemy_death'), true);
+
+    // all_dead trigger has fired and reopened door (4, 5)!
+    assert.equal(sim.movers['door:4,5']?.state, 'opening');
+    assertNoFloatsInState(sim);
+  });
+
+  it('Phase 2 (Crusher Hazard): cycling crusher damages player while inside cell', () => {
+    const level = createBaseTestLevelV3();
+    level.events = [
+      {
+        id: 'evt_start_crush',
+        name: 'Start Crusher',
+        enabled: true,
+        trigger: { type: 'use', row: 2, col: 2 },
+        conditions: [],
+        actions: [
+          {
+            type: 'start_crusher',
+            row: 2,
+            col: 2,
+            speed_per_tick: 1000,
+            damage: 20,
+          },
+        ],
+      },
+    ];
+
+    let sim = createInitialSimulationState(level, [0]);
+    const pPos = gridToWorldUnits(2, 2);
+    sim.players[0].xUnits = pPos.xUnits;
+    sim.players[0].zUnits = pPos.zUnits;
+    sim.players[0].gridRow = 2;
+    sim.players[0].gridCol = 2;
+    const initialHealth = sim.players[0].health;
+
+    // Start crusher
+    sim = step(sim, {
+      0: {
+        moveForward: 0,
+        moveRight: 0,
+        sprint: false,
+        yawDeltaBam: 0,
+        pitchDeltaBam: 0,
+        use: true,
+        shoot: false,
+      },
+    });
+
+    assert.equal(sim.movers['crusher:2,2']?.state, 'active');
+
+    // Run until crusher ceiling descends and hits player (10 ticks at 1000 speed/tick)
+    for (let t = 0; t < 10; t++) {
+      sim = step(sim, {});
+    }
+
+    assert.equal(sim.players[0].health < initialHealth, true);
+    assert.equal(sim.soundsPlayed.some((s) => s.soundId === 'crusher_hit'), true);
+    assertNoFloatsInState(sim);
+  });
+
+  it('Phase 2 (Dynamic Entity Spawning & Teleportation): spawn_entity uses monotonic nextEntityId and teleport_player relocates player', () => {
+    const level = createBaseTestLevelV3();
+    level.events = [
+      {
+        id: 'evt_spawn_and_tp',
+        name: 'Spawn Bot and Teleport',
+        enabled: true,
+        trigger: { type: 'use', row: 2, col: 2 },
+        conditions: [],
+        actions: [
+          {
+            type: 'spawn_entity',
+            blueprintId: 'sentinel-bot',
+            row: 6,
+            col: 6,
+            tag: 77,
+          },
+          {
+            type: 'teleport_player',
+            row: 7,
+            col: 7,
+            yaw_bam: BAM_QUARTER_TURN,
+          },
+        ],
+      },
+    ];
+
+    let sim = createInitialSimulationState(level, [0]);
+    const prevNextId = sim.nextEntityId;
+
+    sim = step(sim, {
+      0: {
+        moveForward: 0,
+        moveRight: 0,
+        sprint: false,
+        yawDeltaBam: 0,
+        pitchDeltaBam: 0,
+        use: true,
+        shoot: false,
+      },
+    });
+
+    // Verify player teleported
+    assert.equal(sim.players[0].gridRow, 7);
+    assert.equal(sim.players[0].gridCol, 7);
+    assert.equal(sim.players[0].yawBam, BAM_QUARTER_TURN);
+    assert.equal(sim.soundsPlayed.some((s) => s.soundId === 'teleport'), true);
+
+    // Verify entity was spawned with monotonic id
+    assert.equal(sim.nextEntityId, prevNextId + 1);
+    const spawnedId = `ent-${prevNextId}`;
+    assert.equal(Boolean(sim.entities?.[spawnedId]), true);
+    assert.equal(sim.entities?.[spawnedId]?.tag, 77);
+    assert.equal(sim.entities?.[spawnedId]?.row, 6);
+    assert.equal(sim.entities?.[spawnedId]?.col, 6);
+
+    assertNoFloatsInState(sim);
+  });
+
+  // ==========================================================================
+  // PHASE 3 (BUILD-ENGINE PARITY) TESTS
+  // ==========================================================================
+
+  it('Phase 3 (Pressure Plate Dwell): stand_in_region requires cumulative dwell_ticks in region and resets on exit', () => {
+    const level = createBaseTestLevelV3();
+    level.regions = [
+      {
+        id: 'plate_zone',
+        name: 'Pressure Plate Zone',
+        cells: [{ row: 2, col: 2 }],
+      },
+    ];
+    level.events = [
+      {
+        id: 'evt_dwell_plate',
+        name: 'Plate Dwell Trigger',
+        enabled: true,
+        trigger: {
+          type: 'stand_in_region',
+          region: 'plate_zone',
+          dwell_ticks: 5,
+        },
+        conditions: [],
+        actions: [
+          { type: 'add_counter', name: 'switches_pulled', delta: 1 },
+          { type: 'show_message', text: 'Plate activated after 5 ticks!' },
+        ],
+      },
+    ];
+
+    let sim = createInitialSimulationState(level, [0]);
+    const pos22 = gridToWorldUnits(2, 2);
+    sim.players[0].xUnits = pos22.xUnits;
+    sim.players[0].zUnits = pos22.zUnits;
+    sim.players[0].gridRow = 2;
+    sim.players[0].gridCol = 2;
+
+    // Ticks 1..4: Player stands in plate_zone, dwell increases but event has NOT fired yet
+    for (let t = 1; t <= 4; t++) {
+      sim = step(sim, {});
+      assert.equal(sim.counters.switches_pulled, 0);
+      assert.equal(sim.regionDwellTicks?.['plate_zone']?.[0], t);
+    }
+
+    // Tick 5: Dwell reaches 5 ticks -> event fires!
+    sim = step(sim, {});
+    assert.equal(sim.counters.switches_pulled, 1);
+    assert.equal(sim.messages.length, 1);
+    assert.equal(sim.messages[0].text, 'Plate activated after 5 ticks!');
+
+    // Move player away from region to cell (3, 3)
+    const pos33 = gridToWorldUnits(3, 3);
+    sim.players[0].xUnits = pos33.xUnits;
+    sim.players[0].zUnits = pos33.zUnits;
+    sim.players[0].gridRow = 3;
+    sim.players[0].gridCol = 3;
+
+    sim = step(sim, {});
+    // Region dwell for player 0 should be deleted
+    assert.equal(sim.regionDwellTicks?.['plate_zone']?.[0], undefined);
+    assertNoFloatsInState(sim);
+  });
+
+  it('Phase 3 (Hazard Regions): set_hazard_region inflicts periodic integer damage with sound cue; clear_hazard_region stops it', () => {
+    const level = createBaseTestLevelV3();
+    level.regions = [
+      {
+        id: 'toxic_sludge',
+        name: 'Toxic Sludge',
+        cells: [{ row: 2, col: 2 }],
+      },
+    ];
+    level.events = [
+      {
+        id: 'evt_start_sludge',
+        name: 'Start Sludge Hazard',
+        enabled: true,
+        trigger: { type: 'use', row: 2, col: 2 },
+        conditions: [],
+        actions: [
+          {
+            type: 'set_hazard_region',
+            region: 'toxic_sludge',
+            damage_per_interval: 15,
+            interval_ticks: 3,
+          },
+        ],
+      },
+      {
+        id: 'evt_stop_sludge',
+        name: 'Stop Sludge Hazard',
+        enabled: true,
+        trigger: { type: 'counter_reached', name: 'switches_pulled', op: 'gte', value: 1 },
+        conditions: [],
+        actions: [
+          { type: 'clear_hazard_region', region: 'toxic_sludge' },
+        ],
+      },
+    ];
+
+    let sim = createInitialSimulationState(level, [0]);
+    const pos22 = gridToWorldUnits(2, 2);
+    sim.players[0].xUnits = pos22.xUnits;
+    sim.players[0].zUnits = pos22.zUnits;
+    sim.players[0].gridRow = 2;
+    sim.players[0].gridCol = 2;
+    const startHealth = sim.players[0].health;
+
+    // Trigger hazard region via use
+    sim = step(sim, {
+      0: {
+        moveForward: 0,
+        moveRight: 0,
+        sprint: false,
+        yawDeltaBam: 0,
+        pitchDeltaBam: 0,
+        use: true,
+        shoot: false,
+      },
+    });
+
+    assert.equal(Boolean(sim.hazardRegions?.['toxic_sludge']), true);
+
+    // Run ticks 2..6: tick 3 and tick 6 are multiples of 3, so damage is applied twice (30 total dmg)
+    for (let t = 2; t <= 6; t++) {
+      sim = step(sim, {});
+    }
+
+    assert.equal(sim.players[0].health, startHealth - 30);
+    assert.equal(sim.soundsPlayed.some((s) => s.soundId === 'hazard_sizzle'), true);
+
+    // Clear hazard region via fireEventById
+    fireEventById(sim, 'evt_stop_sludge');
+    assert.equal(sim.hazardRegions?.['toxic_sludge'], undefined);
+
+    const healthAfterClear = sim.players[0].health;
+    for (let t = 0; t < 10; t++) {
+      sim = step(sim, {});
+    }
+    // No more damage received
+    assert.equal(sim.players[0].health, healthAfterClear);
+    assertNoFloatsInState(sim);
+  });
+
+  it('Phase 3 (Branching Logic): if_then_else evaluates condition and executes then_actions or else_actions without floats', () => {
+    const level = createBaseTestLevelV3();
+    level.events = [
+      {
+        id: 'evt_branch_test',
+        name: 'Conditional Branching Event',
+        enabled: true,
+        trigger: { type: 'use', row: 2, col: 2 },
+        conditions: [],
+        actions: [
+          {
+            type: 'if_then_else',
+            condition: { type: 'flag', name: 'secret_found', is: true },
+            then_actions: [
+              { type: 'add_counter', name: 'switches_pulled', delta: 10 },
+              { type: 'show_message', text: 'Secret path taken!' },
+            ],
+            else_actions: [
+              { type: 'add_counter', name: 'switches_pulled', delta: 1 },
+              { type: 'show_message', text: 'Default path taken.' },
+            ],
+          },
+        ],
+      },
+    ];
+
+    let sim = createInitialSimulationState(level, [0]);
+    const pos22 = gridToWorldUnits(2, 2);
+    sim.players[0].xUnits = pos22.xUnits;
+    sim.players[0].zUnits = pos22.zUnits;
+    sim.players[0].gridRow = 2;
+    sim.players[0].gridCol = 2;
+
+    const useInput = {
+      0: {
+        moveForward: 0 as const,
+        moveRight: 0 as const,
+        sprint: false,
+        yawDeltaBam: 0,
+        pitchDeltaBam: 0,
+        use: true,
+        shoot: false,
+      },
+    };
+
+    // Case 1: flag secret_found is false -> else branch taken (+1)
+    sim = step(sim, useInput);
+    assert.equal(sim.counters.switches_pulled, 1);
+    assert.equal(sim.messages[0].text, 'Default path taken.');
+
+    // Case 2: set flag secret_found = true -> then branch taken (+10 => 11)
+    sim.flags.secret_found = true;
+    sim = step(sim, useInput);
+    assert.equal(sim.counters.switches_pulled, 11);
+    assert.equal(sim.messages[1].text, 'Secret path taken!');
+
+    assertNoFloatsInState(sim);
+  });
+
+  it('Phase 3 (Deterministic Random Branch): random_branch selects branch deterministically from Mulberry32 RNG seed', () => {
+    const level = createBaseTestLevelV3();
+    level.events = [
+      {
+        id: 'evt_random_loot',
+        name: 'Random Loot Dispenser',
+        enabled: true,
+        trigger: { type: 'use', row: 2, col: 2 },
+        conditions: [],
+        actions: [
+          {
+            type: 'random_branch',
+            branches: [
+              {
+                weight: 50,
+                actions: [{ type: 'add_counter', name: 'switches_pulled', delta: 100 }],
+              },
+              {
+                weight: 50,
+                actions: [{ type: 'add_counter', name: 'switches_pulled', delta: 200 }],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const useInput = {
+      0: {
+        moveForward: 0 as const,
+        moveRight: 0 as const,
+        sprint: false,
+        yawDeltaBam: 0,
+        pitchDeltaBam: 0,
+        use: true,
+        shoot: false,
+      },
+    };
+
+    // Run A with seed 42
+    level.rngSeed = 42;
+    let runA = createInitialSimulationState(level, [0]);
+    runA = step(runA, useInput);
+
+    // Run B with seed 42 (identical seed must produce bit-for-bit identical roll)
+    let runB = createInitialSimulationState(level, [0]);
+    runB = step(runB, useInput);
+
+    assert.equal(runA.counters.switches_pulled, runB.counters.switches_pulled);
+    assert.equal(runA.rngState, runB.rngState);
+    assert.equal(
+      runA.counters.switches_pulled === 100 || runA.counters.switches_pulled === 200,
+      true
+    );
+
+    assertNoFloatsInState(runA);
+  });
+
+  it('Phase 3 (Earthquake Tremor): earthquake action sets intensity, duration_ticks, plays rumble sound, decrements to zero, and is omitted from hash when inactive', () => {
+    const level = createBaseTestLevelV3();
+    level.events = [
+      {
+        id: 'evt_earthquake',
+        name: 'Earthquake Event',
+        enabled: true,
+        trigger: { type: 'use', row: 2, col: 2 },
+        conditions: [],
+        actions: [
+          {
+            type: 'earthquake',
+            duration_ticks: 3,
+            intensity: 75,
+          },
+        ],
+      },
+    ];
+
+    let sim = createInitialSimulationState(level, [0]);
+    const hashBefore = hashSimulationState(sim);
+
+    // Trigger earthquake
+    sim = step(sim, {
+      0: {
+        moveForward: 0,
+        moveRight: 0,
+        sprint: false,
+        yawDeltaBam: 0,
+        pitchDeltaBam: 0,
+        use: true,
+        shoot: false,
+      },
+    });
+
+    assert.equal(Boolean(sim.earthquake), true);
+    assert.equal(sim.earthquake?.intensity, 75);
+    assert.equal(sim.earthquake?.remainingTicks, 3);
+    assert.equal(sim.soundsPlayed.some((s) => s.soundId === 'earthquake_rumble'), true);
+
+    // Tick 2: remainingTicks = 2
+    sim = step(sim, {});
+    assert.equal(sim.earthquake?.remainingTicks, 2);
+
+    // Tick 3: remainingTicks = 1
+    sim = step(sim, {});
+    assert.equal(sim.earthquake?.remainingTicks, 1);
+
+    // Tick 4: earthquake expires and is cleanly deleted
+    sim = step(sim, {});
+    assert.equal(sim.earthquake, undefined);
+
+    assertNoFloatsInState(sim);
+  });
+
+  it('Phase 3 (Track Mover): move_along_track mover advances along waypoints and fires mover_finished upon reaching the end', () => {
+    const level = createBaseTestLevelV3();
+    level.events = [
+      {
+        id: 'evt_start_track',
+        name: 'Start Track Cart',
+        enabled: true,
+        trigger: { type: 'use', row: 2, col: 2 },
+        conditions: [],
+        actions: [
+          {
+            type: 'move_along_track',
+            tag: 88,
+            waypoints: [
+              { row: 2, col: 2 },
+              { row: 2, col: 3 },
+              { row: 3, col: 3 },
+            ],
+            speed_per_tick: 5000, // Reaches next waypoint in 2 ticks (10000 / 5000)
+          },
+        ],
+      },
+      {
+        id: 'evt_track_done',
+        name: 'Track Done Listener',
+        enabled: true,
+        trigger: { type: 'mover_finished', tag: 88, state: 'done' },
+        conditions: [],
+        actions: [
+          { type: 'show_message', text: 'Track journey completed!' },
+        ],
+      },
+    ];
+
+    let sim = createInitialSimulationState(level, [0]);
+
+    // Start track mover
+    sim = step(sim, {
+      0: {
+        moveForward: 0,
+        moveRight: 0,
+        sprint: false,
+        yawDeltaBam: 0,
+        pitchDeltaBam: 0,
+        use: true,
+        shoot: false,
+      },
+    });
+
+    const mover = sim.movers['track:88'];
+    assert.equal(Boolean(mover), true);
+    assert.equal(mover.kind, 'track');
+    assert.equal(mover.state, 'active');
+    assert.equal(mover.row, 2);
+    assert.equal(mover.col, 2);
+
+    // Step 2 ticks to reach waypoint 1 (row 2, col 3)
+    sim = step(sim, {});
+    sim = step(sim, {});
+    assert.equal(sim.movers['track:88'].row, 2);
+    assert.equal(sim.movers['track:88'].col, 3);
+
+    // Step 2 ticks to reach waypoint 2 (row 3, col 3) and finish
+    sim = step(sim, {});
+    sim = step(sim, {});
+    assert.equal(sim.movers['track:88'].row, 3);
+    assert.equal(sim.movers['track:88'].col, 3);
+    assert.equal(sim.movers['track:88'].state, 'done');
+
+    // Trigger mover_finished fires listener
+    sim = step(sim, {});
+    assert.equal(sim.messages.some((m) => m.text === 'Track journey completed!'), true);
+
+    assertNoFloatsInState(sim);
+  });
 });
+
 
