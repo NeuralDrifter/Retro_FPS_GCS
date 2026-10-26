@@ -45,6 +45,7 @@ import {
   worldUnitsToGrid,
 } from './raycast';
 import { normalizeEventsToIntegerTicks } from './validator';
+import { buildSolidFootprintGrid, isStaticFootprintSource } from './footprint';
 
 interface QueuedTriggerEvent {
   type: EventDefinition['trigger']['type'];
@@ -121,6 +122,9 @@ export function cloneSimulationState(state: SimulationState): SimulationState {
     players: playersCopy,
     movers: moversCopy,
     ...(entitiesCopy ? { entities: entitiesCopy } : {}),
+    ...(state.solidFootprint
+      ? { solidFootprint: state.solidFootprint.map((r) => [...r]) }
+      : {}),
     ...(state.earthquake ? { earthquake: { ...state.earthquake } } : {}),
     ...(state.hazardRegions
       ? {
@@ -282,9 +286,13 @@ export function createInitialSimulationState(
     (a, b) => a.id.localeCompare(b.id)
   );
 
+  const solidFootprint = buildSolidFootprintGrid(level.entities ?? [], gridSize);
+
   const entities: Record<string, SimEntityState> = {};
   if (level.entities && level.entities.length > 0) {
     for (const ent of level.entities) {
+      // Static models only affect the world through their footprint
+      if (isStaticFootprintSource(ent)) continue;
       const world = gridToWorldUnits(ent.row, ent.col, gridSize);
       entities[ent.id] = {
         id: ent.id,
@@ -342,6 +350,7 @@ export function createInitialSimulationState(
     players,
     movers,
     ...(Object.keys(entities).length > 0 ? { entities } : {}),
+    ...(solidFootprint ? { solidFootprint } : {}),
     collectedKeys: [],
     flags: { ...level.variables.flags },
     counters: { ...level.variables.counters },
@@ -386,7 +395,8 @@ export function checkCircleCollisionUnits(
   zUnits: number,
   radiusUnits: number,
   grid: number[][],
-  movers: Record<string, MoverSimState>
+  movers: Record<string, MoverSimState>,
+  solidFootprint?: number[][]
 ): boolean {
   const gridSize = grid.length || SIM_CONFIG.GRID_SIZE;
   const halfWorld = Math.trunc((gridSize * SIM_CONFIG.CELL_UNITS) / 2);
@@ -414,8 +424,9 @@ export function checkCircleCollisionUnits(
         !(activePushwallAtCell && activePushwallAtCell.state === 'active');
       const isBlockingDoor =
         cell === SimCellType.DOOR && !isDoorPassable(r, c, movers);
+      const isBlockingModel = (solidFootprint?.[r]?.[c] ?? 0) > 0;
 
-      if (!isBlockingWall && !isBlockingDoor) continue;
+      if (!isBlockingWall && !isBlockingDoor && !isBlockingModel) continue;
 
       const minX = -halfWorld + c * SIM_CONFIG.CELL_UNITS;
       const maxX = minX + SIM_CONFIG.CELL_UNITS;
@@ -584,7 +595,8 @@ export function step(
             nextZ,
             SIM_CONFIG.PLAYER_RADIUS_UNITS,
             state.grid,
-            state.movers
+            state.movers,
+            state.solidFootprint
           )
         ) {
           nextX = candX;
@@ -596,7 +608,8 @@ export function step(
             candZ,
             SIM_CONFIG.PLAYER_RADIUS_UNITS,
             state.grid,
-            state.movers
+            state.movers,
+            state.solidFootprint
           )
         ) {
           nextZ = candZ;
@@ -713,6 +726,7 @@ export function step(
         maxDistanceUnits: state.gridSize * SIM_CONFIG.CELL_UNITS,
         grid: state.grid,
         movers: state.movers,
+        solidFootprint: state.solidFootprint,
         eyeHeightUnits: player.yUnits,
         floorHeights: state.floorHeights,
         ceilingHeights: state.ceilingHeights,
@@ -2389,7 +2403,8 @@ function updateEntitiesForTick(
         const nextCell = worldUnitsToGrid(nextX, nextZ, state.gridSize);
 
         const isWall =
-          state.grid[nextCell.row]?.[nextCell.col] === SimCellType.WALL;
+          state.grid[nextCell.row]?.[nextCell.col] === SimCellType.WALL ||
+          (state.solidFootprint?.[nextCell.row]?.[nextCell.col] ?? 0) > 0;
         const doorMover =
           state.movers[`door:${nextCell.row},${nextCell.col}`];
         const isClosedDoor = doorMover && doorMover.state !== 'open';

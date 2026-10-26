@@ -2681,6 +2681,28 @@ export function validateSimulationState(
     }
   }
 
+  // Validate the static solid-model occupancy grid if present
+  if (input.solidFootprint !== undefined) {
+    const sf = input.solidFootprint;
+    const size = isSafeInt(input.gridSize) ? (input.gridSize as number) : -1;
+    if (
+      !Array.isArray(sf) ||
+      sf.length !== size ||
+      !sf.every(
+        (r) =>
+          Array.isArray(r) &&
+          r.length === size &&
+          r.every((v) => isSafeInt(v) && (v as number) >= 0)
+      )
+    ) {
+      errors.push({
+        path: '$.solidFootprint',
+        code: 'INVALID_SOLID_FOOTPRINT',
+        message: 'solidFootprint must be a gridSize x gridSize matrix of non-negative integers.',
+      });
+    }
+  }
+
   // Validate entities if present
   if (input.entities !== undefined) {
     if (!isPlainObject(input.entities)) {

@@ -771,6 +771,8 @@ export interface SimulationState {
     remainingTicks: number;
     intensity: number;
   };
+  /** Per-cell count of static solid models covering the cell (omitted when the level has none) */
+  solidFootprint?: number[][];
   hazardRegions?: Record<
     string,
     {
