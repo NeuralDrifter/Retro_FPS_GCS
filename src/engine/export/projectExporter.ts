@@ -132,6 +132,9 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
+    // The game bundle is ~900 kB, mostly Three.js; that is expected for a 3D game,
+    // so raise Vite's default 500 kB warning instead of alarming every build.
+    chunkSizeWarningLimit: 1500,
   },
 });
 `;
