@@ -852,6 +852,25 @@ export function startGame(
   let pointerLockRequested = false;
   let cleanupDomListeners: (() => void) | null = null;
 
+  // PointerLockControls.lock() drops the promise requestPointerLock() returns, so a refusal
+  // (e.g. clicking again within ~1 s of pressing Esc) surfaced as an uncaught rejection.
+  // Request the lock on the controls' own element instead; the controls still see the change.
+  const requestPointerLockSafely = () => {
+    const el = controls?.domElement as HTMLElement | undefined;
+    if (!el?.requestPointerLock) return;
+    pointerLockRequested = true;
+    const onRefused = () => {
+      // Fall back to drag-look instead of turning on every mouse move
+      pointerLockRequested = false;
+    };
+    try {
+      const pending = el.requestPointerLock() as unknown as Promise<void> | undefined;
+      pending?.catch?.(onRefused);
+    } catch {
+      onRefused();
+    }
+  };
+
   // Initialize Three.js WebGL scene if a canvas or container element is provided in a browser environment
   if (canvasOrContainer && typeof document !== 'undefined') {
     try {
@@ -972,12 +991,7 @@ export function startGame(
           return;
         }
         if (options.autoLockPointerOnClick) {
-          pointerLockRequested = true;
-          try {
-            controls?.lock();
-          } catch {
-            // Fall through to drag-look if pointer lock is blocked
-          }
+          requestPointerLockSafely();
         }
         isDraggingLook = true;
         pointerDownX = e.clientX;
@@ -1756,13 +1770,6 @@ export function startGame(
     },
     resetToSpawn: teleportToSpawn,
     fullRespawn: handleFullRespawn,
-    lockPointer: () => {
-      pointerLockRequested = true;
-      try {
-        controls?.lock();
-      } catch {
-        // Ignore if sandbox blocks pointer lock
-      }
-    },
+    lockPointer: requestPointerLockSafely,
   };
 }
