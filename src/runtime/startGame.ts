@@ -268,15 +268,32 @@ export function startGame(
   let lastLogCount = currSimState.logs.length;
   let lastSoundCount = currSimState.soundsPlayed.length;
 
+  const countLevelEnemies = () =>
+    entities.filter(
+      (e) => e.isEnemy !== false && e.blueprintId !== 'supply-crate'
+    ).length;
+
+  // Enemy models load asynchronously, so the AI reports 0 enemies at first.
+  // Keep the level's count on the HUD until the AI has registered at least that many.
+  let aiEnemiesLoaded = false;
+  function hudEnemyTotals(snapshot: { kills: number; totalEnemies: number }): {
+    kills: number;
+    totalEnemies: number;
+  } {
+    if (!aiEnemiesLoaded && snapshot.totalEnemies < combatState.totalEnemies) {
+      return { kills: snapshot.kills, totalEnemies: combatState.totalEnemies };
+    }
+    aiEnemiesLoaded = true;
+    return { kills: snapshot.kills, totalEnemies: snapshot.totalEnemies };
+  }
+
   let combatState: PlayerCombatState = {
     health: ENGINE_CONFIG.PLAYER_MAX_HEALTH,
     maxHealth: ENGINE_CONFIG.PLAYER_MAX_HEALTH,
     ammo: ENGINE_CONFIG.PLAYER_START_AMMO,
     maxAmmo: ENGINE_CONFIG.PLAYER_MAX_AMMO,
     kills: 0,
-    totalEnemies: entities.filter(
-      (e) => e.isEnemy !== false && e.blueprintId !== 'supply-crate'
-    ).length,
+    totalEnemies: countLevelEnemies(),
     isDead: false,
     lastHitEnemyName: null,
     lastHitEnemyHealth: null,
@@ -437,8 +454,7 @@ export function startGame(
     combatState = {
       ...combatState,
       ammo: Math.max(0, combatState.ammo - 1),
-      kills: snapshots.kills,
-      totalEnemies: snapshots.totalEnemies,
+      ...hudEnemyTotals(snapshots),
       lastHitEnemyName: shot.hitEnemy
         ? shot.enemyName
         : combatState.lastHitEnemyName,
@@ -536,6 +552,7 @@ export function startGame(
     floorLayer = built.floorLayer;
     ceilingLayer = built.ceilingLayer;
     enemyAI = built.enemyAI;
+    aiEnemiesLoaded = false;
     scene.add(built.worldGroup);
   }
 
@@ -1525,15 +1542,12 @@ export function startGame(
             const snapshots = enemyAI.getTelemetrySnapshots();
             enemySnapshots = snapshots.enemies;
             ammoDrops = snapshots.ammoDrops;
+            const totals = hudEnemyTotals(snapshots);
             if (
-              combatState.kills !== snapshots.kills ||
-              combatState.totalEnemies !== snapshots.totalEnemies
+              combatState.kills !== totals.kills ||
+              combatState.totalEnemies !== totals.totalEnemies
             ) {
-              combatState = {
-                ...combatState,
-                kills: snapshots.kills,
-                totalEnemies: snapshots.totalEnemies,
-              };
+              combatState = { ...combatState, ...totals };
             }
           }
 
@@ -1753,9 +1767,7 @@ export function startGame(
 
       combatState = {
         ...combatState,
-        totalEnemies: entities.filter(
-          (e) => e.isEnemy !== false && e.blueprintId !== 'supply-crate'
-        ).length,
+        totalEnemies: countLevelEnemies(),
       };
 
       rebuild3DWorld();
