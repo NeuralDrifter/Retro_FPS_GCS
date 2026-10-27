@@ -1,0 +1,4143 @@
+{
+  "repo": "NeuralDrifter/Retro_FPS_GCS-assets",
+  "branch": "main",
+  "paths": [
+    "models/README.md",
+    "models/buildings/Town/1Story GableRoof.glb",
+    "models/buildings/Town/1Story RoundRoof.glb",
+    "models/buildings/Town/1Story Sign.glb",
+    "models/buildings/Town/1Story.glb",
+    "models/buildings/Town/2Story 2.glb",
+    "models/buildings/Town/2Story Balcony.glb",
+    "models/buildings/Town/2Story Center.glb",
+    "models/buildings/Town/2Story Columns.glb",
+    "models/buildings/Town/2Story Double.glb",
+    "models/buildings/Town/2Story GableRoof.glb",
+    "models/buildings/Town/2Story RoundRoof.glb",
+    "models/buildings/Town/2Story Sidehouse.glb",
+    "models/buildings/Town/2Story Sign.glb",
+    "models/buildings/Town/2Story Slim.glb",
+    "models/buildings/Town/2Story Stairs.glb",
+    "models/buildings/Town/2Story Wide 2Doors.glb",
+    "models/buildings/Town/2Story Wide.glb",
+    "models/buildings/Town/2Story.glb",
+    "models/buildings/Town/3Story Balcony.glb",
+    "models/buildings/Town/3Story Slim.glb",
+    "models/buildings/Town/3Story Small.glb",
+    "models/buildings/Town/4Story Center.glb",
+    "models/buildings/Town/4Story Wide 2Doors Roof.glb",
+    "models/buildings/Town/4Story Wide 2Doors.glb",
+    "models/buildings/Town/4Story.glb",
+    "models/buildings/Town/6Story Stack.glb",
+    "models/characters/DeadProject/Mutant 1.glb",
+    "models/characters/DeadProject/Mutant 2.glb",
+    "models/characters/Humans/Grapple Girl.glb",
+    "models/characters/Mechs/George.glb",
+    "models/characters/Mechs/Leela.glb",
+    "models/characters/Mechs/Mike.glb",
+    "models/characters/Mechs/Stan.glb",
+    "models/characters/Monsters/Dragon.glb",
+    "models/characters/Monsters/Fatty.glb",
+    "models/characters/Monsters/Glutton Demon.glb",
+    "models/characters/Monsters/Mutant Grunt.glb",
+    "models/characters/Monsters/Undead Squirrel.glb",
+    "models/characters/Monsters/Zombie.glb",
+    "models/characters/RPG Characters/Cleric.glb",
+    "models/characters/RPG Characters/Monk.glb",
+    "models/characters/RPG Characters/Ranger.glb",
+    "models/characters/RPG Characters/Rogue.glb",
+    "models/characters/RPG Characters/Warrior.glb",
+    "models/characters/RPG Characters/Wizard.glb",
+    "models/characters/Robots/BA-2.glb",
+    "models/characters/Robots/Golem Robot.glb",
+    "models/characters/Robots/SENTRY-2.glb",
+    "models/characters/Robots/Turret.glb",
+    "models/characters/Sci-Fi Essentials/EyeDrone.glb",
+    "models/characters/Sci-Fi Essentials/QuadShell.glb",
+    "models/characters/Sci-Fi Essentials/Trilobite.glb",
+    "models/characters/Sci-Fi MegaKit/Cyclop.glb",
+    "models/characters/Sci-Fi MegaKit/Oculichrysalis.glb",
+    "models/characters/Sci-Fi MegaKit/Scolitex.glb",
+    "models/decorations/Dungeon/Bag Coins.glb",
+    "models/decorations/Dungeon/Bag Standing.glb",
+    "models/decorations/Dungeon/Banner wall.glb",
+    "models/decorations/Dungeon/Banner.glb",
+    "models/decorations/Dungeon/Barrel.glb",
+    "models/decorations/Dungeon/Barrel2.glb",
+    "models/decorations/Dungeon/Bucket.glb",
+    "models/decorations/Dungeon/Chair.glb",
+    "models/decorations/Dungeon/Chest Gold.glb",
+    "models/decorations/Dungeon/Chest.glb",
+    "models/decorations/Dungeon/Cobweb.glb",
+    "models/decorations/Dungeon/Cobweb2.glb",
+    "models/decorations/Dungeon/Coin Pile.glb",
+    "models/decorations/Dungeon/Column.glb",
+    "models/decorations/Dungeon/Column2.glb",
+    "models/decorations/Dungeon/Crate.glb",
+    "models/decorations/Dungeon/Pedestal.glb",
+    "models/decorations/Dungeon/Pedestal2.glb",
+    "models/decorations/Dungeon/Skull.glb",
+    "models/decorations/Dungeon/Spikes.glb",
+    "models/decorations/Dungeon/Statue Horse.glb",
+    "models/decorations/Dungeon/Sword WallMount.glb",
+    "models/decorations/Dungeon/Table Big.glb",
+    "models/decorations/Dungeon/Table Small.glb",
+    "models/decorations/Dungeon/Torch.glb",
+    "models/decorations/Dungeon/Trap empty.glb",
+    "models/decorations/Dungeon/Trap spikes.glb",
+    "models/decorations/Dungeon/Vase.glb",
+    "models/decorations/Dungeon/Woodfire.glb",
+    "models/decorations/Fantasy Props/Anvil Log.glb",
+    "models/decorations/Fantasy Props/Anvil.glb",
+    "models/decorations/Fantasy Props/Bag.glb",
+    "models/decorations/Fantasy Props/Banner 1 Cloth.glb",
+    "models/decorations/Fantasy Props/Banner 1.glb",
+    "models/decorations/Fantasy Props/Banner 2 Cloth.glb",
+    "models/decorations/Fantasy Props/Banner 2.glb",
+    "models/decorations/Fantasy Props/Barrel Apples.glb",
+    "models/decorations/Fantasy Props/Barrel Holder.glb",
+    "models/decorations/Fantasy Props/Barrel.glb",
+    "models/decorations/Fantasy Props/Bed Twin1.glb",
+    "models/decorations/Fantasy Props/Bed Twin2.glb",
+    "models/decorations/Fantasy Props/Bench.glb",
+    "models/decorations/Fantasy Props/Book 5.glb",
+    "models/decorations/Fantasy Props/Book 7.glb",
+    "models/decorations/Fantasy Props/Book Simplified Single.glb",
+    "models/decorations/Fantasy Props/Book Stack 1.glb",
+    "models/decorations/Fantasy Props/Book Stack 2.glb",
+    "models/decorations/Fantasy Props/BookGroup Medium 1.glb",
+    "models/decorations/Fantasy Props/BookGroup Medium 2.glb",
+    "models/decorations/Fantasy Props/BookGroup Medium 3.glb",
+    "models/decorations/Fantasy Props/BookGroup Small 1.glb",
+    "models/decorations/Fantasy Props/BookGroup Small 2.glb",
+    "models/decorations/Fantasy Props/BookGroup Small 3.glb",
+    "models/decorations/Fantasy Props/BookStand.glb",
+    "models/decorations/Fantasy Props/Bookcase 2.glb",
+    "models/decorations/Fantasy Props/Bottle 1.glb",
+    "models/decorations/Fantasy Props/Bucket Metal.glb",
+    "models/decorations/Fantasy Props/Bucket Wooden 1.glb",
+    "models/decorations/Fantasy Props/Cabinet.glb",
+    "models/decorations/Fantasy Props/Cage Small.glb",
+    "models/decorations/Fantasy Props/Candle 1.glb",
+    "models/decorations/Fantasy Props/Candle 2.glb",
+    "models/decorations/Fantasy Props/CandleStick Stand.glb",
+    "models/decorations/Fantasy Props/CandleStick Triple.glb",
+    "models/decorations/Fantasy Props/CandleStick.glb",
+    "models/decorations/Fantasy Props/Carrot.glb",
+    "models/decorations/Fantasy Props/Cauldron.glb",
+    "models/decorations/Fantasy Props/Chain Coil.glb",
+    "models/decorations/Fantasy Props/Chair 1.glb",
+    "models/decorations/Fantasy Props/Chandelier.glb",
+    "models/decorations/Fantasy Props/Chest Wood.glb",
+    "models/decorations/Fantasy Props/Crate Metal.glb",
+    "models/decorations/Fantasy Props/Crate Wooden.glb",
+    "models/decorations/Fantasy Props/Dummy.glb",
+    "models/decorations/Fantasy Props/FarmCrate Apple.glb",
+    "models/decorations/Fantasy Props/FarmCrate Carrot.glb",
+    "models/decorations/Fantasy Props/FarmCrate Empty.glb",
+    "models/decorations/Fantasy Props/Lantern Wall.glb",
+    "models/decorations/Fantasy Props/Mug.glb",
+    "models/decorations/Fantasy Props/Nightstand Shelf.glb",
+    "models/decorations/Fantasy Props/Peg Rack.glb",
+    "models/decorations/Fantasy Props/Pot 1 Lid.glb",
+    "models/decorations/Fantasy Props/Pot 1.glb",
+    "models/decorations/Fantasy Props/Pouch Large.glb",
+    "models/decorations/Fantasy Props/Rope 1.glb",
+    "models/decorations/Fantasy Props/Rope 2.glb",
+    "models/decorations/Fantasy Props/Rope 3.glb",
+    "models/decorations/Fantasy Props/Shelf Arch.glb",
+    "models/decorations/Fantasy Props/Shelf Simple.glb",
+    "models/decorations/Fantasy Props/Shelf Small Bottles.glb",
+    "models/decorations/Fantasy Props/SmallBottles 1.glb",
+    "models/decorations/Fantasy Props/Stall Cart Empty.glb",
+    "models/decorations/Fantasy Props/Stall Empty.glb",
+    "models/decorations/Fantasy Props/Stool.glb",
+    "models/decorations/Fantasy Props/Table Fork.glb",
+    "models/decorations/Fantasy Props/Table Knife.glb",
+    "models/decorations/Fantasy Props/Table Large.glb",
+    "models/decorations/Fantasy Props/Table Plate.glb",
+    "models/decorations/Fantasy Props/Table Spoon.glb",
+    "models/decorations/Fantasy Props/Torch Metal.glb",
+    "models/decorations/Fantasy Props/Vase 2.glb",
+    "models/decorations/Fantasy Props/Vase 4.glb",
+    "models/decorations/Fantasy Props/Vase Rubble Medium.glb",
+    "models/decorations/Fantasy Props/WeaponStand.glb",
+    "models/decorations/Fantasy Props/Whetstone.glb",
+    "models/decorations/Fantasy Props/Workbench Drawers.glb",
+    "models/decorations/Fantasy Props/Workbench.glb",
+    "models/decorations/Mine/Cable.glb",
+    "models/decorations/Mine/Chest Top.001.glb",
+    "models/decorations/Mine/Chest.glb",
+    "models/decorations/Mine/Coin.glb",
+    "models/decorations/Mine/Coins 1.glb",
+    "models/decorations/Mine/Coins 2.glb",
+    "models/decorations/Mine/Coins 3.glb",
+    "models/decorations/Mine/Coins 4.glb",
+    "models/decorations/Mine/Coins 5.glb",
+    "models/decorations/Mine/Coins 6.glb",
+    "models/decorations/Mine/Coins 7.glb",
+    "models/decorations/Mine/Coins 8.glb",
+    "models/decorations/Mine/Lamp 01.glb",
+    "models/decorations/Mine/Lamp 02.glb",
+    "models/decorations/Mine/Lamp 03.glb",
+    "models/decorations/Mine/Minecart.glb",
+    "models/decorations/Mine/Rail End Crossing.glb",
+    "models/decorations/Mine/Rail End.glb",
+    "models/decorations/Mine/Rail Start Crossing.glb",
+    "models/decorations/Mine/Rail Start.glb",
+    "models/decorations/Mine/Rail.glb",
+    "models/decorations/Mine/Rock 1.glb",
+    "models/decorations/Mine/Rock 2.glb",
+    "models/decorations/Mine/Rock 3.glb",
+    "models/decorations/Mine/Rock 4.glb",
+    "models/decorations/Mine/Rock 5.glb",
+    "models/decorations/Mine/Rock 6.glb",
+    "models/decorations/Mine/Rock 7.glb",
+    "models/decorations/Mine/Rock 8.glb",
+    "models/decorations/Mine/Rocks 1.glb",
+    "models/decorations/Mine/Rocks 2.glb",
+    "models/decorations/Mine/Rocks 3.glb",
+    "models/decorations/Mine/Rocks 4.glb",
+    "models/decorations/Mine/Rocks 5.glb",
+    "models/decorations/Mine/Rocks 6.glb",
+    "models/decorations/Mine/Stalag 1.glb",
+    "models/decorations/Mine/Stalag 2.glb",
+    "models/decorations/Mine/Stalag 3.glb",
+    "models/decorations/Mine/Stalag 4.glb",
+    "models/decorations/Mine/Stalag 5.glb",
+    "models/decorations/Mine/Stalag 6.glb",
+    "models/decorations/Mine/Stalag 7.glb",
+    "models/decorations/Mine/Stalag 8.glb",
+    "models/decorations/Mine/Stalags 1.glb",
+    "models/decorations/Mine/Stalags 2.glb",
+    "models/decorations/Mine/Stalags 3.glb",
+    "models/decorations/Mine/Stalags 4.glb",
+    "models/decorations/Mine/Stalags 5.glb",
+    "models/decorations/Mine/Stalags 6.glb",
+    "models/decorations/Mine/Wooden 01.glb",
+    "models/decorations/Mine/Wooden 02.glb",
+    "models/decorations/Mine/Wooden 03.glb",
+    "models/decorations/Mine/Wooden 04.glb",
+    "models/decorations/Mine/Wooden 05.glb",
+    "models/decorations/Mine/Wooden 06.glb",
+    "models/decorations/Mine/Wooden 07.glb",
+    "models/decorations/Mine/Wooden 08.glb",
+    "models/decorations/Mine/Wooden 09.glb",
+    "models/decorations/Mine/Wooden 10.glb",
+    "models/decorations/Mine/Wooden 11.glb",
+    "models/decorations/Mine/Wooden 12.glb",
+    "models/decorations/Mine/Wooden 13.glb",
+    "models/decorations/Mine/Wooden 14.glb",
+    "models/decorations/Mine/Wooden 15.glb",
+    "models/decorations/Mine/Wooden 16.glb",
+    "models/decorations/Mine/Wooden 17.glb",
+    "models/decorations/Mine/Wooden 18.glb",
+    "models/decorations/Mine/Wooden 19.glb",
+    "models/decorations/Mine/Wooden 20.glb",
+    "models/decorations/Mine/Wooden 21.glb",
+    "models/decorations/Mine/Wooden 22.glb",
+    "models/decorations/Mine/Wooden 23.glb",
+    "models/decorations/Mine/Wooden 24.glb",
+    "models/decorations/Mine/Wooden 25.glb",
+    "models/decorations/Mine/Wooden 26.glb",
+    "models/decorations/Mine/Wooden 27.glb",
+    "models/decorations/Mine/Wooden 28.glb",
+    "models/decorations/Mine/Wooden 29.glb",
+    "models/decorations/Mine/Wooden 30.glb",
+    "models/decorations/Mine/Wooden 31.glb",
+    "models/decorations/Mine/Wooden 32.glb",
+    "models/decorations/Mine/Wooden 33.glb",
+    "models/decorations/Mine/Wooden 34.glb",
+    "models/decorations/Mine/Wooden 35.glb",
+    "models/decorations/Mine/Wooden 36.glb",
+    "models/decorations/Modular Sci-Fi/Base.glb",
+    "models/decorations/Modular Sci-Fi/Capsule.glb",
+    "models/decorations/Modular Sci-Fi/Chest.glb",
+    "models/decorations/Modular Sci-Fi/Column 1.glb",
+    "models/decorations/Modular Sci-Fi/Column 2.glb",
+    "models/decorations/Modular Sci-Fi/Column 3.glb",
+    "models/decorations/Modular Sci-Fi/Column Slim.glb",
+    "models/decorations/Modular Sci-Fi/Computer.glb",
+    "models/decorations/Modular Sci-Fi/ComputerSmall.glb",
+    "models/decorations/Modular Sci-Fi/ContainerFull.glb",
+    "models/decorations/Modular Sci-Fi/Crate.glb",
+    "models/decorations/Modular Sci-Fi/CrateLong.glb",
+    "models/decorations/Modular Sci-Fi/Laser.glb",
+    "models/decorations/Modular Sci-Fi/Pod.glb",
+    "models/decorations/Modular Sci-Fi/Shelf Tall.glb",
+    "models/decorations/Modular Sci-Fi/Shelf.glb",
+    "models/decorations/Modular Sci-Fi/Statue.glb",
+    "models/decorations/Modular Sci-Fi/Teleporter 1.glb",
+    "models/decorations/Modular Sci-Fi/Teleporter 2.glb",
+    "models/decorations/Modular Sci-Fi/Vessel Short.glb",
+    "models/decorations/Modular Sci-Fi/Vessel Tall.glb",
+    "models/decorations/Modular Sci-Fi/Vessel.glb",
+    "models/decorations/Pirate/Brass Telescope.glb",
+    "models/decorations/Pirate/Cannon.glb",
+    "models/decorations/Pirate/Chest.glb",
+    "models/decorations/Pirate/Skull.glb",
+    "models/decorations/Props/Skull.glb",
+    "models/decorations/Sci-Fi Essentials/Barrel1.glb",
+    "models/decorations/Sci-Fi Essentials/Barrel2 Closed.glb",
+    "models/decorations/Sci-Fi Essentials/Barrel2 Open.glb",
+    "models/decorations/Sci-Fi Essentials/Chair.glb",
+    "models/decorations/Sci-Fi Essentials/Chest.glb",
+    "models/decorations/Sci-Fi Essentials/Crate Large.glb",
+    "models/decorations/Sci-Fi Essentials/Crate Tarp Large.glb",
+    "models/decorations/Sci-Fi Essentials/Crate Tarp.glb",
+    "models/decorations/Sci-Fi Essentials/Crate.glb",
+    "models/decorations/Sci-Fi Essentials/Desk L.glb",
+    "models/decorations/Sci-Fi Essentials/Desk Medium.glb",
+    "models/decorations/Sci-Fi Essentials/Desk Small.glb",
+    "models/decorations/Sci-Fi Essentials/Locker.glb",
+    "models/decorations/Sci-Fi Essentials/Mug.glb",
+    "models/decorations/Sci-Fi Essentials/SatelliteDish.glb",
+    "models/decorations/Sci-Fi Essentials/Shelves ThinShort.glb",
+    "models/decorations/Sci-Fi Essentials/Shelves ThinTall.glb",
+    "models/decorations/Sci-Fi Essentials/Shelves WideShort.glb",
+    "models/decorations/Sci-Fi Essentials/Shelves WideTall.glb",
+    "models/decorations/Sci-Fi MegaKit/AccessPoint.glb",
+    "models/decorations/Sci-Fi MegaKit/Barrel Large.glb",
+    "models/decorations/Sci-Fi MegaKit/Chest.glb",
+    "models/decorations/Sci-Fi MegaKit/Column Astra.glb",
+    "models/decorations/Sci-Fi MegaKit/Column Hollow.glb",
+    "models/decorations/Sci-Fi MegaKit/Column Large Straight.glb",
+    "models/decorations/Sci-Fi MegaKit/Column MetalSupport Curve.glb",
+    "models/decorations/Sci-Fi MegaKit/Column MetalSupport.glb",
+    "models/decorations/Sci-Fi MegaKit/Column Pipes.glb",
+    "models/decorations/Sci-Fi MegaKit/Column Round.glb",
+    "models/decorations/Sci-Fi MegaKit/Column Simple.glb",
+    "models/decorations/Sci-Fi MegaKit/Computer.glb",
+    "models/decorations/Sci-Fi MegaKit/Crate3.glb",
+    "models/decorations/Sci-Fi MegaKit/Crate4.glb",
+    "models/decorations/Sci-Fi MegaKit/Fan Small Propeller.glb",
+    "models/decorations/Sci-Fi MegaKit/Fan Small.glb",
+    "models/decorations/Sci-Fi MegaKit/ItemHolder.glb",
+    "models/decorations/Sci-Fi MegaKit/Light Corner.glb",
+    "models/decorations/Sci-Fi MegaKit/Light Floor.glb",
+    "models/decorations/Sci-Fi MegaKit/Light Small.glb",
+    "models/decorations/Sci-Fi MegaKit/Light Wide.glb",
+    "models/decorations/Sci-Fi MegaKit/Vent Big.glb",
+    "models/decorations/Sci-Fi MegaKit/Vent Small.glb",
+    "models/decorations/Sci-Fi MegaKit/Vent Wide.glb",
+    "models/decorations/Survival/BearTrap Closed.glb",
+    "models/decorations/Survival/BearTrap Open.glb",
+    "models/decorations/Survival/Bonfire Fire.glb",
+    "models/decorations/Survival/Bonfire.glb",
+    "models/decorations/Survival/PropaneTank.glb",
+    "models/decorations/Survival/Raft.glb",
+    "models/decorations/Survival/Tent.glb",
+    "models/decorations/Survival/Trashcan.glb",
+    "models/decorations/Survival/WoodLog.glb",
+    "models/decorations/Torches/Pack 1 Torch 1.glb",
+    "models/decorations/Torches/Pack 1 Torch 2.glb",
+    "models/decorations/Torches/Pack 1 Torch 3.glb",
+    "models/decorations/Town/AC Unit.glb",
+    "models/decorations/Town/AC Unitx4.glb",
+    "models/decorations/Town/CasinoSign.glb",
+    "models/decorations/Town/Sign Bakery.glb",
+    "models/decorations/Town/Sign Barbershop.glb",
+    "models/decorations/Town/Sign Bookshop.glb",
+    "models/decorations/Town/Sign Hardware.glb",
+    "models/decorations/Town/Sign Pharmacy.glb",
+    "models/items/Fantasy Props/Axe Bronze.glb",
+    "models/items/Fantasy Props/Chalice.glb",
+    "models/items/Fantasy Props/Coin Pile 2.glb",
+    "models/items/Fantasy Props/Coin Pile.glb",
+    "models/items/Fantasy Props/Coin.glb",
+    "models/items/Fantasy Props/Key Gold.glb",
+    "models/items/Fantasy Props/Key Metal.glb",
+    "models/items/Fantasy Props/Pickaxe Bronze.glb",
+    "models/items/Fantasy Props/Potion 1.glb",
+    "models/items/Fantasy Props/Potion 2.glb",
+    "models/items/Fantasy Props/Potion 4.glb",
+    "models/items/Fantasy Props/Scroll 1.glb",
+    "models/items/Fantasy Props/Scroll 2.glb",
+    "models/items/Fantasy Props/Shield Wooden.glb",
+    "models/items/Fantasy Props/SmallBottle.glb",
+    "models/items/Fantasy Props/Sword Bronze.glb",
+    "models/items/Guns/AssaultRifle 1.glb",
+    "models/items/Guns/AssaultRifle 2.glb",
+    "models/items/Guns/AssaultRifle 3.glb",
+    "models/items/Guns/AssaultRifle 4.glb",
+    "models/items/Guns/AssaultRifle 5.glb",
+    "models/items/Guns/AssaultRifle2 1.glb",
+    "models/items/Guns/AssaultRifle2 2.glb",
+    "models/items/Guns/AssaultRifle2 3.glb",
+    "models/items/Guns/AssaultRifle2 4.glb",
+    "models/items/Guns/Bayonet 2.glb",
+    "models/items/Guns/Bayonet.glb",
+    "models/items/Guns/Bipod.glb",
+    "models/items/Guns/Bullpup 1.glb",
+    "models/items/Guns/Bullpup 2.glb",
+    "models/items/Guns/Bullpup 3.glb",
+    "models/items/Guns/Flashlight.glb",
+    "models/items/Guns/Grip.glb",
+    "models/items/Guns/Pistol 1.glb",
+    "models/items/Guns/Pistol 2.glb",
+    "models/items/Guns/Pistol 3.glb",
+    "models/items/Guns/Pistol 4.glb",
+    "models/items/Guns/Pistol 5.glb",
+    "models/items/Guns/Pistol 6.glb",
+    "models/items/Guns/Revolver 1.glb",
+    "models/items/Guns/Revolver 2.glb",
+    "models/items/Guns/Revolver 3.glb",
+    "models/items/Guns/Revolver 4.glb",
+    "models/items/Guns/Revolver 5.glb",
+    "models/items/Guns/Scope 1.glb",
+    "models/items/Guns/Scope 2.glb",
+    "models/items/Guns/Scope 3.glb",
+    "models/items/Guns/Shotgun 1.glb",
+    "models/items/Guns/Shotgun 2.glb",
+    "models/items/Guns/Shotgun 3.glb",
+    "models/items/Guns/Shotgun 4.glb",
+    "models/items/Guns/Shotgun SawedOff.glb",
+    "models/items/Guns/Shotgun ShortStock.glb",
+    "models/items/Guns/Silencer 1.glb",
+    "models/items/Guns/Silencer 2.glb",
+    "models/items/Guns/Silencer 3.glb",
+    "models/items/Guns/Silencer Short.glb",
+    "models/items/Guns/Silencer long.glb",
+    "models/items/Guns/SniperRifle 1.glb",
+    "models/items/Guns/SniperRifle 2.glb",
+    "models/items/Guns/SniperRifle 3.glb",
+    "models/items/Guns/SniperRifle 4.glb",
+    "models/items/Guns/SniperRifle 5.glb",
+    "models/items/Guns/SniperRifle 6.glb",
+    "models/items/Guns/Stock.glb",
+    "models/items/Guns/SubmachineGun 1.glb",
+    "models/items/Guns/SubmachineGun 2.glb",
+    "models/items/Guns/SubmachineGun 3.glb",
+    "models/items/Guns/SubmachineGun 4.glb",
+    "models/items/Guns/SubmachineGun 5.glb",
+    "models/items/Guns/Tripod.glb",
+    "models/items/Hand-Painted Weapons/Shield A.glb",
+    "models/items/Hand-Painted Weapons/Shield B.glb",
+    "models/items/Hand-Painted Weapons/Shield C.glb",
+    "models/items/Hand-Painted Weapons/Shield D.glb",
+    "models/items/Hand-Painted Weapons/Sword A.glb",
+    "models/items/Hand-Painted Weapons/Sword B.glb",
+    "models/items/Hand-Painted Weapons/Sword C.glb",
+    "models/items/Hand-Painted Weapons/Sword D.glb",
+    "models/items/Hand-Painted Weapons/Sword E.glb",
+    "models/items/Hand-Painted Weapons/Sword F.glb",
+    "models/items/Hand-Painted Weapons/Sword G.glb",
+    "models/items/Hand-Painted Weapons/Sword H.glb",
+    "models/items/Hand-Painted Weapons/Sword I.glb",
+    "models/items/Hand-Painted Weapons/Sword J.glb",
+    "models/items/Pirate/Gun.glb",
+    "models/items/Pirate/PirateSword.glb",
+    "models/items/Pirate/Pistol.glb",
+    "models/items/Pirate/Rifle.glb",
+    "models/items/RPG Characters/Cleric Staff.glb",
+    "models/items/RPG Characters/Ranger Arrow.glb",
+    "models/items/RPG Characters/Ranger Bow.glb",
+    "models/items/RPG Characters/Rogue Dagger.glb",
+    "models/items/RPG Characters/Warrior Sword.glb",
+    "models/items/RPG Characters/Wizard Staff.glb",
+    "models/items/RPG Items/Armor Black.glb",
+    "models/items/RPG Items/Armor Golden.glb",
+    "models/items/RPG Items/Armor Leather.glb",
+    "models/items/RPG Items/Armor Metal.glb",
+    "models/items/RPG Items/Armor Metal2.glb",
+    "models/items/RPG Items/Arrow Golden.glb",
+    "models/items/RPG Items/Arrow.glb",
+    "models/items/RPG Items/Axe Double Golden.glb",
+    "models/items/RPG Items/Axe Double.glb",
+    "models/items/RPG Items/Axe small Golden.glb",
+    "models/items/RPG Items/Axe small.glb",
+    "models/items/RPG Items/Backpack.glb",
+    "models/items/RPG Items/Bag.glb",
+    "models/items/RPG Items/Bone.glb",
+    "models/items/RPG Items/Book1 Closed.glb",
+    "models/items/RPG Items/Book1 Open.glb",
+    "models/items/RPG Items/Book2 Closed.glb",
+    "models/items/RPG Items/Book2 Open.glb",
+    "models/items/RPG Items/Book3 Closed.glb",
+    "models/items/RPG Items/Book3 Open.glb",
+    "models/items/RPG Items/Book4 Closed.glb",
+    "models/items/RPG Items/Book4 Open.glb",
+    "models/items/RPG Items/Bow Golden.glb",
+    "models/items/RPG Items/Bow Wooden.glb",
+    "models/items/RPG Items/Chalice.glb",
+    "models/items/RPG Items/Chest Closed.glb",
+    "models/items/RPG Items/Chest Ingots.glb",
+    "models/items/RPG Items/Chest Open.glb",
+    "models/items/RPG Items/ChickenLeg.glb",
+    "models/items/RPG Items/Coin Skull.glb",
+    "models/items/RPG Items/Coin Star.glb",
+    "models/items/RPG Items/Coin.glb",
+    "models/items/RPG Items/Crown.glb",
+    "models/items/RPG Items/Crown2.glb",
+    "models/items/RPG Items/Crystal1 Damaged.glb",
+    "models/items/RPG Items/Crystal1.glb",
+    "models/items/RPG Items/Crystal2 Damaged.glb",
+    "models/items/RPG Items/Crystal2.glb",
+    "models/items/RPG Items/Crystal3 Damaged.glb",
+    "models/items/RPG Items/Crystal3.glb",
+    "models/items/RPG Items/Crystal4.glb",
+    "models/items/RPG Items/Crystal5 Damaged.glb",
+    "models/items/RPG Items/Crystal5.glb",
+    "models/items/RPG Items/Dagger Golden.glb",
+    "models/items/RPG Items/Dagger.glb",
+    "models/items/RPG Items/Dart Golden.glb",
+    "models/items/RPG Items/Dart.glb",
+    "models/items/RPG Items/FishBone.glb",
+    "models/items/RPG Items/Glove.glb",
+    "models/items/RPG Items/Gold Ingots.glb",
+    "models/items/RPG Items/Hammer Double Golden.glb",
+    "models/items/RPG Items/Hammer Double.glb",
+    "models/items/RPG Items/Heart Broken.glb",
+    "models/items/RPG Items/Heart Half.glb",
+    "models/items/RPG Items/Heart.glb",
+    "models/items/RPG Items/Key1.glb",
+    "models/items/RPG Items/Key2.glb",
+    "models/items/RPG Items/Key3.glb",
+    "models/items/RPG Items/Key4.glb",
+    "models/items/RPG Items/Mineral.glb",
+    "models/items/RPG Items/Necklace1.glb",
+    "models/items/RPG Items/Necklace2.glb",
+    "models/items/RPG Items/Necklace3.glb",
+    "models/items/RPG Items/Padlock.glb",
+    "models/items/RPG Items/Parchment.glb",
+    "models/items/RPG Items/Potion1 Empty.glb",
+    "models/items/RPG Items/Potion1 Filled.glb",
+    "models/items/RPG Items/Potion10 Empty.glb",
+    "models/items/RPG Items/Potion10 Filled.glb",
+    "models/items/RPG Items/Potion11 Empty.glb",
+    "models/items/RPG Items/Potion11 Filled.glb",
+    "models/items/RPG Items/Potion2 Empty.glb",
+    "models/items/RPG Items/Potion2 Filled.glb",
+    "models/items/RPG Items/Potion3 Empty.glb",
+    "models/items/RPG Items/Potion3 Filled.glb",
+    "models/items/RPG Items/Potion4 Empty.glb",
+    "models/items/RPG Items/Potion4 Filled.glb",
+    "models/items/RPG Items/Potion5 Empty.glb",
+    "models/items/RPG Items/Potion5 Filled.glb",
+    "models/items/RPG Items/Potion6 Empty.glb",
+    "models/items/RPG Items/Potion6 Filled.glb",
+    "models/items/RPG Items/Potion7 Empty.glb",
+    "models/items/RPG Items/Potion7 Filled.glb",
+    "models/items/RPG Items/Potion8 Empty.glb",
+    "models/items/RPG Items/Potion8 Filled.glb",
+    "models/items/RPG Items/Potion9 Empty.glb",
+    "models/items/RPG Items/Potion9 Filled.glb",
+    "models/items/RPG Items/Pouch.glb",
+    "models/items/RPG Items/Ring1.glb",
+    "models/items/RPG Items/Ring2.glb",
+    "models/items/RPG Items/Ring3.glb",
+    "models/items/RPG Items/Ring4.glb",
+    "models/items/RPG Items/Ring5.glb",
+    "models/items/RPG Items/Ring6.glb",
+    "models/items/RPG Items/Ring7.glb",
+    "models/items/RPG Items/Scroll.glb",
+    "models/items/RPG Items/Skull.glb",
+    "models/items/RPG Items/Skull2.glb",
+    "models/items/RPG Items/Snowflake1.glb",
+    "models/items/RPG Items/Snowflake2.glb",
+    "models/items/RPG Items/Snowflake3.glb",
+    "models/items/RPG Items/Star.glb",
+    "models/items/RPG Items/Sword Golden.glb",
+    "models/items/RPG Items/Sword big Golden.glb",
+    "models/items/RPG Items/Sword big.glb",
+    "models/items/RPG Items/Sword.glb",
+    "models/items/Sci-Fi Essentials/Ammo Closed.glb",
+    "models/items/Sci-Fi Essentials/Ammo Small.glb",
+    "models/items/Sci-Fi Essentials/Ammo.glb",
+    "models/items/Sci-Fi Essentials/Grenade.glb",
+    "models/items/Sci-Fi Essentials/HealthPack Tube.glb",
+    "models/items/Sci-Fi Essentials/HealthPack.glb",
+    "models/items/Sci-Fi Essentials/KeyCard.glb",
+    "models/items/Sci-Fi Essentials/Mine.glb",
+    "models/items/Sci-Fi Essentials/Pistol.glb",
+    "models/items/Sci-Fi Essentials/Revolver.glb",
+    "models/items/Sci-Fi Essentials/Rifle.glb",
+    "models/items/Sci-Fi Essentials/SMG Ammo.glb",
+    "models/items/Sci-Fi Essentials/Sniper Ammo.glb",
+    "models/items/Sci-Fi Essentials/Sniper.glb",
+    "models/items/Sci-Fi Essentials/Syringe.glb",
+    "models/items/Survival/Axe Small.glb",
+    "models/items/Survival/Axe.glb",
+    "models/items/Survival/Backpack.glb",
+    "models/items/Survival/Bandages.glb",
+    "models/items/Survival/Battery Big.glb",
+    "models/items/Survival/Battery Small.glb",
+    "models/items/Survival/Can Broken.glb",
+    "models/items/Survival/Can Closed.glb",
+    "models/items/Survival/Can Open.glb",
+    "models/items/Survival/Can Red.glb",
+    "models/items/Survival/Compass Closed.glb",
+    "models/items/Survival/Compass Open.glb",
+    "models/items/Survival/FirstAidKit Hard.glb",
+    "models/items/Survival/FirstAidKit.glb",
+    "models/items/Survival/FlareGun.glb",
+    "models/items/Survival/GasCan.glb",
+    "models/items/Survival/Knife.glb",
+    "models/items/Survival/Match Burnt.glb",
+    "models/items/Survival/Match Fire.glb",
+    "models/items/Survival/Match.glb",
+    "models/items/Survival/Matchbox.glb",
+    "models/items/Survival/Pan Small.glb",
+    "models/items/Survival/Pan.glb",
+    "models/items/Survival/Phone.glb",
+    "models/items/Survival/Pistol 1.glb",
+    "models/items/Survival/Pistol 2.glb",
+    "models/items/Survival/Pot Small.glb",
+    "models/items/Survival/Pot.glb",
+    "models/items/Survival/Radio.glb",
+    "models/items/Survival/Raft Paddle.glb",
+    "models/items/Survival/Revolver 1.glb",
+    "models/items/Survival/Revolver 2.glb",
+    "models/items/Survival/Revolver 3.glb",
+    "models/items/Survival/Shotgun 1.glb",
+    "models/items/Survival/Shotgun 2.glb",
+    "models/items/Survival/Shotgun SawedOff.glb",
+    "models/items/Survival/Shotgun ShortStock.glb",
+    "models/items/Survival/Shovel.glb",
+    "models/items/Survival/Torch.glb",
+    "models/items/Survival/WaterBottle 1.glb",
+    "models/items/Survival/WaterBottle 2.glb",
+    "models/items/Survival/WaterBottle 3.glb",
+    "models/items/Survival/WoodenTorch Fire.glb",
+    "models/items/Survival/WoodenTorch.glb",
+    "models/licenses/PolygonDan Turret.txt",
+    "models/licenses/Quandtum BA-2.txt",
+    "models/licenses/Quandtum SENTRY-2.txt",
+    "models/licenses/Quaternius MegaKit Standard.txt",
+    "models/licenses/Quaternius.txt",
+    "models/licenses/Undead Squirrel.txt",
+    "models/vehicles/Spaceships/Bob.glb",
+    "models/vehicles/Spaceships/Challenger.glb",
+    "models/vehicles/Spaceships/Dispatcher.glb",
+    "models/vehicles/Spaceships/Executioner.glb",
+    "models/vehicles/Spaceships/Imperial.glb",
+    "models/vehicles/Spaceships/Insurgent.glb",
+    "models/vehicles/Spaceships/Omen.glb",
+    "models/vehicles/Spaceships/Pancake.glb",
+    "models/vehicles/Spaceships/Spitfire.glb",
+    "models/vehicles/Spaceships/Striker.glb",
+    "models/vehicles/Spaceships/Zenith.glb",
+    "textures/Floor Tiles/Checker Tiles/BW_Marble_Tile_01.webp",
+    "textures/Floor Tiles/Checker Tiles/BW_Marble_Tile_02.webp",
+    "textures/Floor Tiles/Checker Tiles/BW_Marble_Tile_03.webp",
+    "textures/Floor Tiles/Checker Tiles/BW_Marble_Tile_04.webp",
+    "textures/Floor Tiles/Checker Tiles/OB_Marble_Tile_01.webp",
+    "textures/Floor Tiles/Checker Tiles/OB_Marble_Tile_02.webp",
+    "textures/Floor Tiles/Checker Tiles/OB_Marble_Tile_03.webp",
+    "textures/Floor Tiles/Checker Tiles/OB_Marble_Tile_04.webp",
+    "textures/Floor Tiles/Checker Tiles/WO_Marble_Tile_01.webp",
+    "textures/Floor Tiles/Checker Tiles/WO_Marble_Tile_02.webp",
+    "textures/Floor Tiles/Checker Tiles/WO_Marble_Tile_03.webp",
+    "textures/Floor Tiles/Checker Tiles/WO_Marble_Tile_04.webp",
+    "textures/Floor Tiles/Diamond Tiles/BW_Marble_Tile_01.webp",
+    "textures/Floor Tiles/Diamond Tiles/BW_Marble_Tile_02.webp",
+    "textures/Floor Tiles/Diamond Tiles/BW_Marble_Tile_03.webp",
+    "textures/Floor Tiles/Diamond Tiles/BW_Marble_Tile_04.webp",
+    "textures/Floor Tiles/Diamond Tiles/BW_Marble_Tile_05.webp",
+    "textures/Floor Tiles/Diamond Tiles/BW_Marble_Tile_06.webp",
+    "textures/Floor Tiles/Diamond Tiles/BW_Marble_Tile_07.webp",
+    "textures/Floor Tiles/Diamond Tiles/BW_Marble_Tile_08.webp",
+    "textures/Floor Tiles/Diamond Tiles/Black_Marble_Tile_01.webp",
+    "textures/Floor Tiles/Diamond Tiles/Black_Marble_Tile_02.webp",
+    "textures/Floor Tiles/Diamond Tiles/Black_Marble_Tile_03.webp",
+    "textures/Floor Tiles/Diamond Tiles/Black_Marble_Tile_04.webp",
+    "textures/Floor Tiles/Diamond Tiles/OB_Marble_Tile_01.webp",
+    "textures/Floor Tiles/Diamond Tiles/OB_Marble_Tile_02.webp",
+    "textures/Floor Tiles/Diamond Tiles/OB_Marble_Tile_03.webp",
+    "textures/Floor Tiles/Diamond Tiles/OB_Marble_Tile_04.webp",
+    "textures/Floor Tiles/Diamond Tiles/OB_Marble_Tile_05.webp",
+    "textures/Floor Tiles/Diamond Tiles/OB_Marble_Tile_06.webp",
+    "textures/Floor Tiles/Diamond Tiles/OB_Marble_Tile_07.webp",
+    "textures/Floor Tiles/Diamond Tiles/OB_Marble_Tile_08.webp",
+    "textures/Floor Tiles/Diamond Tiles/Orange_Marble_Tile_01.webp",
+    "textures/Floor Tiles/Diamond Tiles/Orange_Marble_Tile_02.webp",
+    "textures/Floor Tiles/Diamond Tiles/Orange_Marble_Tile_03.webp",
+    "textures/Floor Tiles/Diamond Tiles/Orange_Marble_Tile_04.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_01.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_02.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_03.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_04.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_05.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_06.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_07.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_08.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_09.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_10.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_11.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_12.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_13.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_14.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_15.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_16.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_17.webp",
+    "textures/Floor Tiles/Diamond Tiles/Tri_Marble_Tile_18.webp",
+    "textures/Floor Tiles/Diamond Tiles/WO_Marble_Tile_01.webp",
+    "textures/Floor Tiles/Diamond Tiles/WO_Marble_Tile_02.webp",
+    "textures/Floor Tiles/Diamond Tiles/WO_Marble_Tile_03.webp",
+    "textures/Floor Tiles/Diamond Tiles/WO_Marble_Tile_04.webp",
+    "textures/Floor Tiles/Diamond Tiles/WO_Marble_Tile_05.webp",
+    "textures/Floor Tiles/Diamond Tiles/WO_Marble_Tile_06.webp",
+    "textures/Floor Tiles/Diamond Tiles/WO_Marble_Tile_07.webp",
+    "textures/Floor Tiles/Diamond Tiles/WO_Marble_Tile_08.webp",
+    "textures/Floor Tiles/Diamond Tiles/White_Marble_Tile_01.webp",
+    "textures/Floor Tiles/Diamond Tiles/White_Marble_Tile_02.webp",
+    "textures/Floor Tiles/Diamond Tiles/White_Marble_Tile_03.webp",
+    "textures/Floor Tiles/Diamond Tiles/White_Marble_Tile_04.webp",
+    "textures/Floor Tiles/LICENSE.txt",
+    "textures/Floor Tiles/Rectangle Tiles/Rectangle_Marble_Tile_01.webp",
+    "textures/Floor Tiles/Rectangle Tiles/Rectangle_Marble_Tile_02.webp",
+    "textures/Floor Tiles/Rectangle Tiles/Rectangle_Marble_Tile_03.webp",
+    "textures/Floor Tiles/Rectangle Tiles/Rectangle_Marble_Tile_04.webp",
+    "textures/Floor Tiles/Rectangle Tiles/Rectangle_Marble_Tile_05.webp",
+    "textures/Floor Tiles/Rectangle Tiles/Rectangle_Marble_Tile_06.webp",
+    "textures/Horror/Brick/Horror_Brick_01.webp",
+    "textures/Horror/Brick/Horror_Brick_02.webp",
+    "textures/Horror/Brick/Horror_Brick_03.webp",
+    "textures/Horror/Brick/Horror_Brick_04.webp",
+    "textures/Horror/Brick/Horror_Brick_05.webp",
+    "textures/Horror/Brick/Horror_Brick_06.webp",
+    "textures/Horror/Brick/Horror_Brick_07.webp",
+    "textures/Horror/Brick/Horror_Brick_08.webp",
+    "textures/Horror/Brick/Horror_Brick_09.webp",
+    "textures/Horror/Brick/Horror_Brick_10.webp",
+    "textures/Horror/Brick/Horror_Brick_11.webp",
+    "textures/Horror/Brick/Horror_Brick_12.webp",
+    "textures/Horror/Brick/Horror_Brick_13.webp",
+    "textures/Horror/Brick/Horror_Brick_14.webp",
+    "textures/Horror/Floor/Horror_Floor_01.webp",
+    "textures/Horror/Floor/Horror_Floor_02.webp",
+    "textures/Horror/Floor/Horror_Floor_03.webp",
+    "textures/Horror/Floor/Horror_Floor_04.webp",
+    "textures/Horror/Floor/Horror_Floor_05.webp",
+    "textures/Horror/Floor/Horror_Floor_06.webp",
+    "textures/Horror/Floor/Horror_Floor_07.webp",
+    "textures/Horror/Floor/Horror_Floor_08.webp",
+    "textures/Horror/Floor/Horror_Floor_09.webp",
+    "textures/Horror/Floor/Horror_Floor_10.webp",
+    "textures/Horror/Floor/Horror_Floor_11.webp",
+    "textures/Horror/Floor/Horror_Floor_12.webp",
+    "textures/Horror/Floor/Horror_Floor_13.webp",
+    "textures/Horror/Floor/Horror_Floor_14.webp",
+    "textures/Horror/LICENSE.txt",
+    "textures/Horror/Metal/Horror_Metal_01.webp",
+    "textures/Horror/Metal/Horror_Metal_02.webp",
+    "textures/Horror/Metal/Horror_Metal_03.webp",
+    "textures/Horror/Metal/Horror_Metal_04.webp",
+    "textures/Horror/Metal/Horror_Metal_05.webp",
+    "textures/Horror/Metal/Horror_Metal_06.webp",
+    "textures/Horror/Metal/Horror_Metal_07.webp",
+    "textures/Horror/Metal/Horror_Metal_08.webp",
+    "textures/Horror/Metal/Horror_Metal_09.webp",
+    "textures/Horror/Metal/Horror_Metal_10.webp",
+    "textures/Horror/Metal/Horror_Metal_11.webp",
+    "textures/Horror/Metal/Horror_Metal_12.webp",
+    "textures/Horror/Metal/Horror_Metal_13.webp",
+    "textures/Horror/Metal/Horror_Metal_14.webp",
+    "textures/Horror/Misc/Horror_Misc_01.webp",
+    "textures/Horror/Misc/Horror_Misc_02.webp",
+    "textures/Horror/Misc/Horror_Misc_03.webp",
+    "textures/Horror/Misc/Horror_Misc_04.webp",
+    "textures/Horror/Misc/Horror_Misc_05.webp",
+    "textures/Horror/Misc/Horror_Misc_06.webp",
+    "textures/Horror/Misc/Horror_Misc_07.webp",
+    "textures/Horror/Misc/Horror_Misc_08.webp",
+    "textures/Horror/Misc/Horror_Misc_09.webp",
+    "textures/Horror/Misc/Horror_Misc_10.webp",
+    "textures/Horror/Misc/Horror_Misc_11.webp",
+    "textures/Horror/Misc/Horror_Misc_12.webp",
+    "textures/Horror/Misc/Horror_Misc_13.webp",
+    "textures/Horror/Misc/Horror_Misc_14.webp",
+    "textures/Horror/Misc/Horror_Misc_15.webp",
+    "textures/Horror/Stains/Horror_Stain_01.webp",
+    "textures/Horror/Stains/Horror_Stain_02.webp",
+    "textures/Horror/Stains/Horror_Stain_03.webp",
+    "textures/Horror/Stains/Horror_Stain_04.webp",
+    "textures/Horror/Stains/Horror_Stain_05.webp",
+    "textures/Horror/Stains/Horror_Stain_06.webp",
+    "textures/Horror/Stains/Horror_Stain_07.webp",
+    "textures/Horror/Stains/Horror_Stain_08.webp",
+    "textures/Horror/Stains/Horror_Stain_09.webp",
+    "textures/Horror/Stains/Horror_Stain_10.webp",
+    "textures/Horror/Stains/Horror_Stain_11.webp",
+    "textures/Horror/Stains/Horror_Stain_12.webp",
+    "textures/Horror/Stains/Horror_Stain_13.webp",
+    "textures/Horror/Stains/Horror_Stain_14.webp",
+    "textures/Horror/Stains/Horror_Stain_15.webp",
+    "textures/Horror/Stone/Horror_Stone_01.webp",
+    "textures/Horror/Stone/Horror_Stone_02.webp",
+    "textures/Horror/Stone/Horror_Stone_03.webp",
+    "textures/Horror/Stone/Horror_Stone_04.webp",
+    "textures/Horror/Stone/Horror_Stone_05.webp",
+    "textures/Horror/Stone/Horror_Stone_06.webp",
+    "textures/Horror/Stone/Horror_Stone_07.webp",
+    "textures/Horror/Stone/Horror_Stone_08.webp",
+    "textures/Horror/Stone/Horror_Stone_09.webp",
+    "textures/Horror/Stone/Horror_Stone_10.webp",
+    "textures/Horror/Stone/Horror_Stone_11.webp",
+    "textures/Horror/Stone/Horror_Stone_12.webp",
+    "textures/Horror/Stone/Horror_Stone_13.webp",
+    "textures/Horror/Stone/Horror_Stone_14.webp",
+    "textures/Horror/Wall/Horror_Wall_01.webp",
+    "textures/Horror/Wall/Horror_Wall_02.webp",
+    "textures/Horror/Wall/Horror_Wall_03.webp",
+    "textures/Horror/Wall/Horror_Wall_04.webp",
+    "textures/Horror/Wall/Horror_Wall_05.webp",
+    "textures/Horror/Wall/Horror_Wall_06.webp",
+    "textures/Horror/Wall/Horror_Wall_07.webp",
+    "textures/Horror/Wall/Horror_Wall_08.webp",
+    "textures/Horror/Wall/Horror_Wall_09.webp",
+    "textures/Horror/Wall/Horror_Wall_10.webp",
+    "textures/Horror/Wall/Horror_Wall_11.webp",
+    "textures/Horror/Wall/Horror_Wall_12.webp",
+    "textures/Horror/Wall/Horror_Wall_13.webp",
+    "textures/Horror/Wall/Horror_Wall_14.webp",
+    "textures/LAB/Doors/door0.webp",
+    "textures/LAB/Doors/door_blue.webp",
+    "textures/LAB/Doors/door_green.webp",
+    "textures/LAB/Doors/door_red.webp",
+    "textures/LAB/Doors/door_surp.webp",
+    "textures/LAB/LICENSE.txt",
+    "textures/LAB/Walls/tile000.webp",
+    "textures/LAB/Walls/tile050.webp",
+    "textures/LAB/Walls/tile051.webp",
+    "textures/LAB/Walls/tile065.webp",
+    "textures/LAB/Walls/tile066.webp",
+    "textures/LAB/Walls/tile067.webp",
+    "textures/LAB/Walls/tile068.webp",
+    "textures/LAB/Walls/tile069.webp",
+    "textures/LAB/Walls/tile070.webp",
+    "textures/LAB/Walls/tile071.webp",
+    "textures/LAB/Walls/tile072.webp",
+    "textures/LAB/Walls/tile073.webp",
+    "textures/LAB/Walls/tile074.webp",
+    "textures/LAB/Walls/tile075.webp",
+    "textures/LAB/Walls/tile076.webp",
+    "textures/LAB/Walls/tile077.webp",
+    "textures/LAB/Walls/tile078.webp",
+    "textures/LAB/Walls/tile079.webp",
+    "textures/LAB/Walls/tile080.webp",
+    "textures/LAB/Walls/tile081.webp",
+    "textures/LAB/Walls/tile082.webp",
+    "textures/LAB/Walls/tile083.webp",
+    "textures/LAB/Walls/tile084.webp",
+    "textures/LAB/Walls/tile085.webp",
+    "textures/LAB/Walls/tile086.webp",
+    "textures/LAB/Walls/tile087.webp",
+    "textures/LAB/Walls/tile088.webp",
+    "textures/LAB/Walls/tile089.webp",
+    "textures/LAB/Walls/tile090.webp",
+    "textures/LAB/Walls/tile091.webp",
+    "textures/LAB/Walls/tile092.webp",
+    "textures/LAB/Walls/tile093.webp",
+    "textures/LAB/Walls/tile094.webp",
+    "textures/LAB/Walls/tile095.webp",
+    "textures/LAB/Walls/tile096.webp",
+    "textures/LAB/Walls/tile097.webp",
+    "textures/LAB/Walls/tile098.webp",
+    "textures/LAB/Walls/tile099.webp",
+    "textures/LAB/Walls/tile100.webp",
+    "textures/LAB/Walls/tile101.webp",
+    "textures/LAB/Walls/tile102.webp",
+    "textures/LAB/Walls/tile103.webp",
+    "textures/LAB/Walls/tile104.webp",
+    "textures/LAB/Walls/tile105.webp",
+    "textures/LAB/Walls/tile106.webp",
+    "textures/LAB/Walls/tile107.webp",
+    "textures/LAB/Walls/tile108.webp",
+    "textures/LAB/Walls/tile109.webp",
+    "textures/LAB/Walls/tile110.webp",
+    "textures/LAB/Walls/tile111.webp",
+    "textures/LAB/Walls/tile112.webp",
+    "textures/LAB/Walls/tile113.webp",
+    "textures/LAB/Walls/tile115.webp",
+    "textures/LAB/Walls/tile116.webp",
+    "textures/LAB/Walls/tile117.webp",
+    "textures/LAB/Walls/tile118.webp",
+    "textures/LAB/Walls/tile119.webp",
+    "textures/LAB/Walls/tile120.webp",
+    "textures/LAB/Walls/tile121.webp",
+    "textures/LAB/Walls/tile122.webp",
+    "textures/LAB/Walls/tile123.webp",
+    "textures/LAB/Walls/tile124.webp",
+    "textures/LAB/Walls/tile125.webp",
+    "textures/LAB/Walls/tile126.webp",
+    "textures/LAB/Walls/tile127.webp",
+    "textures/LAB/Walls/tile128.webp",
+    "textures/LAB/Walls/tile129.webp",
+    "textures/LAB/Walls/tile130.webp",
+    "textures/LAB/Walls/tile131.webp",
+    "textures/LAB/Walls/tile132.webp",
+    "textures/LAB/Walls/tile133.webp",
+    "textures/Liquids/LICENSE.txt",
+    "textures/Liquids/Liquid_Blue_01-512x512.webp",
+    "textures/Liquids/Liquid_Blue_02-512x512.webp",
+    "textures/Liquids/Liquid_Blue_03-512x512.webp",
+    "textures/Liquids/Liquid_Blue_04-512x512.webp",
+    "textures/Liquids/Liquid_Blue_05-512x512.webp",
+    "textures/Liquids/Liquid_Blue_06-512x512.webp",
+    "textures/Liquids/Liquid_Blue_07-512x512.webp",
+    "textures/Liquids/Liquid_Blue_08-512x512.webp",
+    "textures/Liquids/Liquid_Brown_01-512x512.webp",
+    "textures/Liquids/Liquid_Brown_02-512x512.webp",
+    "textures/Liquids/Liquid_Brown_03-512x512.webp",
+    "textures/Liquids/Liquid_Brown_04-512x512.webp",
+    "textures/Liquids/Liquid_Brown_05-512x512.webp",
+    "textures/Liquids/Liquid_Brown_06-512x512.webp",
+    "textures/Liquids/Liquid_Brown_07-512x512.webp",
+    "textures/Liquids/Liquid_Brown_08-512x512.webp",
+    "textures/Liquids/Liquid_Green_01-512x512.webp",
+    "textures/Liquids/Liquid_Green_02-512x512.webp",
+    "textures/Liquids/Liquid_Green_03-512x512.webp",
+    "textures/Liquids/Liquid_Green_04-512x512.webp",
+    "textures/Liquids/Liquid_Green_05-512x512.webp",
+    "textures/Liquids/Liquid_Green_06-512x512.webp",
+    "textures/Liquids/Liquid_Green_07-512x512.webp",
+    "textures/Liquids/Liquid_Green_08-512x512.webp",
+    "textures/Liquids/Liquid_Purple_01-512x512.webp",
+    "textures/Liquids/Liquid_Purple_02-512x512.webp",
+    "textures/Liquids/Liquid_Purple_03-512x512.webp",
+    "textures/Liquids/Liquid_Purple_04-512x512.webp",
+    "textures/Liquids/Liquid_Purple_05-512x512.webp",
+    "textures/Liquids/Liquid_Purple_06-512x512.webp",
+    "textures/Liquids/Liquid_Purple_07-512x512.webp",
+    "textures/Liquids/Liquid_Purple_08-512x512.webp",
+    "textures/Liquids/Liquid_Red_01-512x512.webp",
+    "textures/Liquids/Liquid_Red_02-512x512.webp",
+    "textures/Liquids/Liquid_Red_03-512x512.webp",
+    "textures/Liquids/Liquid_Red_04-512x512.webp",
+    "textures/Liquids/Liquid_Red_05-512x512.webp",
+    "textures/Liquids/Liquid_Red_06-512x512.webp",
+    "textures/Liquids/Liquid_Red_07-512x512.webp",
+    "textures/Liquids/Liquid_Red_08-512x512.webp",
+    "textures/Liquids/Liquid_Yellow_01-512x512.webp",
+    "textures/Liquids/Liquid_Yellow_02-512x512.webp",
+    "textures/Liquids/Liquid_Yellow_03-512x512.webp",
+    "textures/Liquids/Liquid_Yellow_04-512x512.webp",
+    "textures/Liquids/Liquid_Yellow_05-512x512.webp",
+    "textures/Liquids/Liquid_Yellow_06-512x512.webp",
+    "textures/Liquids/Liquid_Yellow_07-512x512.webp",
+    "textures/Liquids/Liquid_Yellow_08-512x512.webp",
+    "textures/README.md",
+    "textures/Rooftops/Blue/Roof_Blue_01.webp",
+    "textures/Rooftops/Blue/Roof_Blue_02.webp",
+    "textures/Rooftops/Blue/Roof_Blue_03.webp",
+    "textures/Rooftops/Blue/Roof_Blue_04.webp",
+    "textures/Rooftops/Blue/Roof_Blue_05.webp",
+    "textures/Rooftops/Blue/Roof_Blue_06.webp",
+    "textures/Rooftops/Blue/Roof_Blue_07.webp",
+    "textures/Rooftops/Blue/Roof_Blue_08.webp",
+    "textures/Rooftops/Brown/Roof_Brown_01.webp",
+    "textures/Rooftops/Brown/Roof_Brown_02.webp",
+    "textures/Rooftops/Brown/Roof_Brown_03.webp",
+    "textures/Rooftops/Brown/Roof_Brown_04.webp",
+    "textures/Rooftops/Brown/Roof_Brown_05.webp",
+    "textures/Rooftops/Brown/Roof_Brown_06.webp",
+    "textures/Rooftops/Brown/Roof_Brown_07.webp",
+    "textures/Rooftops/Brown/Roof_Brown_08.webp",
+    "textures/Rooftops/Gray/Roof_Gray_01.webp",
+    "textures/Rooftops/Gray/Roof_Gray_02.webp",
+    "textures/Rooftops/Gray/Roof_Gray_03.webp",
+    "textures/Rooftops/Gray/Roof_Gray_04.webp",
+    "textures/Rooftops/Gray/Roof_Gray_05.webp",
+    "textures/Rooftops/Gray/Roof_Gray_06.webp",
+    "textures/Rooftops/Gray/Roof_Gray_07.webp",
+    "textures/Rooftops/Gray/Roof_Gray_08.webp",
+    "textures/Rooftops/LICENSE.txt",
+    "textures/Rooftops/Red/Roof_Red_01.webp",
+    "textures/Rooftops/Red/Roof_Red_02.webp",
+    "textures/Rooftops/Red/Roof_Red_03.webp",
+    "textures/Rooftops/Red/Roof_Red_04.webp",
+    "textures/Rooftops/Red/Roof_Red_05.webp",
+    "textures/Rooftops/Red/Roof_Red_06.webp",
+    "textures/Rooftops/Red/Roof_Red_07.webp",
+    "textures/Rooftops/Red/Roof_Red_08.webp",
+    "textures/Rooftops/Thatch/Roof_Thatch_01.webp",
+    "textures/Rooftops/Thatch/Roof_Thatch_02.webp",
+    "textures/Rooftops/Thatch/Roof_Thatch_03.webp",
+    "textures/Rooftops/Thatch/Roof_Thatch_04.webp",
+    "textures/Rooftops/White/Roof_White_01.webp",
+    "textures/Rooftops/White/Roof_White_02.webp",
+    "textures/Rooftops/White/Roof_White_03.webp",
+    "textures/Rooftops/White/Roof_White_04.webp",
+    "textures/Rooftops/White/Roof_White_05.webp",
+    "textures/Rooftops/White/Roof_White_06.webp",
+    "textures/Rooftops/White/Roof_White_07.webp",
+    "textures/Rooftops/White/Roof_White_08.webp",
+    "textures/Rooftops/Yellow/Roof_Yellow_01.webp",
+    "textures/Rooftops/Yellow/Roof_Yellow_02.webp",
+    "textures/Rooftops/Yellow/Roof_Yellow_03.webp",
+    "textures/Rooftops/Yellow/Roof_Yellow_04.webp",
+    "textures/Rooftops/Yellow/Roof_Yellow_05.webp",
+    "textures/Rooftops/Yellow/Roof_Yellow_06.webp",
+    "textures/Rooftops/Yellow/Roof_Yellow_07.webp",
+    "textures/Rooftops/Yellow/Roof_Yellow_08.webp",
+    "textures/Synthetic/Fabric/Synth-Fabric_01.webp",
+    "textures/Synthetic/Fabric/Synth-Fabric_02.webp",
+    "textures/Synthetic/Fabric/Synth-Fabric_03.webp",
+    "textures/Synthetic/Fabric/Synth-Fabric_04.webp",
+    "textures/Synthetic/Fabric/Synth-Fabric_05.webp",
+    "textures/Synthetic/Fabric/Synth-Fabric_06.webp",
+    "textures/Synthetic/Fabric/Synth-Fabric_07.webp",
+    "textures/Synthetic/Fabric/Synth-Fabric_08.webp",
+    "textures/Synthetic/Fabric/Synth-Fabric_09.webp",
+    "textures/Synthetic/Fabric/Synth-Fabric_10.webp",
+    "textures/Synthetic/Fabric/Synth-Fabric_11.webp",
+    "textures/Synthetic/Fabric/Synth-Fabric_12.webp",
+    "textures/Synthetic/Fabric/Synth-Fabric_13.webp",
+    "textures/Synthetic/Fabric/Synth-Fabric_14.webp",
+    "textures/Synthetic/Fabric/Synth-Fabric_15.webp",
+    "textures/Synthetic/Ground/Synth-Ground_01.webp",
+    "textures/Synthetic/Ground/Synth-Ground_02.webp",
+    "textures/Synthetic/Ground/Synth-Ground_03.webp",
+    "textures/Synthetic/Ground/Synth-Ground_04.webp",
+    "textures/Synthetic/Ground/Synth-Ground_05.webp",
+    "textures/Synthetic/Ground/Synth-Ground_06.webp",
+    "textures/Synthetic/Ground/Synth-Ground_07.webp",
+    "textures/Synthetic/Ground/Synth-Ground_08.webp",
+    "textures/Synthetic/Ground/Synth-Ground_09.webp",
+    "textures/Synthetic/Ground/Synth-Ground_10.webp",
+    "textures/Synthetic/Ground/Synth-Ground_11.webp",
+    "textures/Synthetic/Ground/Synth-Ground_12.webp",
+    "textures/Synthetic/Ground/Synth-Ground_13.webp",
+    "textures/Synthetic/Ground/Synth-Ground_14.webp",
+    "textures/Synthetic/Ground/Synth-Ground_15.webp",
+    "textures/Synthetic/LICENSE.txt",
+    "textures/Synthetic/Leather/Synth-Leather_01.webp",
+    "textures/Synthetic/Leather/Synth-Leather_02.webp",
+    "textures/Synthetic/Leather/Synth-Leather_03.webp",
+    "textures/Synthetic/Leather/Synth-Leather_04.webp",
+    "textures/Synthetic/Leather/Synth-Leather_05.webp",
+    "textures/Synthetic/Leather/Synth-Leather_06.webp",
+    "textures/Synthetic/Leather/Synth-Leather_07.webp",
+    "textures/Synthetic/Leather/Synth-Leather_08.webp",
+    "textures/Synthetic/Leather/Synth-Leather_09.webp",
+    "textures/Synthetic/Leather/Synth-Leather_10.webp",
+    "textures/Synthetic/Leather/Synth-Leather_11.webp",
+    "textures/Synthetic/Leather/Synth-Leather_12.webp",
+    "textures/Synthetic/Leather/Synth-Leather_13.webp",
+    "textures/Synthetic/Leather/Synth-Leather_14.webp",
+    "textures/Synthetic/Leather/Synth-Leather_15.webp",
+    "textures/Synthetic/Metal/Synth-Metal_01.webp",
+    "textures/Synthetic/Metal/Synth-Metal_02.webp",
+    "textures/Synthetic/Metal/Synth-Metal_03.webp",
+    "textures/Synthetic/Metal/Synth-Metal_04.webp",
+    "textures/Synthetic/Metal/Synth-Metal_05.webp",
+    "textures/Synthetic/Metal/Synth-Metal_06.webp",
+    "textures/Synthetic/Metal/Synth-Metal_07.webp",
+    "textures/Synthetic/Metal/Synth-Metal_08.webp",
+    "textures/Synthetic/Metal/Synth-Metal_09.webp",
+    "textures/Synthetic/Metal/Synth-Metal_10.webp",
+    "textures/Synthetic/Metal/Synth-Metal_11.webp",
+    "textures/Synthetic/Metal/Synth-Metal_12.webp",
+    "textures/Synthetic/Metal/Synth-Metal_13.webp",
+    "textures/Synthetic/Metal/Synth-Metal_14.webp",
+    "textures/Synthetic/Metal/Synth-Metal_15.webp",
+    "textures/Synthetic/Misc/Synth-Misc_01.webp",
+    "textures/Synthetic/Misc/Synth-Misc_02.webp",
+    "textures/Synthetic/Misc/Synth-Misc_03.webp",
+    "textures/Synthetic/Misc/Synth-Misc_04.webp",
+    "textures/Synthetic/Misc/Synth-Misc_05.webp",
+    "textures/Synthetic/Misc/Synth-Misc_06.webp",
+    "textures/Synthetic/Misc/Synth-Misc_07.webp",
+    "textures/Synthetic/Misc/Synth-Misc_08.webp",
+    "textures/Synthetic/Misc/Synth-Misc_09.webp",
+    "textures/Synthetic/Misc/Synth-Misc_10.webp",
+    "textures/Synthetic/Misc/Synth-Misc_11.webp",
+    "textures/Synthetic/Misc/Synth-Misc_12.webp",
+    "textures/Synthetic/Misc/Synth-Misc_13.webp",
+    "textures/Synthetic/Misc/Synth-Misc_14.webp",
+    "textures/Synthetic/Misc/Synth-Misc_15.webp",
+    "textures/Synthetic/Misc/Synth-Misc_16.webp",
+    "textures/Synthetic/Misc/Synth-Misc_17.webp",
+    "textures/Synthetic/Misc/Synth-Misc_18.webp",
+    "textures/Synthetic/Stone/Synth-Stone_01.webp",
+    "textures/Synthetic/Stone/Synth-Stone_02.webp",
+    "textures/Synthetic/Stone/Synth-Stone_03.webp",
+    "textures/Synthetic/Stone/Synth-Stone_04.webp",
+    "textures/Synthetic/Stone/Synth-Stone_05.webp",
+    "textures/Synthetic/Stone/Synth-Stone_06.webp",
+    "textures/Synthetic/Stone/Synth-Stone_07.webp",
+    "textures/Synthetic/Stone/Synth-Stone_08.webp",
+    "textures/Synthetic/Stone/Synth-Stone_09.webp",
+    "textures/Synthetic/Stone/Synth-Stone_10.webp",
+    "textures/Synthetic/Stone/Synth-Stone_11.webp",
+    "textures/Synthetic/Stone/Synth-Stone_12.webp",
+    "textures/Synthetic/Stone/Synth-Stone_13.webp",
+    "textures/Synthetic/Stone/Synth-Stone_14.webp",
+    "textures/Synthetic/Stone/Synth-Stone_15.webp",
+    "textures/Synthetic/Tree/Synth-Tree_01.webp",
+    "textures/Synthetic/Tree/Synth-Tree_02.webp",
+    "textures/Synthetic/Tree/Synth-Tree_03.webp",
+    "textures/Synthetic/Tree/Synth-Tree_04.webp",
+    "textures/Synthetic/Tree/Synth-Tree_05.webp",
+    "textures/Synthetic/Tree/Synth-Tree_06.webp",
+    "textures/Synthetic/Tree/Synth-Tree_07.webp",
+    "textures/Synthetic/Tree/Synth-Tree_08.webp",
+    "textures/Synthetic/Tree/Synth-Tree_09.webp",
+    "textures/Synthetic/Tree/Synth-Tree_10.webp",
+    "textures/Synthetic/Tree/Synth-Tree_11.webp",
+    "textures/Synthetic/Tree/Synth-Tree_12.webp",
+    "textures/Synthetic/Tree/Synth-Tree_13.webp",
+    "textures/Synthetic/Tree/Synth-Tree_14.webp",
+    "textures/Synthetic/Tree/Synth-Tree_15.webp",
+    "textures/Synthetic/Wood/Synth-Wood_01.webp",
+    "textures/Synthetic/Wood/Synth-Wood_02.webp",
+    "textures/Synthetic/Wood/Synth-Wood_03.webp",
+    "textures/Synthetic/Wood/Synth-Wood_04.webp",
+    "textures/Synthetic/Wood/Synth-Wood_05.webp",
+    "textures/Synthetic/Wood/Synth-Wood_06.webp",
+    "textures/Synthetic/Wood/Synth-Wood_07.webp",
+    "textures/Synthetic/Wood/Synth-Wood_08.webp",
+    "textures/Synthetic/Wood/Synth-Wood_09.webp",
+    "textures/Synthetic/Wood/Synth-Wood_10.webp",
+    "textures/Synthetic/Wood/Synth-Wood_11.webp",
+    "textures/Synthetic/Wood/Synth-Wood_12.webp",
+    "textures/Synthetic/Wood/Synth-Wood_13.webp",
+    "textures/Synthetic/Wood/Synth-Wood_14.webp",
+    "textures/Synthetic/Wood/Synth-Wood_15.webp",
+    "textures/Terrain/LICENSE.txt",
+    "textures/Terrain/adesert_cracks.webp",
+    "textures/Terrain/adesert_mntn.webp",
+    "textures/Terrain/adesert_mntn2.webp",
+    "textures/Terrain/adesert_mntn2o.webp",
+    "textures/Terrain/adesert_mntn4.webp",
+    "textures/Terrain/adesert_mntn4v.webp",
+    "textures/Terrain/adesert_rocky.webp",
+    "textures/Terrain/adesert_sand2.webp",
+    "textures/Terrain/adesert_stone.webp",
+    "textures/Terrain/amntn_dark.webp",
+    "textures/Terrain/desert_cracks.webp",
+    "textures/Terrain/desert_crackso.webp",
+    "textures/Terrain/desert_cracksv.webp",
+    "textures/Terrain/desert_mntn.webp",
+    "textures/Terrain/desert_mntn2.webp",
+    "textures/Terrain/desert_mud.webp",
+    "textures/Terrain/desert_rocky.webp",
+    "textures/Terrain/desert_sand.webp",
+    "textures/Terrain/desert_sand2.webp",
+    "textures/Terrain/desert_sand_big.webp",
+    "textures/Terrain/desert_sand_bigx.webp",
+    "textures/Terrain/desert_wet.webp",
+    "textures/Terrain/grass_autumn_orn.webp",
+    "textures/Terrain/grass_autumn_red.webp",
+    "textures/Terrain/grass_green.webp",
+    "textures/Terrain/grass_green2y.webp",
+    "textures/Terrain/grass_ground.webp",
+    "textures/Terrain/grass_ground2y.webp",
+    "textures/Terrain/grass_mix.webp",
+    "textures/Terrain/grass_mix_ylw.webp",
+    "textures/Terrain/grass_rocky.webp",
+    "textures/Terrain/ground_crackedo.webp",
+    "textures/Terrain/ground_crackedv.webp",
+    "textures/Terrain/ground_cracks2v.webp",
+    "textures/Terrain/ground_cracks2y.webp",
+    "textures/Terrain/ground_dry.webp",
+    "textures/Terrain/ground_dry2.webp",
+    "textures/Terrain/ground_ferns.webp",
+    "textures/Terrain/ground_leaves.webp",
+    "textures/Terrain/ground_mud.webp",
+    "textures/Terrain/ground_mud2.webp",
+    "textures/Terrain/ground_white.webp",
+    "textures/Terrain/ground_yellow.webp",
+    "textures/Terrain/island_sand.webp",
+    "textures/Terrain/island_sand2.webp",
+    "textures/Terrain/jungle_mntn.webp",
+    "textures/Terrain/jungle_mntn2.webp",
+    "textures/Terrain/jungle_mntnx.webp",
+    "textures/Terrain/jungle_stone.webp",
+    "textures/Terrain/lava.webp",
+    "textures/Terrain/lava2.webp",
+    "textures/Terrain/lava_black.webp",
+    "textures/Terrain/lava_mars.webp",
+    "textures/Terrain/mntn_black.webp",
+    "textures/Terrain/mntn_brown.webp",
+    "textures/Terrain/mntn_canyon.webp",
+    "textures/Terrain/mntn_canyon2o.webp",
+    "textures/Terrain/mntn_dark.webp",
+    "textures/Terrain/mntn_darkx.webp",
+    "textures/Terrain/mntn_forest.webp",
+    "textures/Terrain/mntn_gray.webp",
+    "textures/Terrain/mntn_green.webp",
+    "textures/Terrain/mntn_white.webp",
+    "textures/Terrain/mntn_x1.webp",
+    "textures/Terrain/mntn_x2.webp",
+    "textures/Terrain/mntn_yellow.webp",
+    "textures/Terrain/moss_ground.webp",
+    "textures/Terrain/moss_plants.webp",
+    "textures/Terrain/savanna_dry.webp",
+    "textures/Terrain/savanna_green.webp",
+    "textures/Terrain/savanna_yellow.webp",
+    "textures/Terrain/snow1.webp",
+    "textures/Terrain/snow2.webp",
+    "textures/Terrain/snow2ice.webp",
+    "textures/Terrain/snow_bumpy.webp",
+    "textures/Terrain/snow_grass.webp",
+    "textures/Terrain/snow_grass2.webp",
+    "textures/Terrain/snow_grass3.webp",
+    "textures/Terrain/snow_mntn2.webp",
+    "textures/Terrain/snow_mud.webp",
+    "textures/Terrain/snow_rough.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 1.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 10.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 11.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 12.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 13.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 14.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 15.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 16.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 17.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 18.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 19.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 2.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 20.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 21.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 22.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 23.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 24.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 25.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 3.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 4.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 5.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 6.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 7.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 8.webp",
+    "textures/Tiny Pack 1/Bricks/Brick 9.webp",
+    "textures/Tiny Pack 1/Grass/Grass 1.webp",
+    "textures/Tiny Pack 1/Grass/Grass 10.webp",
+    "textures/Tiny Pack 1/Grass/Grass 11.webp",
+    "textures/Tiny Pack 1/Grass/Grass 12.webp",
+    "textures/Tiny Pack 1/Grass/Grass 13.webp",
+    "textures/Tiny Pack 1/Grass/Grass 14.webp",
+    "textures/Tiny Pack 1/Grass/Grass 15.webp",
+    "textures/Tiny Pack 1/Grass/Grass 16.webp",
+    "textures/Tiny Pack 1/Grass/Grass 17.webp",
+    "textures/Tiny Pack 1/Grass/Grass 18.webp",
+    "textures/Tiny Pack 1/Grass/Grass 19.webp",
+    "textures/Tiny Pack 1/Grass/Grass 2.webp",
+    "textures/Tiny Pack 1/Grass/Grass 20.webp",
+    "textures/Tiny Pack 1/Grass/Grass 21.webp",
+    "textures/Tiny Pack 1/Grass/Grass 22.webp",
+    "textures/Tiny Pack 1/Grass/Grass 23.webp",
+    "textures/Tiny Pack 1/Grass/Grass 24.webp",
+    "textures/Tiny Pack 1/Grass/Grass 25.webp",
+    "textures/Tiny Pack 1/Grass/Grass 3.webp",
+    "textures/Tiny Pack 1/Grass/Grass 4.webp",
+    "textures/Tiny Pack 1/Grass/Grass 5.webp",
+    "textures/Tiny Pack 1/Grass/Grass 6.webp",
+    "textures/Tiny Pack 1/Grass/Grass 7.webp",
+    "textures/Tiny Pack 1/Grass/Grass 8.webp",
+    "textures/Tiny Pack 1/Grass/Grass 9.webp",
+    "textures/Tiny Pack 1/LICENSE.txt",
+    "textures/Tiny Pack 1/Roofs/Roof 1.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 10.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 11.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 12.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 13.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 14.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 15.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 16.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 17.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 18.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 19.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 2.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 20.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 21.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 22.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 23.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 24.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 25.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 3.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 4.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 5.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 6.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 7.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 8.webp",
+    "textures/Tiny Pack 1/Roofs/Roof 9.webp",
+    "textures/Tiny Pack 1/Tile/Tile 1.webp",
+    "textures/Tiny Pack 1/Tile/Tile 10.webp",
+    "textures/Tiny Pack 1/Tile/Tile 11.webp",
+    "textures/Tiny Pack 1/Tile/Tile 12.webp",
+    "textures/Tiny Pack 1/Tile/Tile 13.webp",
+    "textures/Tiny Pack 1/Tile/Tile 14.webp",
+    "textures/Tiny Pack 1/Tile/Tile 15.webp",
+    "textures/Tiny Pack 1/Tile/Tile 16.webp",
+    "textures/Tiny Pack 1/Tile/Tile 17.webp",
+    "textures/Tiny Pack 1/Tile/Tile 18.webp",
+    "textures/Tiny Pack 1/Tile/Tile 19.webp",
+    "textures/Tiny Pack 1/Tile/Tile 2.webp",
+    "textures/Tiny Pack 1/Tile/Tile 20.webp",
+    "textures/Tiny Pack 1/Tile/Tile 21.webp",
+    "textures/Tiny Pack 1/Tile/Tile 22.webp",
+    "textures/Tiny Pack 1/Tile/Tile 23.webp",
+    "textures/Tiny Pack 1/Tile/Tile 24.webp",
+    "textures/Tiny Pack 1/Tile/Tile 25.webp",
+    "textures/Tiny Pack 1/Tile/Tile 3.webp",
+    "textures/Tiny Pack 1/Tile/Tile 4.webp",
+    "textures/Tiny Pack 1/Tile/Tile 5.webp",
+    "textures/Tiny Pack 1/Tile/Tile 6.webp",
+    "textures/Tiny Pack 1/Tile/Tile 7.webp",
+    "textures/Tiny Pack 1/Tile/Tile 8.webp",
+    "textures/Tiny Pack 1/Tile/Tile 9.webp",
+    "textures/Tiny Pack 1/Wood/Wood 1.webp",
+    "textures/Tiny Pack 1/Wood/Wood 10.webp",
+    "textures/Tiny Pack 1/Wood/Wood 11.webp",
+    "textures/Tiny Pack 1/Wood/Wood 12.webp",
+    "textures/Tiny Pack 1/Wood/Wood 13.webp",
+    "textures/Tiny Pack 1/Wood/Wood 14.webp",
+    "textures/Tiny Pack 1/Wood/Wood 15.webp",
+    "textures/Tiny Pack 1/Wood/Wood 16.webp",
+    "textures/Tiny Pack 1/Wood/Wood 17.webp",
+    "textures/Tiny Pack 1/Wood/Wood 18.webp",
+    "textures/Tiny Pack 1/Wood/Wood 19.webp",
+    "textures/Tiny Pack 1/Wood/Wood 2.webp",
+    "textures/Tiny Pack 1/Wood/Wood 20.webp",
+    "textures/Tiny Pack 1/Wood/Wood 21.webp",
+    "textures/Tiny Pack 1/Wood/Wood 22.webp",
+    "textures/Tiny Pack 1/Wood/Wood 23.webp",
+    "textures/Tiny Pack 1/Wood/Wood 24.webp",
+    "textures/Tiny Pack 1/Wood/Wood 25.webp",
+    "textures/Tiny Pack 1/Wood/Wood 3.webp",
+    "textures/Tiny Pack 1/Wood/Wood 4.webp",
+    "textures/Tiny Pack 1/Wood/Wood 5.webp",
+    "textures/Tiny Pack 1/Wood/Wood 6.webp",
+    "textures/Tiny Pack 1/Wood/Wood 7.webp",
+    "textures/Tiny Pack 1/Wood/Wood 8.webp",
+    "textures/Tiny Pack 1/Wood/Wood 9.webp",
+    "textures/Tiny Pack 2/Brick/Brick_01.webp",
+    "textures/Tiny Pack 2/Brick/Brick_02.webp",
+    "textures/Tiny Pack 2/Brick/Brick_03.webp",
+    "textures/Tiny Pack 2/Brick/Brick_04.webp",
+    "textures/Tiny Pack 2/Brick/Brick_05.webp",
+    "textures/Tiny Pack 2/Brick/Brick_06.webp",
+    "textures/Tiny Pack 2/Brick/Brick_07.webp",
+    "textures/Tiny Pack 2/Brick/Brick_08.webp",
+    "textures/Tiny Pack 2/Brick/Brick_09.webp",
+    "textures/Tiny Pack 2/Brick/Brick_10.webp",
+    "textures/Tiny Pack 2/Brick/Brick_11.webp",
+    "textures/Tiny Pack 2/Brick/Brick_12.webp",
+    "textures/Tiny Pack 2/Brick/Brick_13.webp",
+    "textures/Tiny Pack 2/Brick/Brick_14.webp",
+    "textures/Tiny Pack 2/Brick/Brick_15.webp",
+    "textures/Tiny Pack 2/Brick/Brick_16.webp",
+    "textures/Tiny Pack 2/Brick/Brick_17.webp",
+    "textures/Tiny Pack 2/Brick/Brick_18.webp",
+    "textures/Tiny Pack 2/Brick/Brick_19.webp",
+    "textures/Tiny Pack 2/Brick/Brick_20.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_01.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_02.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_03.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_04.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_05.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_06.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_07.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_08.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_09.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_10.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_11.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_12.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_13.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_14.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_15.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_16.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_17.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_18.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_19.webp",
+    "textures/Tiny Pack 2/Dirt/Dirt_20.webp",
+    "textures/Tiny Pack 2/Elements/Elements_01.webp",
+    "textures/Tiny Pack 2/Elements/Elements_02.webp",
+    "textures/Tiny Pack 2/Elements/Elements_03.webp",
+    "textures/Tiny Pack 2/Elements/Elements_04.webp",
+    "textures/Tiny Pack 2/Elements/Elements_05.webp",
+    "textures/Tiny Pack 2/Elements/Elements_06.webp",
+    "textures/Tiny Pack 2/Elements/Elements_07.webp",
+    "textures/Tiny Pack 2/Elements/Elements_08.webp",
+    "textures/Tiny Pack 2/Elements/Elements_09.webp",
+    "textures/Tiny Pack 2/Elements/Elements_10.webp",
+    "textures/Tiny Pack 2/Elements/Elements_11.webp",
+    "textures/Tiny Pack 2/Elements/Elements_12.webp",
+    "textures/Tiny Pack 2/Elements/Elements_13.webp",
+    "textures/Tiny Pack 2/Elements/Elements_14.webp",
+    "textures/Tiny Pack 2/Elements/Elements_15.webp",
+    "textures/Tiny Pack 2/Elements/Elements_16.webp",
+    "textures/Tiny Pack 2/Elements/Elements_17.webp",
+    "textures/Tiny Pack 2/Elements/Elements_18.webp",
+    "textures/Tiny Pack 2/Elements/Elements_19.webp",
+    "textures/Tiny Pack 2/Elements/Elements_20.webp",
+    "textures/Tiny Pack 2/LICENSE.txt",
+    "textures/Tiny Pack 2/Metal/Metal_01.webp",
+    "textures/Tiny Pack 2/Metal/Metal_02.webp",
+    "textures/Tiny Pack 2/Metal/Metal_03.webp",
+    "textures/Tiny Pack 2/Metal/Metal_04.webp",
+    "textures/Tiny Pack 2/Metal/Metal_05.webp",
+    "textures/Tiny Pack 2/Metal/Metal_06.webp",
+    "textures/Tiny Pack 2/Metal/Metal_07.webp",
+    "textures/Tiny Pack 2/Metal/Metal_08.webp",
+    "textures/Tiny Pack 2/Metal/Metal_09.webp",
+    "textures/Tiny Pack 2/Metal/Metal_10.webp",
+    "textures/Tiny Pack 2/Metal/Metal_11.webp",
+    "textures/Tiny Pack 2/Metal/Metal_12.webp",
+    "textures/Tiny Pack 2/Metal/Metal_13.webp",
+    "textures/Tiny Pack 2/Metal/Metal_14.webp",
+    "textures/Tiny Pack 2/Metal/Metal_15.webp",
+    "textures/Tiny Pack 2/Metal/Metal_16.webp",
+    "textures/Tiny Pack 2/Metal/Metal_17.webp",
+    "textures/Tiny Pack 2/Metal/Metal_18.webp",
+    "textures/Tiny Pack 2/Metal/Metal_19.webp",
+    "textures/Tiny Pack 2/Metal/Metal_20.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_01.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_02.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_03.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_04.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_05.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_06.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_07.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_08.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_09.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_10.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_11.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_12.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_13.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_14.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_15.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_16.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_17.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_18.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_19.webp",
+    "textures/Tiny Pack 2/Plaster/Plaster_20.webp",
+    "textures/Tiny Pack 2/Stone/Stone_01.webp",
+    "textures/Tiny Pack 2/Stone/Stone_02.webp",
+    "textures/Tiny Pack 2/Stone/Stone_03.webp",
+    "textures/Tiny Pack 2/Stone/Stone_04.webp",
+    "textures/Tiny Pack 2/Stone/Stone_05.webp",
+    "textures/Tiny Pack 2/Stone/Stone_06.webp",
+    "textures/Tiny Pack 2/Stone/Stone_07.webp",
+    "textures/Tiny Pack 2/Stone/Stone_08.webp",
+    "textures/Tiny Pack 2/Stone/Stone_09.webp",
+    "textures/Tiny Pack 2/Stone/Stone_10.webp",
+    "textures/Tiny Pack 2/Stone/Stone_11.webp",
+    "textures/Tiny Pack 2/Stone/Stone_12.webp",
+    "textures/Tiny Pack 2/Stone/Stone_13.webp",
+    "textures/Tiny Pack 2/Stone/Stone_14.webp",
+    "textures/Tiny Pack 2/Stone/Stone_15.webp",
+    "textures/Tiny Pack 2/Stone/Stone_16.webp",
+    "textures/Tiny Pack 2/Stone/Stone_17.webp",
+    "textures/Tiny Pack 2/Stone/Stone_18.webp",
+    "textures/Tiny Pack 2/Stone/Stone_19.webp",
+    "textures/Tiny Pack 2/Stone/Stone_20.webp",
+    "textures/Tiny Pack 2/Tile/Tile_01.webp",
+    "textures/Tiny Pack 2/Tile/Tile_02.webp",
+    "textures/Tiny Pack 2/Tile/Tile_03.webp",
+    "textures/Tiny Pack 2/Tile/Tile_04.webp",
+    "textures/Tiny Pack 2/Tile/Tile_05.webp",
+    "textures/Tiny Pack 2/Tile/Tile_06.webp",
+    "textures/Tiny Pack 2/Tile/Tile_07.webp",
+    "textures/Tiny Pack 2/Tile/Tile_08.webp",
+    "textures/Tiny Pack 2/Tile/Tile_09.webp",
+    "textures/Tiny Pack 2/Tile/Tile_10.webp",
+    "textures/Tiny Pack 2/Tile/Tile_11.webp",
+    "textures/Tiny Pack 2/Tile/Tile_12.webp",
+    "textures/Tiny Pack 2/Tile/Tile_13.webp",
+    "textures/Tiny Pack 2/Tile/Tile_14.webp",
+    "textures/Tiny Pack 2/Tile/Tile_15.webp",
+    "textures/Tiny Pack 2/Tile/Tile_16.webp",
+    "textures/Tiny Pack 2/Tile/Tile_17.webp",
+    "textures/Tiny Pack 2/Tile/Tile_18.webp",
+    "textures/Tiny Pack 2/Tile/Tile_19.webp",
+    "textures/Tiny Pack 2/Tile/Tile_20.webp",
+    "textures/Tiny Pack 2/Wood/Wood_01.webp",
+    "textures/Tiny Pack 2/Wood/Wood_02.webp",
+    "textures/Tiny Pack 2/Wood/Wood_03.webp",
+    "textures/Tiny Pack 2/Wood/Wood_04.webp",
+    "textures/Tiny Pack 2/Wood/Wood_05.webp",
+    "textures/Tiny Pack 2/Wood/Wood_06.webp",
+    "textures/Tiny Pack 2/Wood/Wood_07.webp",
+    "textures/Tiny Pack 2/Wood/Wood_08.webp",
+    "textures/Tiny Pack 2/Wood/Wood_09.webp",
+    "textures/Tiny Pack 2/Wood/Wood_10.webp",
+    "textures/Tiny Pack 2/Wood/Wood_11.webp",
+    "textures/Tiny Pack 2/Wood/Wood_12.webp",
+    "textures/Tiny Pack 2/Wood/Wood_13.webp",
+    "textures/Tiny Pack 2/Wood/Wood_14.webp",
+    "textures/Tiny Pack 2/Wood/Wood_15.webp",
+    "textures/Tiny Pack 2/Wood/Wood_16.webp",
+    "textures/Tiny Pack 2/Wood/Wood_17.webp",
+    "textures/Tiny Pack 2/Wood/Wood_18.webp",
+    "textures/Tiny Pack 2/Wood/Wood_19.webp",
+    "textures/Tiny Pack 2/Wood/Wood_20.webp",
+    "textures/Tiny Pack 3/Animal/Animal_01.webp",
+    "textures/Tiny Pack 3/Animal/Animal_02.webp",
+    "textures/Tiny Pack 3/Animal/Animal_03.webp",
+    "textures/Tiny Pack 3/Animal/Animal_04.webp",
+    "textures/Tiny Pack 3/Animal/Animal_05.webp",
+    "textures/Tiny Pack 3/Animal/Animal_06.webp",
+    "textures/Tiny Pack 3/Animal/Animal_07.webp",
+    "textures/Tiny Pack 3/Animal/Animal_08.webp",
+    "textures/Tiny Pack 3/Animal/Animal_09.webp",
+    "textures/Tiny Pack 3/Animal/Animal_10.webp",
+    "textures/Tiny Pack 3/Animal/Animal_11.webp",
+    "textures/Tiny Pack 3/Animal/Animal_12.webp",
+    "textures/Tiny Pack 3/Animal/Animal_13.webp",
+    "textures/Tiny Pack 3/Animal/Animal_14.webp",
+    "textures/Tiny Pack 3/Animal/Animal_15.webp",
+    "textures/Tiny Pack 3/Animal/Animal_16.webp",
+    "textures/Tiny Pack 3/Animal/Animal_17.webp",
+    "textures/Tiny Pack 3/Animal/Animal_18.webp",
+    "textures/Tiny Pack 3/Animal/Animal_19.webp",
+    "textures/Tiny Pack 3/Animal/Animal_20.webp",
+    "textures/Tiny Pack 3/Animal/Animal_21.webp",
+    "textures/Tiny Pack 3/Animal/Animal_22.webp",
+    "textures/Tiny Pack 3/Animal/Animal_23.webp",
+    "textures/Tiny Pack 3/Animal/Animal_24.webp",
+    "textures/Tiny Pack 3/Box/Box_01.webp",
+    "textures/Tiny Pack 3/Box/Box_02.webp",
+    "textures/Tiny Pack 3/Box/Box_03.webp",
+    "textures/Tiny Pack 3/Box/Box_04.webp",
+    "textures/Tiny Pack 3/Box/Box_05.webp",
+    "textures/Tiny Pack 3/Box/Box_06.webp",
+    "textures/Tiny Pack 3/Box/Box_07.webp",
+    "textures/Tiny Pack 3/Box/Box_08.webp",
+    "textures/Tiny Pack 3/Box/Box_09.webp",
+    "textures/Tiny Pack 3/Box/Box_10.webp",
+    "textures/Tiny Pack 3/Box/Box_11.webp",
+    "textures/Tiny Pack 3/Box/Box_12.webp",
+    "textures/Tiny Pack 3/Box/Box_13.webp",
+    "textures/Tiny Pack 3/Box/Box_14.webp",
+    "textures/Tiny Pack 3/Box/Box_15.webp",
+    "textures/Tiny Pack 3/Box/Box_16.webp",
+    "textures/Tiny Pack 3/Box/Box_17.webp",
+    "textures/Tiny Pack 3/Box/Box_18.webp",
+    "textures/Tiny Pack 3/Box/Box_19.webp",
+    "textures/Tiny Pack 3/Box/Box_20.webp",
+    "textures/Tiny Pack 3/Box/Box_21.webp",
+    "textures/Tiny Pack 3/Box/Box_22.webp",
+    "textures/Tiny Pack 3/Box/Box_23.webp",
+    "textures/Tiny Pack 3/Box/Box_24.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_01.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_02.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_03.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_04.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_05.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_06.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_07.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_08.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_09.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_10.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_11.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_12.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_13.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_14.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_15.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_16.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_17.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_18.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_19.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_20.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_21.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_22.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_23.webp",
+    "textures/Tiny Pack 3/Cloth/Cloth_24.webp",
+    "textures/Tiny Pack 3/Elements/Elements_01.webp",
+    "textures/Tiny Pack 3/Elements/Elements_02.webp",
+    "textures/Tiny Pack 3/Elements/Elements_03.webp",
+    "textures/Tiny Pack 3/Elements/Elements_04.webp",
+    "textures/Tiny Pack 3/Elements/Elements_05.webp",
+    "textures/Tiny Pack 3/Elements/Elements_06.webp",
+    "textures/Tiny Pack 3/Elements/Elements_07.webp",
+    "textures/Tiny Pack 3/Elements/Elements_08.webp",
+    "textures/Tiny Pack 3/Elements/Elements_09.webp",
+    "textures/Tiny Pack 3/Elements/Elements_10.webp",
+    "textures/Tiny Pack 3/Elements/Elements_11.webp",
+    "textures/Tiny Pack 3/Elements/Elements_12.webp",
+    "textures/Tiny Pack 3/Elements/Elements_13.webp",
+    "textures/Tiny Pack 3/Elements/Elements_14.webp",
+    "textures/Tiny Pack 3/Elements/Elements_15.webp",
+    "textures/Tiny Pack 3/Elements/Elements_16.webp",
+    "textures/Tiny Pack 3/Elements/Elements_17.webp",
+    "textures/Tiny Pack 3/Elements/Elements_18.webp",
+    "textures/Tiny Pack 3/Elements/Elements_19.webp",
+    "textures/Tiny Pack 3/Elements/Elements_20.webp",
+    "textures/Tiny Pack 3/Elements/Elements_21.webp",
+    "textures/Tiny Pack 3/Elements/Elements_22.webp",
+    "textures/Tiny Pack 3/Elements/Elements_23.webp",
+    "textures/Tiny Pack 3/Elements/Elements_24.webp",
+    "textures/Tiny Pack 3/Gem/Gem_01.webp",
+    "textures/Tiny Pack 3/Gem/Gem_02.webp",
+    "textures/Tiny Pack 3/Gem/Gem_03.webp",
+    "textures/Tiny Pack 3/Gem/Gem_04.webp",
+    "textures/Tiny Pack 3/Gem/Gem_05.webp",
+    "textures/Tiny Pack 3/Gem/Gem_06.webp",
+    "textures/Tiny Pack 3/Gem/Gem_07.webp",
+    "textures/Tiny Pack 3/Gem/Gem_08.webp",
+    "textures/Tiny Pack 3/Gem/Gem_09.webp",
+    "textures/Tiny Pack 3/Gem/Gem_10.webp",
+    "textures/Tiny Pack 3/Gem/Gem_11.webp",
+    "textures/Tiny Pack 3/Gem/Gem_12.webp",
+    "textures/Tiny Pack 3/Gem/Gem_13.webp",
+    "textures/Tiny Pack 3/Gem/Gem_14.webp",
+    "textures/Tiny Pack 3/Gem/Gem_15.webp",
+    "textures/Tiny Pack 3/Gem/Gem_16.webp",
+    "textures/Tiny Pack 3/Gem/Gem_17.webp",
+    "textures/Tiny Pack 3/Gem/Gem_18.webp",
+    "textures/Tiny Pack 3/Gem/Gem_19.webp",
+    "textures/Tiny Pack 3/Gem/Gem_20.webp",
+    "textures/Tiny Pack 3/Gem/Gem_21.webp",
+    "textures/Tiny Pack 3/Gem/Gem_22.webp",
+    "textures/Tiny Pack 3/Gem/Gem_23.webp",
+    "textures/Tiny Pack 3/Gem/Gem_24.webp",
+    "textures/Tiny Pack 3/Grating/Grating_01.webp",
+    "textures/Tiny Pack 3/Grating/Grating_02.webp",
+    "textures/Tiny Pack 3/Grating/Grating_03.webp",
+    "textures/Tiny Pack 3/Grating/Grating_04.webp",
+    "textures/Tiny Pack 3/Grating/Grating_05.webp",
+    "textures/Tiny Pack 3/Grating/Grating_06.webp",
+    "textures/Tiny Pack 3/Grating/Grating_07.webp",
+    "textures/Tiny Pack 3/Grating/Grating_08.webp",
+    "textures/Tiny Pack 3/Grating/Grating_09.webp",
+    "textures/Tiny Pack 3/Grating/Grating_10.webp",
+    "textures/Tiny Pack 3/Grating/Grating_11.webp",
+    "textures/Tiny Pack 3/Grating/Grating_12.webp",
+    "textures/Tiny Pack 3/Grating/Grating_13.webp",
+    "textures/Tiny Pack 3/Grating/Grating_14.webp",
+    "textures/Tiny Pack 3/Grating/Grating_15.webp",
+    "textures/Tiny Pack 3/Grating/Grating_16.webp",
+    "textures/Tiny Pack 3/Grating/Grating_17.webp",
+    "textures/Tiny Pack 3/Grating/Grating_18.webp",
+    "textures/Tiny Pack 3/Grating/Grating_19.webp",
+    "textures/Tiny Pack 3/Grating/Grating_20.webp",
+    "textures/Tiny Pack 3/Grating/Grating_21.webp",
+    "textures/Tiny Pack 3/Grating/Grating_22.webp",
+    "textures/Tiny Pack 3/Grating/Grating_23.webp",
+    "textures/Tiny Pack 3/Grating/Grating_24.webp",
+    "textures/Tiny Pack 3/LICENSE.txt",
+    "textures/Tiny Pack 3/Metal/Metal_01.webp",
+    "textures/Tiny Pack 3/Metal/Metal_02.webp",
+    "textures/Tiny Pack 3/Metal/Metal_03.webp",
+    "textures/Tiny Pack 3/Metal/Metal_04.webp",
+    "textures/Tiny Pack 3/Metal/Metal_05.webp",
+    "textures/Tiny Pack 3/Metal/Metal_06.webp",
+    "textures/Tiny Pack 3/Metal/Metal_07.webp",
+    "textures/Tiny Pack 3/Metal/Metal_08.webp",
+    "textures/Tiny Pack 3/Metal/Metal_09.webp",
+    "textures/Tiny Pack 3/Metal/Metal_10.webp",
+    "textures/Tiny Pack 3/Metal/Metal_11.webp",
+    "textures/Tiny Pack 3/Metal/Metal_12.webp",
+    "textures/Tiny Pack 3/Metal/Metal_13.webp",
+    "textures/Tiny Pack 3/Metal/Metal_14.webp",
+    "textures/Tiny Pack 3/Metal/Metal_15.webp",
+    "textures/Tiny Pack 3/Metal/Metal_16.webp",
+    "textures/Tiny Pack 3/Metal/Metal_17.webp",
+    "textures/Tiny Pack 3/Metal/Metal_18.webp",
+    "textures/Tiny Pack 3/Metal/Metal_19.webp",
+    "textures/Tiny Pack 3/Metal/Metal_20.webp",
+    "textures/Tiny Pack 3/Metal/Metal_21.webp",
+    "textures/Tiny Pack 3/Metal/Metal_22.webp",
+    "textures/Tiny Pack 3/Metal/Metal_23.webp",
+    "textures/Tiny Pack 3/Metal/Metal_24.webp",
+    "textures/Tiny Pack 3/Stone/Stone_01.webp",
+    "textures/Tiny Pack 3/Stone/Stone_02.webp",
+    "textures/Tiny Pack 3/Stone/Stone_03.webp",
+    "textures/Tiny Pack 3/Stone/Stone_04.webp",
+    "textures/Tiny Pack 3/Stone/Stone_05.webp",
+    "textures/Tiny Pack 3/Stone/Stone_06.webp",
+    "textures/Tiny Pack 3/Stone/Stone_07.webp",
+    "textures/Tiny Pack 3/Stone/Stone_08.webp",
+    "textures/Tiny Pack 3/Stone/Stone_09.webp",
+    "textures/Tiny Pack 3/Stone/Stone_10.webp",
+    "textures/Tiny Pack 3/Stone/Stone_11.webp",
+    "textures/Tiny Pack 3/Stone/Stone_12.webp",
+    "textures/Tiny Pack 3/Stone/Stone_13.webp",
+    "textures/Tiny Pack 3/Stone/Stone_14.webp",
+    "textures/Tiny Pack 3/Stone/Stone_15.webp",
+    "textures/Tiny Pack 3/Stone/Stone_16.webp",
+    "textures/Tiny Pack 3/Stone/Stone_17.webp",
+    "textures/Tiny Pack 3/Stone/Stone_18.webp",
+    "textures/Tiny Pack 3/Stone/Stone_19.webp",
+    "textures/Tiny Pack 3/Stone/Stone_20.webp",
+    "textures/Tiny Pack 3/Stone/Stone_21.webp",
+    "textures/Tiny Pack 3/Stone/Stone_22.webp",
+    "textures/Tiny Pack 3/Stone/Stone_23.webp",
+    "textures/Tiny Pack 3/Stone/Stone_24.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_01.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_02.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_03.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_04.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_05.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_06.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_07.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_08.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_09.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_10.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_11.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_12.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_13.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_14.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_15.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_16.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_17.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_18.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_19.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_20.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_21.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_22.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_23.webp",
+    "textures/Tiny Pack 3/Terrain/Terrain_24.webp",
+    "textures/Tiny Pack 3/Weave/Weave_01.webp",
+    "textures/Tiny Pack 3/Weave/Weave_02.webp",
+    "textures/Tiny Pack 3/Weave/Weave_03.webp",
+    "textures/Tiny Pack 3/Weave/Weave_04.webp",
+    "textures/Tiny Pack 3/Weave/Weave_05.webp",
+    "textures/Tiny Pack 3/Weave/Weave_06.webp",
+    "textures/Tiny Pack 3/Weave/Weave_07.webp",
+    "textures/Tiny Pack 3/Weave/Weave_08.webp",
+    "textures/Tiny Pack 3/Weave/Weave_09.webp",
+    "textures/Tiny Pack 3/Weave/Weave_10.webp",
+    "textures/Tiny Pack 3/Weave/Weave_11.webp",
+    "textures/Tiny Pack 3/Weave/Weave_12.webp",
+    "textures/Tiny Pack 3/Weave/Weave_13.webp",
+    "textures/Tiny Pack 3/Weave/Weave_14.webp",
+    "textures/Tiny Pack 3/Weave/Weave_15.webp",
+    "textures/Tiny Pack 3/Weave/Weave_16.webp",
+    "textures/Tiny Pack 3/Weave/Weave_17.webp",
+    "textures/Tiny Pack 3/Weave/Weave_18.webp",
+    "textures/Tiny Pack 3/Weave/Weave_19.webp",
+    "textures/Tiny Pack 3/Weave/Weave_20.webp",
+    "textures/Tiny Pack 3/Weave/Weave_21.webp",
+    "textures/Tiny Pack 3/Weave/Weave_22.webp",
+    "textures/Tiny Pack 3/Weave/Weave_23.webp",
+    "textures/Tiny Pack 3/Weave/Weave_24.webp"
+  ],
+  "modelSizes": {
+    "buildings/Town/1Story GableRoof.glb": {
+      "width": 5.05,
+      "depth": 5.71
+    },
+    "buildings/Town/1Story RoundRoof.glb": {
+      "width": 5.01,
+      "depth": 5.1
+    },
+    "buildings/Town/1Story Sign.glb": {
+      "width": 5.17,
+      "depth": 5.17
+    },
+    "buildings/Town/1Story.glb": {
+      "width": 5.17,
+      "depth": 5.22
+    },
+    "buildings/Town/2Story 2.glb": {
+      "width": 5.18,
+      "depth": 5.22
+    },
+    "buildings/Town/2Story Balcony.glb": {
+      "width": 5.18,
+      "depth": 6.08
+    },
+    "buildings/Town/2Story Center.glb": {
+      "width": 5.81,
+      "depth": 6
+    },
+    "buildings/Town/2Story Columns.glb": {
+      "width": 5.18,
+      "depth": 5.97
+    },
+    "buildings/Town/2Story Double.glb": {
+      "width": 5.81,
+      "depth": 6.08
+    },
+    "buildings/Town/2Story GableRoof.glb": {
+      "width": 5.18,
+      "depth": 5.71
+    },
+    "buildings/Town/2Story RoundRoof.glb": {
+      "width": 5.07,
+      "depth": 5.1
+    },
+    "buildings/Town/2Story Sidehouse.glb": {
+      "width": 8.32,
+      "depth": 6.08
+    },
+    "buildings/Town/2Story Sign.glb": {
+      "width": 5.17,
+      "depth": 5.17
+    },
+    "buildings/Town/2Story Slim.glb": {
+      "width": 2.68,
+      "depth": 5.17
+    },
+    "buildings/Town/2Story Stairs.glb": {
+      "width": 5.18,
+      "depth": 6.08
+    },
+    "buildings/Town/2Story Wide 2Doors.glb": {
+      "width": 16.39,
+      "depth": 5.41
+    },
+    "buildings/Town/2Story Wide.glb": {
+      "width": 9.18,
+      "depth": 5.41
+    },
+    "buildings/Town/2Story.glb": {
+      "width": 5.18,
+      "depth": 6.08
+    },
+    "buildings/Town/3Story Balcony.glb": {
+      "width": 5.18,
+      "depth": 6.02
+    },
+    "buildings/Town/3Story Slim.glb": {
+      "width": 2.68,
+      "depth": 5.17
+    },
+    "buildings/Town/3Story Small.glb": {
+      "width": 4.58,
+      "depth": 4.93
+    },
+    "buildings/Town/4Story Center.glb": {
+      "width": 5.81,
+      "depth": 6.08
+    },
+    "buildings/Town/4Story Wide 2Doors Roof.glb": {
+      "width": 16.39,
+      "depth": 6.47
+    },
+    "buildings/Town/4Story Wide 2Doors.glb": {
+      "width": 16.39,
+      "depth": 6.47
+    },
+    "buildings/Town/4Story.glb": {
+      "width": 5.81,
+      "depth": 6.08
+    },
+    "buildings/Town/6Story Stack.glb": {
+      "width": 5.18,
+      "depth": 6
+    },
+    "characters/DeadProject/Mutant 1.glb": {
+      "width": 1.23,
+      "depth": 1.77
+    },
+    "characters/DeadProject/Mutant 2.glb": {
+      "width": 1.24,
+      "depth": 2.97
+    },
+    "characters/Humans/Grapple Girl.glb": {
+      "width": 2.45,
+      "depth": 1.17
+    },
+    "characters/Mechs/George.glb": {
+      "width": 4.15,
+      "depth": 2.64
+    },
+    "characters/Mechs/Leela.glb": {
+      "width": 3.82,
+      "depth": 2.96
+    },
+    "characters/Mechs/Mike.glb": {
+      "width": 5.51,
+      "depth": 2.03
+    },
+    "characters/Mechs/Stan.glb": {
+      "width": 5.49,
+      "depth": 2.16
+    },
+    "characters/Monsters/Dragon.glb": {
+      "width": 0.37,
+      "depth": 1.21
+    },
+    "characters/Monsters/Fatty.glb": {
+      "width": 6.38,
+      "depth": 2.09
+    },
+    "characters/Monsters/Glutton Demon.glb": {
+      "width": 9.88,
+      "depth": 7.96
+    },
+    "characters/Monsters/Mutant Grunt.glb": {
+      "width": 4.34,
+      "depth": 2.89
+    },
+    "characters/Monsters/Undead Squirrel.glb": {
+      "width": 3.24,
+      "depth": 4.02
+    },
+    "characters/Monsters/Zombie.glb": {
+      "width": 1.56,
+      "depth": 0.59
+    },
+    "characters/RPG Characters/Cleric.glb": {
+      "width": 1.79,
+      "depth": 2.51
+    },
+    "characters/RPG Characters/Monk.glb": {
+      "width": 1.27,
+      "depth": 1.64
+    },
+    "characters/RPG Characters/Ranger.glb": {
+      "width": 1.81,
+      "depth": 1.77
+    },
+    "characters/RPG Characters/Rogue.glb": {
+      "width": 1.56,
+      "depth": 2.08
+    },
+    "characters/RPG Characters/Warrior.glb": {
+      "width": 1.62,
+      "depth": 2.43
+    },
+    "characters/RPG Characters/Wizard.glb": {
+      "width": 1.9,
+      "depth": 2.09
+    },
+    "characters/Robots/BA-2.glb": {
+      "width": 3.98,
+      "depth": 3.31
+    },
+    "characters/Robots/Golem Robot.glb": {
+      "width": 1.53,
+      "depth": 0.85
+    },
+    "characters/Robots/SENTRY-2.glb": {
+      "width": 3.04,
+      "depth": 3.04
+    },
+    "characters/Robots/Turret.glb": {
+      "width": 7.13,
+      "depth": 6.24
+    },
+    "characters/Sci-Fi Essentials/EyeDrone.glb": {
+      "width": 1.9,
+      "depth": 2
+    },
+    "characters/Sci-Fi Essentials/QuadShell.glb": {
+      "width": 2.04,
+      "depth": 2
+    },
+    "characters/Sci-Fi Essentials/Trilobite.glb": {
+      "width": 2.54,
+      "depth": 2.79
+    },
+    "characters/Sci-Fi MegaKit/Cyclop.glb": {
+      "width": 1.9,
+      "depth": 2
+    },
+    "characters/Sci-Fi MegaKit/Oculichrysalis.glb": {
+      "width": 1.9,
+      "depth": 2
+    },
+    "characters/Sci-Fi MegaKit/Scolitex.glb": {
+      "width": 3.64,
+      "depth": 3.46
+    },
+    "decorations/Dungeon/Bag Coins.glb": {
+      "width": 0.44,
+      "depth": 0.22
+    },
+    "decorations/Dungeon/Bag Standing.glb": {
+      "width": 0.22,
+      "depth": 0.21
+    },
+    "decorations/Dungeon/Banner wall.glb": {
+      "width": 1.64,
+      "depth": 0.59
+    },
+    "decorations/Dungeon/Banner.glb": {
+      "width": 2.36,
+      "depth": 0.22
+    },
+    "decorations/Dungeon/Barrel.glb": {
+      "width": 1.04,
+      "depth": 1.03
+    },
+    "decorations/Dungeon/Barrel2.glb": {
+      "width": 1.03,
+      "depth": 1.02
+    },
+    "decorations/Dungeon/Bucket.glb": {
+      "width": 0.38,
+      "depth": 0.4
+    },
+    "decorations/Dungeon/Chair.glb": {
+      "width": 0.63,
+      "depth": 0.7
+    },
+    "decorations/Dungeon/Chest Gold.glb": {
+      "width": 1.18,
+      "depth": 1.62
+    },
+    "decorations/Dungeon/Chest.glb": {
+      "width": 1.18,
+      "depth": 0.82
+    },
+    "decorations/Dungeon/Cobweb.glb": {
+      "width": 1.21,
+      "depth": 0.91
+    },
+    "decorations/Dungeon/Cobweb2.glb": {
+      "width": 1.34,
+      "depth": 1.03
+    },
+    "decorations/Dungeon/Coin Pile.glb": {
+      "width": 0.14,
+      "depth": 0.14
+    },
+    "decorations/Dungeon/Column.glb": {
+      "width": 1.3,
+      "depth": 1.3
+    },
+    "decorations/Dungeon/Column2.glb": {
+      "width": 1.3,
+      "depth": 1.3
+    },
+    "decorations/Dungeon/Crate.glb": {
+      "width": 1.38,
+      "depth": 1.31
+    },
+    "decorations/Dungeon/Pedestal.glb": {
+      "width": 1.95,
+      "depth": 1.96
+    },
+    "decorations/Dungeon/Pedestal2.glb": {
+      "width": 1.74,
+      "depth": 1.74
+    },
+    "decorations/Dungeon/Skull.glb": {
+      "width": 0.6,
+      "depth": 0.44
+    },
+    "decorations/Dungeon/Spikes.glb": {
+      "width": 1.76,
+      "depth": 1.76
+    },
+    "decorations/Dungeon/Statue Horse.glb": {
+      "width": 1.74,
+      "depth": 3.38
+    },
+    "decorations/Dungeon/Sword WallMount.glb": {
+      "width": 1.07,
+      "depth": 0.21
+    },
+    "decorations/Dungeon/Table Big.glb": {
+      "width": 1.58,
+      "depth": 3.3
+    },
+    "decorations/Dungeon/Table Small.glb": {
+      "width": 1.3,
+      "depth": 1.98
+    },
+    "decorations/Dungeon/Torch.glb": {
+      "width": 0.28,
+      "depth": 0.44
+    },
+    "decorations/Dungeon/Trap empty.glb": {
+      "width": 1.99,
+      "depth": 1.99
+    },
+    "decorations/Dungeon/Trap spikes.glb": {
+      "width": 1.99,
+      "depth": 1.99
+    },
+    "decorations/Dungeon/Vase.glb": {
+      "width": 0.31,
+      "depth": 0.31
+    },
+    "decorations/Dungeon/Woodfire.glb": {
+      "width": 0.78,
+      "depth": 0.83
+    },
+    "decorations/Fantasy Props/Anvil Log.glb": {
+      "width": 0.93,
+      "depth": 0.82
+    },
+    "decorations/Fantasy Props/Anvil.glb": {
+      "width": 1.08,
+      "depth": 0.4
+    },
+    "decorations/Fantasy Props/Bag.glb": {
+      "width": 0.66,
+      "depth": 0.54
+    },
+    "decorations/Fantasy Props/Banner 1 Cloth.glb": {
+      "width": 0.81,
+      "depth": 0.06
+    },
+    "decorations/Fantasy Props/Banner 1.glb": {
+      "width": 1.61,
+      "depth": 0.19
+    },
+    "decorations/Fantasy Props/Banner 2 Cloth.glb": {
+      "width": 0.81,
+      "depth": 0.06
+    },
+    "decorations/Fantasy Props/Banner 2.glb": {
+      "width": 1.61,
+      "depth": 0.19
+    },
+    "decorations/Fantasy Props/Barrel Apples.glb": {
+      "width": 0.7,
+      "depth": 0.7
+    },
+    "decorations/Fantasy Props/Barrel Holder.glb": {
+      "width": 1.36,
+      "depth": 0.74
+    },
+    "decorations/Fantasy Props/Barrel.glb": {
+      "width": 0.7,
+      "depth": 0.7
+    },
+    "decorations/Fantasy Props/Bed Twin1.glb": {
+      "width": 1.88,
+      "depth": 2.41
+    },
+    "decorations/Fantasy Props/Bed Twin2.glb": {
+      "width": 1.88,
+      "depth": 2.41
+    },
+    "decorations/Fantasy Props/Bench.glb": {
+      "width": 2.78,
+      "depth": 0.53
+    },
+    "decorations/Fantasy Props/Book 5.glb": {
+      "width": 0.21,
+      "depth": 0.29
+    },
+    "decorations/Fantasy Props/Book 7.glb": {
+      "width": 0.25,
+      "depth": 0.33
+    },
+    "decorations/Fantasy Props/Book Simplified Single.glb": {
+      "width": 0.06,
+      "depth": 0.21
+    },
+    "decorations/Fantasy Props/Book Stack 1.glb": {
+      "width": 0.28,
+      "depth": 0.23
+    },
+    "decorations/Fantasy Props/Book Stack 2.glb": {
+      "width": 0.27,
+      "depth": 0.23
+    },
+    "decorations/Fantasy Props/BookGroup Medium 1.glb": {
+      "width": 1.06,
+      "depth": 0.25
+    },
+    "decorations/Fantasy Props/BookGroup Medium 2.glb": {
+      "width": 1.1,
+      "depth": 0.25
+    },
+    "decorations/Fantasy Props/BookGroup Medium 3.glb": {
+      "width": 1.04,
+      "depth": 0.25
+    },
+    "decorations/Fantasy Props/BookGroup Small 1.glb": {
+      "width": 0.29,
+      "depth": 0.23
+    },
+    "decorations/Fantasy Props/BookGroup Small 2.glb": {
+      "width": 0.23,
+      "depth": 0.24
+    },
+    "decorations/Fantasy Props/BookGroup Small 3.glb": {
+      "width": 0.24,
+      "depth": 0.24
+    },
+    "decorations/Fantasy Props/BookStand.glb": {
+      "width": 0.51,
+      "depth": 0.51
+    },
+    "decorations/Fantasy Props/Bookcase 2.glb": {
+      "width": 1.46,
+      "depth": 0.43
+    },
+    "decorations/Fantasy Props/Bottle 1.glb": {
+      "width": 0.11,
+      "depth": 0.11
+    },
+    "decorations/Fantasy Props/Bucket Metal.glb": {
+      "width": 0.49,
+      "depth": 0.45
+    },
+    "decorations/Fantasy Props/Bucket Wooden 1.glb": {
+      "width": 0.43,
+      "depth": 0.38
+    },
+    "decorations/Fantasy Props/Cabinet.glb": {
+      "width": 1.36,
+      "depth": 0.36
+    },
+    "decorations/Fantasy Props/Cage Small.glb": {
+      "width": 0.85,
+      "depth": 0.88
+    },
+    "decorations/Fantasy Props/Candle 1.glb": {
+      "width": 0.09,
+      "depth": 0.11
+    },
+    "decorations/Fantasy Props/Candle 2.glb": {
+      "width": 0.09,
+      "depth": 0.1
+    },
+    "decorations/Fantasy Props/CandleStick Stand.glb": {
+      "width": 0.73,
+      "depth": 0.73
+    },
+    "decorations/Fantasy Props/CandleStick Triple.glb": {
+      "width": 0.44,
+      "depth": 0.14
+    },
+    "decorations/Fantasy Props/CandleStick.glb": {
+      "width": 0.26,
+      "depth": 0.18
+    },
+    "decorations/Fantasy Props/Carrot.glb": {
+      "width": 0.18,
+      "depth": 0.22
+    },
+    "decorations/Fantasy Props/Cauldron.glb": {
+      "width": 0.99,
+      "depth": 0.94
+    },
+    "decorations/Fantasy Props/Chain Coil.glb": {
+      "width": 1.07,
+      "depth": 0.91
+    },
+    "decorations/Fantasy Props/Chair 1.glb": {
+      "width": 0.58,
+      "depth": 0.55
+    },
+    "decorations/Fantasy Props/Chandelier.glb": {
+      "width": 1.3,
+      "depth": 1.3
+    },
+    "decorations/Fantasy Props/Chest Wood.glb": {
+      "width": 1.9,
+      "depth": 2
+    },
+    "decorations/Fantasy Props/Crate Metal.glb": {
+      "width": 0.86,
+      "depth": 0.87
+    },
+    "decorations/Fantasy Props/Crate Wooden.glb": {
+      "width": 0.84,
+      "depth": 0.91
+    },
+    "decorations/Fantasy Props/Dummy.glb": {
+      "width": 0.81,
+      "depth": 0.58
+    },
+    "decorations/Fantasy Props/FarmCrate Apple.glb": {
+      "width": 0.71,
+      "depth": 0.41
+    },
+    "decorations/Fantasy Props/FarmCrate Carrot.glb": {
+      "width": 0.71,
+      "depth": 0.57
+    },
+    "decorations/Fantasy Props/FarmCrate Empty.glb": {
+      "width": 0.71,
+      "depth": 0.41
+    },
+    "decorations/Fantasy Props/Lantern Wall.glb": {
+      "width": 0.36,
+      "depth": 1.3
+    },
+    "decorations/Fantasy Props/Mug.glb": {
+      "width": 0.19,
+      "depth": 0.15
+    },
+    "decorations/Fantasy Props/Nightstand Shelf.glb": {
+      "width": 0.69,
+      "depth": 0.39
+    },
+    "decorations/Fantasy Props/Peg Rack.glb": {
+      "width": 1.18,
+      "depth": 0.1
+    },
+    "decorations/Fantasy Props/Pot 1 Lid.glb": {
+      "width": 0.54,
+      "depth": 0.49
+    },
+    "decorations/Fantasy Props/Pot 1.glb": {
+      "width": 0.54,
+      "depth": 0.49
+    },
+    "decorations/Fantasy Props/Pouch Large.glb": {
+      "width": 0.23,
+      "depth": 0.12
+    },
+    "decorations/Fantasy Props/Rope 1.glb": {
+      "width": 0.56,
+      "depth": 0.61
+    },
+    "decorations/Fantasy Props/Rope 2.glb": {
+      "width": 0.81,
+      "depth": 0.85
+    },
+    "decorations/Fantasy Props/Rope 3.glb": {
+      "width": 1.23,
+      "depth": 0.95
+    },
+    "decorations/Fantasy Props/Shelf Arch.glb": {
+      "width": 1.25,
+      "depth": 0.31
+    },
+    "decorations/Fantasy Props/Shelf Simple.glb": {
+      "width": 1.18,
+      "depth": 0.29
+    },
+    "decorations/Fantasy Props/Shelf Small Bottles.glb": {
+      "width": 1.14,
+      "depth": 0.28
+    },
+    "decorations/Fantasy Props/SmallBottles 1.glb": {
+      "width": 0.22,
+      "depth": 0.06
+    },
+    "decorations/Fantasy Props/Stall Cart Empty.glb": {
+      "width": 3.02,
+      "depth": 1.06
+    },
+    "decorations/Fantasy Props/Stall Empty.glb": {
+      "width": 1.84,
+      "depth": 0.93
+    },
+    "decorations/Fantasy Props/Stool.glb": {
+      "width": 0.47,
+      "depth": 0.47
+    },
+    "decorations/Fantasy Props/Table Fork.glb": {
+      "width": 0.05,
+      "depth": 0.26
+    },
+    "decorations/Fantasy Props/Table Knife.glb": {
+      "width": 0.04,
+      "depth": 0.29
+    },
+    "decorations/Fantasy Props/Table Large.glb": {
+      "width": 2.85,
+      "depth": 1.1
+    },
+    "decorations/Fantasy Props/Table Plate.glb": {
+      "width": 0.33,
+      "depth": 0.34
+    },
+    "decorations/Fantasy Props/Table Spoon.glb": {
+      "width": 0.05,
+      "depth": 0.27
+    },
+    "decorations/Fantasy Props/Torch Metal.glb": {
+      "width": 0.22,
+      "depth": 0.39
+    },
+    "decorations/Fantasy Props/Vase 2.glb": {
+      "width": 0.69,
+      "depth": 0.69
+    },
+    "decorations/Fantasy Props/Vase 4.glb": {
+      "width": 0.36,
+      "depth": 0.36
+    },
+    "decorations/Fantasy Props/Vase Rubble Medium.glb": {
+      "width": 0.8,
+      "depth": 0.6
+    },
+    "decorations/Fantasy Props/WeaponStand.glb": {
+      "width": 1.39,
+      "depth": 0.98
+    },
+    "decorations/Fantasy Props/Whetstone.glb": {
+      "width": 1.14,
+      "depth": 0.9
+    },
+    "decorations/Fantasy Props/Workbench Drawers.glb": {
+      "width": 0.42,
+      "depth": 0.3
+    },
+    "decorations/Fantasy Props/Workbench.glb": {
+      "width": 2.02,
+      "depth": 1.02
+    },
+    "decorations/Mine/Cable.glb": {
+      "width": 0.13,
+      "depth": 0.02
+    },
+    "decorations/Mine/Chest Top.001.glb": {
+      "width": 0.35,
+      "depth": 0.21
+    },
+    "decorations/Mine/Chest.glb": {
+      "width": 0.35,
+      "depth": 0.22
+    },
+    "decorations/Mine/Coin.glb": {
+      "width": 0.2,
+      "depth": 0.2
+    },
+    "decorations/Mine/Coins 1.glb": {
+      "width": 0.7,
+      "depth": 0.38
+    },
+    "decorations/Mine/Coins 2.glb": {
+      "width": 0.35,
+      "depth": 0.42
+    },
+    "decorations/Mine/Coins 3.glb": {
+      "width": 0.61,
+      "depth": 0.47
+    },
+    "decorations/Mine/Coins 4.glb": {
+      "width": 0.35,
+      "depth": 0.3
+    },
+    "decorations/Mine/Coins 5.glb": {
+      "width": 0.57,
+      "depth": 0.44
+    },
+    "decorations/Mine/Coins 6.glb": {
+      "width": 0.43,
+      "depth": 0.59
+    },
+    "decorations/Mine/Coins 7.glb": {
+      "width": 0.46,
+      "depth": 0.52
+    },
+    "decorations/Mine/Coins 8.glb": {
+      "width": 0.47,
+      "depth": 0.49
+    },
+    "decorations/Mine/Lamp 01.glb": {
+      "width": 0.16,
+      "depth": 0.16
+    },
+    "decorations/Mine/Lamp 02.glb": {
+      "width": 0.14,
+      "depth": 0.14
+    },
+    "decorations/Mine/Lamp 03.glb": {
+      "width": 0.17,
+      "depth": 0.07
+    },
+    "decorations/Mine/Minecart.glb": {
+      "width": 1.88,
+      "depth": 3.25
+    },
+    "decorations/Mine/Rail End Crossing.glb": {
+      "width": 0.05,
+      "depth": 0.68
+    },
+    "decorations/Mine/Rail End.glb": {
+      "width": 0.05,
+      "depth": 0.68
+    },
+    "decorations/Mine/Rail Start Crossing.glb": {
+      "width": 0.05,
+      "depth": 0.71
+    },
+    "decorations/Mine/Rail Start.glb": {
+      "width": 0.06,
+      "depth": 0.71
+    },
+    "decorations/Mine/Rail.glb": {
+      "width": 0.05,
+      "depth": 0.71
+    },
+    "decorations/Mine/Rock 1.glb": {
+      "width": 0.15,
+      "depth": 0.14
+    },
+    "decorations/Mine/Rock 2.glb": {
+      "width": 0.15,
+      "depth": 0.13
+    },
+    "decorations/Mine/Rock 3.glb": {
+      "width": 0.1,
+      "depth": 0.12
+    },
+    "decorations/Mine/Rock 4.glb": {
+      "width": 0.09,
+      "depth": 0.11
+    },
+    "decorations/Mine/Rock 5.glb": {
+      "width": 0.18,
+      "depth": 0.11
+    },
+    "decorations/Mine/Rock 6.glb": {
+      "width": 0.13,
+      "depth": 0.1
+    },
+    "decorations/Mine/Rock 7.glb": {
+      "width": 0.11,
+      "depth": 0.11
+    },
+    "decorations/Mine/Rock 8.glb": {
+      "width": 0.11,
+      "depth": 0.08
+    },
+    "decorations/Mine/Rocks 1.glb": {
+      "width": 0.46,
+      "depth": 0.43
+    },
+    "decorations/Mine/Rocks 2.glb": {
+      "width": 0.39,
+      "depth": 0.29
+    },
+    "decorations/Mine/Rocks 3.glb": {
+      "width": 0.2,
+      "depth": 0.32
+    },
+    "decorations/Mine/Rocks 4.glb": {
+      "width": 0.31,
+      "depth": 0.42
+    },
+    "decorations/Mine/Rocks 5.glb": {
+      "width": 0.49,
+      "depth": 0.42
+    },
+    "decorations/Mine/Rocks 6.glb": {
+      "width": 0.43,
+      "depth": 0.35
+    },
+    "decorations/Mine/Stalag 1.glb": {
+      "width": 0.12,
+      "depth": 0.11
+    },
+    "decorations/Mine/Stalag 2.glb": {
+      "width": 0.12,
+      "depth": 0.11
+    },
+    "decorations/Mine/Stalag 3.glb": {
+      "width": 0.16,
+      "depth": 0.16
+    },
+    "decorations/Mine/Stalag 4.glb": {
+      "width": 0.17,
+      "depth": 0.16
+    },
+    "decorations/Mine/Stalag 5.glb": {
+      "width": 0.16,
+      "depth": 0.16
+    },
+    "decorations/Mine/Stalag 6.glb": {
+      "width": 0.16,
+      "depth": 0.15
+    },
+    "decorations/Mine/Stalag 7.glb": {
+      "width": 0.12,
+      "depth": 0.12
+    },
+    "decorations/Mine/Stalag 8.glb": {
+      "width": 0.12,
+      "depth": 0.12
+    },
+    "decorations/Mine/Stalags 1.glb": {
+      "width": 0.51,
+      "depth": 0.52
+    },
+    "decorations/Mine/Stalags 2.glb": {
+      "width": 0.45,
+      "depth": 0.48
+    },
+    "decorations/Mine/Stalags 3.glb": {
+      "width": 0.47,
+      "depth": 0.51
+    },
+    "decorations/Mine/Stalags 4.glb": {
+      "width": 0.7,
+      "depth": 0.63
+    },
+    "decorations/Mine/Stalags 5.glb": {
+      "width": 0.67,
+      "depth": 0.55
+    },
+    "decorations/Mine/Stalags 6.glb": {
+      "width": 0.39,
+      "depth": 0.4
+    },
+    "decorations/Mine/Wooden 01.glb": {
+      "width": 1.2,
+      "depth": 1.11
+    },
+    "decorations/Mine/Wooden 02.glb": {
+      "width": 1.1,
+      "depth": 0.91
+    },
+    "decorations/Mine/Wooden 03.glb": {
+      "width": 1.1,
+      "depth": 0.1
+    },
+    "decorations/Mine/Wooden 04.glb": {
+      "width": 1.5,
+      "depth": 0.05
+    },
+    "decorations/Mine/Wooden 05.glb": {
+      "width": 1.1,
+      "depth": 0.05
+    },
+    "decorations/Mine/Wooden 06.glb": {
+      "width": 0.84,
+      "depth": 0.06
+    },
+    "decorations/Mine/Wooden 07.glb": {
+      "width": 0.64,
+      "depth": 0.05
+    },
+    "decorations/Mine/Wooden 08.glb": {
+      "width": 0.44,
+      "depth": 0.06
+    },
+    "decorations/Mine/Wooden 09.glb": {
+      "width": 1.48,
+      "depth": 0.05
+    },
+    "decorations/Mine/Wooden 10.glb": {
+      "width": 1.68,
+      "depth": 0.07
+    },
+    "decorations/Mine/Wooden 11.glb": {
+      "width": 1.68,
+      "depth": 0.1
+    },
+    "decorations/Mine/Wooden 12.glb": {
+      "width": 1.48,
+      "depth": 0.09
+    },
+    "decorations/Mine/Wooden 13.glb": {
+      "width": 1.48,
+      "depth": 0.05
+    },
+    "decorations/Mine/Wooden 14.glb": {
+      "width": 1.88,
+      "depth": 0.13
+    },
+    "decorations/Mine/Wooden 15.glb": {
+      "width": 1.78,
+      "depth": 0.05
+    },
+    "decorations/Mine/Wooden 16.glb": {
+      "width": 1.98,
+      "depth": 0.05
+    },
+    "decorations/Mine/Wooden 17.glb": {
+      "width": 0.08,
+      "depth": 0.05
+    },
+    "decorations/Mine/Wooden 18.glb": {
+      "width": 0.08,
+      "depth": 0.05
+    },
+    "decorations/Mine/Wooden 19.glb": {
+      "width": 0.08,
+      "depth": 0.05
+    },
+    "decorations/Mine/Wooden 20.glb": {
+      "width": 0.08,
+      "depth": 1.32
+    },
+    "decorations/Mine/Wooden 21.glb": {
+      "width": 0.14,
+      "depth": 1.63
+    },
+    "decorations/Mine/Wooden 22.glb": {
+      "width": 0.15,
+      "depth": 1.66
+    },
+    "decorations/Mine/Wooden 23.glb": {
+      "width": 0.16,
+      "depth": 1.63
+    },
+    "decorations/Mine/Wooden 24.glb": {
+      "width": 0.16,
+      "depth": 1.69
+    },
+    "decorations/Mine/Wooden 25.glb": {
+      "width": 0.04,
+      "depth": 1.18
+    },
+    "decorations/Mine/Wooden 26.glb": {
+      "width": 0.08,
+      "depth": 0.34
+    },
+    "decorations/Mine/Wooden 27.glb": {
+      "width": 0.08,
+      "depth": 0.72
+    },
+    "decorations/Mine/Wooden 28.glb": {
+      "width": 0.08,
+      "depth": 0.95
+    },
+    "decorations/Mine/Wooden 29.glb": {
+      "width": 0.08,
+      "depth": 1.25
+    },
+    "decorations/Mine/Wooden 30.glb": {
+      "width": 0.08,
+      "depth": 1.55
+    },
+    "decorations/Mine/Wooden 31.glb": {
+      "width": 0.11,
+      "depth": 1.22
+    },
+    "decorations/Mine/Wooden 32.glb": {
+      "width": 0.5,
+      "depth": 1.24
+    },
+    "decorations/Mine/Wooden 33.glb": {
+      "width": 0.55,
+      "depth": 0.98
+    },
+    "decorations/Mine/Wooden 34.glb": {
+      "width": 0.46,
+      "depth": 0.98
+    },
+    "decorations/Mine/Wooden 35.glb": {
+      "width": 0.38,
+      "depth": 0.98
+    },
+    "decorations/Mine/Wooden 36.glb": {
+      "width": 0.11,
+      "depth": 0.89
+    },
+    "decorations/Modular Sci-Fi/Base.glb": {
+      "width": 2.4,
+      "depth": 2.4
+    },
+    "decorations/Modular Sci-Fi/Capsule.glb": {
+      "width": 0.87,
+      "depth": 0.87
+    },
+    "decorations/Modular Sci-Fi/Chest.glb": {
+      "width": 1.29,
+      "depth": 0.81
+    },
+    "decorations/Modular Sci-Fi/Column 1.glb": {
+      "width": 0.68,
+      "depth": 0.68
+    },
+    "decorations/Modular Sci-Fi/Column 2.glb": {
+      "width": 0.68,
+      "depth": 0.68
+    },
+    "decorations/Modular Sci-Fi/Column 3.glb": {
+      "width": 1.37,
+      "depth": 1.37
+    },
+    "decorations/Modular Sci-Fi/Column Slim.glb": {
+      "width": 0.63,
+      "depth": 0.69
+    },
+    "decorations/Modular Sci-Fi/Computer.glb": {
+      "width": 0.58,
+      "depth": 0.64
+    },
+    "decorations/Modular Sci-Fi/ComputerSmall.glb": {
+      "width": 0.75,
+      "depth": 0.46
+    },
+    "decorations/Modular Sci-Fi/ContainerFull.glb": {
+      "width": 1.2,
+      "depth": 0.75
+    },
+    "decorations/Modular Sci-Fi/Crate.glb": {
+      "width": 0.8,
+      "depth": 0.8
+    },
+    "decorations/Modular Sci-Fi/CrateLong.glb": {
+      "width": 1.23,
+      "depth": 0.77
+    },
+    "decorations/Modular Sci-Fi/Laser.glb": {
+      "width": 3.84,
+      "depth": 1.46
+    },
+    "decorations/Modular Sci-Fi/Pod.glb": {
+      "width": 1.81,
+      "depth": 1.81
+    },
+    "decorations/Modular Sci-Fi/Shelf Tall.glb": {
+      "width": 2.06,
+      "depth": 0.81
+    },
+    "decorations/Modular Sci-Fi/Shelf.glb": {
+      "width": 1.79,
+      "depth": 0.81
+    },
+    "decorations/Modular Sci-Fi/Statue.glb": {
+      "width": 1.18,
+      "depth": 1.46
+    },
+    "decorations/Modular Sci-Fi/Teleporter 1.glb": {
+      "width": 1.21,
+      "depth": 1.21
+    },
+    "decorations/Modular Sci-Fi/Teleporter 2.glb": {
+      "width": 1.21,
+      "depth": 1.21
+    },
+    "decorations/Modular Sci-Fi/Vessel Short.glb": {
+      "width": 0.29,
+      "depth": 0.29
+    },
+    "decorations/Modular Sci-Fi/Vessel Tall.glb": {
+      "width": 0.29,
+      "depth": 0.29
+    },
+    "decorations/Modular Sci-Fi/Vessel.glb": {
+      "width": 0.29,
+      "depth": 0.29
+    },
+    "decorations/Pirate/Brass Telescope.glb": {
+      "width": 0.11,
+      "depth": 0.96
+    },
+    "decorations/Pirate/Cannon.glb": {
+      "width": 0.43,
+      "depth": 1.61
+    },
+    "decorations/Pirate/Chest.glb": {
+      "width": 1,
+      "depth": 0.9
+    },
+    "decorations/Pirate/Skull.glb": {
+      "width": 0.2,
+      "depth": 0.16
+    },
+    "decorations/Props/Skull.glb": {
+      "width": 0.39,
+      "depth": 0.36
+    },
+    "decorations/Sci-Fi Essentials/Barrel1.glb": {
+      "width": 0.72,
+      "depth": 0.65
+    },
+    "decorations/Sci-Fi Essentials/Barrel2 Closed.glb": {
+      "width": 0.54,
+      "depth": 0.54
+    },
+    "decorations/Sci-Fi Essentials/Barrel2 Open.glb": {
+      "width": 0.54,
+      "depth": 0.54
+    },
+    "decorations/Sci-Fi Essentials/Chair.glb": {
+      "width": 0.88,
+      "depth": 1.12
+    },
+    "decorations/Sci-Fi Essentials/Chest.glb": {
+      "width": 1.9,
+      "depth": 2
+    },
+    "decorations/Sci-Fi Essentials/Crate Large.glb": {
+      "width": 3.47,
+      "depth": 1.5
+    },
+    "decorations/Sci-Fi Essentials/Crate Tarp Large.glb": {
+      "width": 3.22,
+      "depth": 1.72
+    },
+    "decorations/Sci-Fi Essentials/Crate Tarp.glb": {
+      "width": 1.72,
+      "depth": 1.71
+    },
+    "decorations/Sci-Fi Essentials/Crate.glb": {
+      "width": 1.57,
+      "depth": 1.5
+    },
+    "decorations/Sci-Fi Essentials/Desk L.glb": {
+      "width": 2.22,
+      "depth": 2.22
+    },
+    "decorations/Sci-Fi Essentials/Desk Medium.glb": {
+      "width": 2.84,
+      "depth": 1.03
+    },
+    "decorations/Sci-Fi Essentials/Desk Small.glb": {
+      "width": 2.06,
+      "depth": 1.03
+    },
+    "decorations/Sci-Fi Essentials/Locker.glb": {
+      "width": 0.98,
+      "depth": 0.5
+    },
+    "decorations/Sci-Fi Essentials/Mug.glb": {
+      "width": 0.18,
+      "depth": 0.13
+    },
+    "decorations/Sci-Fi Essentials/SatelliteDish.glb": {
+      "width": 1.84,
+      "depth": 2.78
+    },
+    "decorations/Sci-Fi Essentials/Shelves ThinShort.glb": {
+      "width": 1.37,
+      "depth": 0.54
+    },
+    "decorations/Sci-Fi Essentials/Shelves ThinTall.glb": {
+      "width": 1.37,
+      "depth": 0.54
+    },
+    "decorations/Sci-Fi Essentials/Shelves WideShort.glb": {
+      "width": 1.98,
+      "depth": 0.54
+    },
+    "decorations/Sci-Fi Essentials/Shelves WideTall.glb": {
+      "width": 1.98,
+      "depth": 0.54
+    },
+    "decorations/Sci-Fi MegaKit/AccessPoint.glb": {
+      "width": 0.44,
+      "depth": 1.3
+    },
+    "decorations/Sci-Fi MegaKit/Barrel Large.glb": {
+      "width": 0.51,
+      "depth": 0.53
+    },
+    "decorations/Sci-Fi MegaKit/Chest.glb": {
+      "width": 1.9,
+      "depth": 2.01
+    },
+    "decorations/Sci-Fi MegaKit/Column Astra.glb": {
+      "width": 0.33,
+      "depth": 1.21
+    },
+    "decorations/Sci-Fi MegaKit/Column Hollow.glb": {
+      "width": 1.21,
+      "depth": 1.21
+    },
+    "decorations/Sci-Fi MegaKit/Column Large Straight.glb": {
+      "width": 1.4,
+      "depth": 1.96
+    },
+    "decorations/Sci-Fi MegaKit/Column MetalSupport Curve.glb": {
+      "width": 4.47,
+      "depth": 4.47
+    },
+    "decorations/Sci-Fi MegaKit/Column MetalSupport.glb": {
+      "width": 0.96,
+      "depth": 4
+    },
+    "decorations/Sci-Fi MegaKit/Column Pipes.glb": {
+      "width": 0.87,
+      "depth": 0.87
+    },
+    "decorations/Sci-Fi MegaKit/Column Round.glb": {
+      "width": 1,
+      "depth": 1
+    },
+    "decorations/Sci-Fi MegaKit/Column Simple.glb": {
+      "width": 0.51,
+      "depth": 0.97
+    },
+    "decorations/Sci-Fi MegaKit/Computer.glb": {
+      "width": 0.74,
+      "depth": 0.56
+    },
+    "decorations/Sci-Fi MegaKit/Crate3.glb": {
+      "width": 1,
+      "depth": 1
+    },
+    "decorations/Sci-Fi MegaKit/Crate4.glb": {
+      "width": 1.12,
+      "depth": 1.12
+    },
+    "decorations/Sci-Fi MegaKit/Fan Small Propeller.glb": {
+      "width": 1.06,
+      "depth": 1.15
+    },
+    "decorations/Sci-Fi MegaKit/Fan Small.glb": {
+      "width": 1.9,
+      "depth": 2
+    },
+    "decorations/Sci-Fi MegaKit/ItemHolder.glb": {
+      "width": 1.04,
+      "depth": 1.07
+    },
+    "decorations/Sci-Fi MegaKit/Light Corner.glb": {
+      "width": 4.12,
+      "depth": 4.21
+    },
+    "decorations/Sci-Fi MegaKit/Light Floor.glb": {
+      "width": 1.33,
+      "depth": 0.52
+    },
+    "decorations/Sci-Fi MegaKit/Light Small.glb": {
+      "width": 0.86,
+      "depth": 0.45
+    },
+    "decorations/Sci-Fi MegaKit/Light Wide.glb": {
+      "width": 1.32,
+      "depth": 0.45
+    },
+    "decorations/Sci-Fi MegaKit/Vent Big.glb": {
+      "width": 2,
+      "depth": 0.98
+    },
+    "decorations/Sci-Fi MegaKit/Vent Small.glb": {
+      "width": 1,
+      "depth": 0.62
+    },
+    "decorations/Sci-Fi MegaKit/Vent Wide.glb": {
+      "width": 1.94,
+      "depth": 0.29
+    },
+    "decorations/Survival/BearTrap Closed.glb": {
+      "width": 0.7,
+      "depth": 0.89
+    },
+    "decorations/Survival/BearTrap Open.glb": {
+      "width": 0.75,
+      "depth": 0.89
+    },
+    "decorations/Survival/Bonfire Fire.glb": {
+      "width": 0.54,
+      "depth": 0.5
+    },
+    "decorations/Survival/Bonfire.glb": {
+      "width": 0.54,
+      "depth": 0.5
+    },
+    "decorations/Survival/PropaneTank.glb": {
+      "width": 0.54,
+      "depth": 0.51
+    },
+    "decorations/Survival/Raft.glb": {
+      "width": 2.99,
+      "depth": 5.91
+    },
+    "decorations/Survival/Tent.glb": {
+      "width": 3.65,
+      "depth": 6.22
+    },
+    "decorations/Survival/Trashcan.glb": {
+      "width": 0.93,
+      "depth": 1.21
+    },
+    "decorations/Survival/WoodLog.glb": {
+      "width": 1.16,
+      "depth": 1.14
+    },
+    "decorations/Torches/Pack 1 Torch 1.glb": {
+      "width": 0.31,
+      "depth": 0.3
+    },
+    "decorations/Torches/Pack 1 Torch 2.glb": {
+      "width": 0.31,
+      "depth": 0.3
+    },
+    "decorations/Torches/Pack 1 Torch 3.glb": {
+      "width": 0.4,
+      "depth": 0.24
+    },
+    "decorations/Town/AC Unit.glb": {
+      "width": 0.68,
+      "depth": 0.43
+    },
+    "decorations/Town/AC Unitx4.glb": {
+      "width": 1.45,
+      "depth": 1
+    },
+    "decorations/Town/CasinoSign.glb": {
+      "width": 8.79,
+      "depth": 0.33
+    },
+    "decorations/Town/Sign Bakery.glb": {
+      "width": 5.24,
+      "depth": 0.26
+    },
+    "decorations/Town/Sign Barbershop.glb": {
+      "width": 4.82,
+      "depth": 0.12
+    },
+    "decorations/Town/Sign Bookshop.glb": {
+      "width": 4.39,
+      "depth": 0.82
+    },
+    "decorations/Town/Sign Hardware.glb": {
+      "width": 5.22,
+      "depth": 0.25
+    },
+    "decorations/Town/Sign Pharmacy.glb": {
+      "width": 5.1,
+      "depth": 0.18
+    },
+    "items/Fantasy Props/Axe Bronze.glb": {
+      "width": 0.29,
+      "depth": 0.05
+    },
+    "items/Fantasy Props/Chalice.glb": {
+      "width": 0.12,
+      "depth": 0.12
+    },
+    "items/Fantasy Props/Coin Pile 2.glb": {
+      "width": 0.28,
+      "depth": 0.2
+    },
+    "items/Fantasy Props/Coin Pile.glb": {
+      "width": 0.2,
+      "depth": 0.15
+    },
+    "items/Fantasy Props/Coin.glb": {
+      "width": 0.07,
+      "depth": 0.01
+    },
+    "items/Fantasy Props/Key Gold.glb": {
+      "width": 0.06,
+      "depth": 0.12
+    },
+    "items/Fantasy Props/Key Metal.glb": {
+      "width": 0.05,
+      "depth": 0.11
+    },
+    "items/Fantasy Props/Pickaxe Bronze.glb": {
+      "width": 0.81,
+      "depth": 0.14
+    },
+    "items/Fantasy Props/Potion 1.glb": {
+      "width": 0.11,
+      "depth": 0.11
+    },
+    "items/Fantasy Props/Potion 2.glb": {
+      "width": 0.13,
+      "depth": 0.13
+    },
+    "items/Fantasy Props/Potion 4.glb": {
+      "width": 0.15,
+      "depth": 0.15
+    },
+    "items/Fantasy Props/Scroll 1.glb": {
+      "width": 0.24,
+      "depth": 0.06
+    },
+    "items/Fantasy Props/Scroll 2.glb": {
+      "width": 0.23,
+      "depth": 0.06
+    },
+    "items/Fantasy Props/Shield Wooden.glb": {
+      "width": 0.61,
+      "depth": 0.18
+    },
+    "items/Fantasy Props/SmallBottle.glb": {
+      "width": 0.06,
+      "depth": 0.05
+    },
+    "items/Fantasy Props/Sword Bronze.glb": {
+      "width": 0.27,
+      "depth": 0.07
+    },
+    "items/Guns/AssaultRifle 1.glb": {
+      "width": 0.93,
+      "depth": 0.06
+    },
+    "items/Guns/AssaultRifle 2.glb": {
+      "width": 1.63,
+      "depth": 0.06
+    },
+    "items/Guns/AssaultRifle 3.glb": {
+      "width": 1.03,
+      "depth": 0.06
+    },
+    "items/Guns/AssaultRifle 4.glb": {
+      "width": 1.65,
+      "depth": 0.06
+    },
+    "items/Guns/AssaultRifle 5.glb": {
+      "width": 1.63,
+      "depth": 0.06
+    },
+    "items/Guns/AssaultRifle2 1.glb": {
+      "width": 1.55,
+      "depth": 0.1
+    },
+    "items/Guns/AssaultRifle2 2.glb": {
+      "width": 1.45,
+      "depth": 0.08
+    },
+    "items/Guns/AssaultRifle2 3.glb": {
+      "width": 1.13,
+      "depth": 0.1
+    },
+    "items/Guns/AssaultRifle2 4.glb": {
+      "width": 0.89,
+      "depth": 0.07
+    },
+    "items/Guns/Bayonet 2.glb": {
+      "width": 0.35,
+      "depth": 0.04
+    },
+    "items/Guns/Bayonet.glb": {
+      "width": 0.35,
+      "depth": 0.04
+    },
+    "items/Guns/Bipod.glb": {
+      "width": 0.04,
+      "depth": 0.36
+    },
+    "items/Guns/Bullpup 1.glb": {
+      "width": 1.57,
+      "depth": 0.09
+    },
+    "items/Guns/Bullpup 2.glb": {
+      "width": 1.13,
+      "depth": 0.09
+    },
+    "items/Guns/Bullpup 3.glb": {
+      "width": 1.29,
+      "depth": 0.09
+    },
+    "items/Guns/Flashlight.glb": {
+      "width": 0.12,
+      "depth": 0.1
+    },
+    "items/Guns/Grip.glb": {
+      "width": 0.08,
+      "depth": 0.08
+    },
+    "items/Guns/Pistol 1.glb": {
+      "width": 0.55,
+      "depth": 0.1
+    },
+    "items/Guns/Pistol 2.glb": {
+      "width": 0.55,
+      "depth": 0.1
+    },
+    "items/Guns/Pistol 3.glb": {
+      "width": 0.55,
+      "depth": 0.1
+    },
+    "items/Guns/Pistol 4.glb": {
+      "width": 0.59,
+      "depth": 0.09
+    },
+    "items/Guns/Pistol 5.glb": {
+      "width": 0.55,
+      "depth": 0.08
+    },
+    "items/Guns/Pistol 6.glb": {
+      "width": 0.73,
+      "depth": 0.09
+    },
+    "items/Guns/Revolver 1.glb": {
+      "width": 0.59,
+      "depth": 0.09
+    },
+    "items/Guns/Revolver 2.glb": {
+      "width": 0.59,
+      "depth": 0.09
+    },
+    "items/Guns/Revolver 3.glb": {
+      "width": 0.6,
+      "depth": 0.09
+    },
+    "items/Guns/Revolver 4.glb": {
+      "width": 0.44,
+      "depth": 0.09
+    },
+    "items/Guns/Revolver 5.glb": {
+      "width": 0.57,
+      "depth": 0.09
+    },
+    "items/Guns/Scope 1.glb": {
+      "width": 0.63,
+      "depth": 0.09
+    },
+    "items/Guns/Scope 2.glb": {
+      "width": 0.62,
+      "depth": 0.11
+    },
+    "items/Guns/Scope 3.glb": {
+      "width": 0.58,
+      "depth": 0.11
+    },
+    "items/Guns/Shotgun 1.glb": {
+      "width": 1.56,
+      "depth": 0.07
+    },
+    "items/Guns/Shotgun 2.glb": {
+      "width": 1.74,
+      "depth": 0.07
+    },
+    "items/Guns/Shotgun 3.glb": {
+      "width": 1.74,
+      "depth": 0.07
+    },
+    "items/Guns/Shotgun 4.glb": {
+      "width": 1.63,
+      "depth": 0.06
+    },
+    "items/Guns/Shotgun SawedOff.glb": {
+      "width": 1.11,
+      "depth": 0.13
+    },
+    "items/Guns/Shotgun ShortStock.glb": {
+      "width": 1.34,
+      "depth": 0.07
+    },
+    "items/Guns/Silencer 1.glb": {
+      "width": 0.52,
+      "depth": 0.1
+    },
+    "items/Guns/Silencer 2.glb": {
+      "width": 0.5,
+      "depth": 0.1
+    },
+    "items/Guns/Silencer 3.glb": {
+      "width": 0.53,
+      "depth": 0.1
+    },
+    "items/Guns/Silencer Short.glb": {
+      "width": 0.26,
+      "depth": 0.1
+    },
+    "items/Guns/Silencer long.glb": {
+      "width": 0.8,
+      "depth": 0.1
+    },
+    "items/Guns/SniperRifle 1.glb": {
+      "width": 2.19,
+      "depth": 0.14
+    },
+    "items/Guns/SniperRifle 2.glb": {
+      "width": 2.22,
+      "depth": 0.15
+    },
+    "items/Guns/SniperRifle 3.glb": {
+      "width": 2.17,
+      "depth": 0.13
+    },
+    "items/Guns/SniperRifle 4.glb": {
+      "width": 1.9,
+      "depth": 0.14
+    },
+    "items/Guns/SniperRifle 5.glb": {
+      "width": 1.9,
+      "depth": 0.37
+    },
+    "items/Guns/SniperRifle 6.glb": {
+      "width": 2.16,
+      "depth": 0.15
+    },
+    "items/Guns/Stock.glb": {
+      "width": 0.49,
+      "depth": 0.03
+    },
+    "items/Guns/SubmachineGun 1.glb": {
+      "width": 0.83,
+      "depth": 0.1
+    },
+    "items/Guns/SubmachineGun 2.glb": {
+      "width": 1.21,
+      "depth": 0.1
+    },
+    "items/Guns/SubmachineGun 3.glb": {
+      "width": 1.2,
+      "depth": 0.1
+    },
+    "items/Guns/SubmachineGun 4.glb": {
+      "width": 0.76,
+      "depth": 0.1
+    },
+    "items/Guns/SubmachineGun 5.glb": {
+      "width": 1.51,
+      "depth": 0.1
+    },
+    "items/Guns/Tripod.glb": {
+      "width": 0.39,
+      "depth": 0.36
+    },
+    "items/Hand-Painted Weapons/Shield A.glb": {
+      "width": 0.4,
+      "depth": 0.05
+    },
+    "items/Hand-Painted Weapons/Shield B.glb": {
+      "width": 0.47,
+      "depth": 0.04
+    },
+    "items/Hand-Painted Weapons/Shield C.glb": {
+      "width": 0.47,
+      "depth": 0.12
+    },
+    "items/Hand-Painted Weapons/Shield D.glb": {
+      "width": 0.61,
+      "depth": 0.21
+    },
+    "items/Hand-Painted Weapons/Sword A.glb": {
+      "width": 0.28,
+      "depth": 0.06
+    },
+    "items/Hand-Painted Weapons/Sword B.glb": {
+      "width": 0.3,
+      "depth": 0.06
+    },
+    "items/Hand-Painted Weapons/Sword C.glb": {
+      "width": 0.32,
+      "depth": 0.07
+    },
+    "items/Hand-Painted Weapons/Sword D.glb": {
+      "width": 0.24,
+      "depth": 0.08
+    },
+    "items/Hand-Painted Weapons/Sword E.glb": {
+      "width": 0.39,
+      "depth": 0.06
+    },
+    "items/Hand-Painted Weapons/Sword F.glb": {
+      "width": 0.37,
+      "depth": 0.06
+    },
+    "items/Hand-Painted Weapons/Sword G.glb": {
+      "width": 0.31,
+      "depth": 0.04
+    },
+    "items/Hand-Painted Weapons/Sword H.glb": {
+      "width": 0.3,
+      "depth": 0.03
+    },
+    "items/Hand-Painted Weapons/Sword I.glb": {
+      "width": 0.19,
+      "depth": 0.08
+    },
+    "items/Hand-Painted Weapons/Sword J.glb": {
+      "width": 0.3,
+      "depth": 0.09
+    },
+    "items/Pirate/Gun.glb": {
+      "width": 0.08,
+      "depth": 0.48
+    },
+    "items/Pirate/PirateSword.glb": {
+      "width": 0.19,
+      "depth": 0.08
+    },
+    "items/Pirate/Pistol.glb": {
+      "width": 0.07,
+      "depth": 0.39
+    },
+    "items/Pirate/Rifle.glb": {
+      "width": 0.09,
+      "depth": 0.92
+    },
+    "items/RPG Characters/Cleric Staff.glb": {
+      "width": 0.32,
+      "depth": 0.06
+    },
+    "items/RPG Characters/Ranger Arrow.glb": {
+      "width": 0.3,
+      "depth": 0.12
+    },
+    "items/RPG Characters/Ranger Bow.glb": {
+      "width": 0.3,
+      "depth": 0.12
+    },
+    "items/RPG Characters/Rogue Dagger.glb": {
+      "width": 0.1,
+      "depth": 0.03
+    },
+    "items/RPG Characters/Warrior Sword.glb": {
+      "width": 0.21,
+      "depth": 0.06
+    },
+    "items/RPG Characters/Wizard Staff.glb": {
+      "width": 0.15,
+      "depth": 0.15
+    },
+    "items/RPG Items/Armor Black.glb": {
+      "width": 0.62,
+      "depth": 0.3
+    },
+    "items/RPG Items/Armor Golden.glb": {
+      "width": 0.62,
+      "depth": 0.3
+    },
+    "items/RPG Items/Armor Leather.glb": {
+      "width": 0.39,
+      "depth": 0.27
+    },
+    "items/RPG Items/Armor Metal.glb": {
+      "width": 0.57,
+      "depth": 0.3
+    },
+    "items/RPG Items/Armor Metal2.glb": {
+      "width": 0.62,
+      "depth": 0.3
+    },
+    "items/RPG Items/Arrow Golden.glb": {
+      "width": 0.05,
+      "depth": 0.06
+    },
+    "items/RPG Items/Arrow.glb": {
+      "width": 0.05,
+      "depth": 0.06
+    },
+    "items/RPG Items/Axe Double Golden.glb": {
+      "width": 0.35,
+      "depth": 0.05
+    },
+    "items/RPG Items/Axe Double.glb": {
+      "width": 0.35,
+      "depth": 0.05
+    },
+    "items/RPG Items/Axe small Golden.glb": {
+      "width": 0.25,
+      "depth": 0.05
+    },
+    "items/RPG Items/Axe small.glb": {
+      "width": 0.25,
+      "depth": 0.05
+    },
+    "items/RPG Items/Backpack.glb": {
+      "width": 0.43,
+      "depth": 0.32
+    },
+    "items/RPG Items/Bag.glb": {
+      "width": 0.32,
+      "depth": 0.19
+    },
+    "items/RPG Items/Bone.glb": {
+      "width": 0.41,
+      "depth": 0.07
+    },
+    "items/RPG Items/Book1 Closed.glb": {
+      "width": 0.07,
+      "depth": 0.24
+    },
+    "items/RPG Items/Book1 Open.glb": {
+      "width": 0.35,
+      "depth": 0.3
+    },
+    "items/RPG Items/Book2 Closed.glb": {
+      "width": 0.07,
+      "depth": 0.24
+    },
+    "items/RPG Items/Book2 Open.glb": {
+      "width": 0.37,
+      "depth": 0.28
+    },
+    "items/RPG Items/Book3 Closed.glb": {
+      "width": 0.13,
+      "depth": 0.27
+    },
+    "items/RPG Items/Book3 Open.glb": {
+      "width": 0.35,
+      "depth": 0.3
+    },
+    "items/RPG Items/Book4 Closed.glb": {
+      "width": 0.08,
+      "depth": 0.24
+    },
+    "items/RPG Items/Book4 Open.glb": {
+      "width": 0.37,
+      "depth": 0.3
+    },
+    "items/RPG Items/Bow Golden.glb": {
+      "width": 0.25,
+      "depth": 0.04
+    },
+    "items/RPG Items/Bow Wooden.glb": {
+      "width": 0.21,
+      "depth": 0.04
+    },
+    "items/RPG Items/Chalice.glb": {
+      "width": 0.19,
+      "depth": 0.19
+    },
+    "items/RPG Items/Chest Closed.glb": {
+      "width": 0.38,
+      "depth": 0.33
+    },
+    "items/RPG Items/Chest Ingots.glb": {
+      "width": 0.38,
+      "depth": 0.4
+    },
+    "items/RPG Items/Chest Open.glb": {
+      "width": 0.38,
+      "depth": 0.4
+    },
+    "items/RPG Items/ChickenLeg.glb": {
+      "width": 0.41,
+      "depth": 0.18
+    },
+    "items/RPG Items/Coin Skull.glb": {
+      "width": 0.29,
+      "depth": 0.07
+    },
+    "items/RPG Items/Coin Star.glb": {
+      "width": 0.29,
+      "depth": 0.08
+    },
+    "items/RPG Items/Coin.glb": {
+      "width": 0.29,
+      "depth": 0.07
+    },
+    "items/RPG Items/Crown.glb": {
+      "width": 0.33,
+      "depth": 0.33
+    },
+    "items/RPG Items/Crown2.glb": {
+      "width": 0.35,
+      "depth": 0.35
+    },
+    "items/RPG Items/Crystal1 Damaged.glb": {
+      "width": 0.19,
+      "depth": 0.1
+    },
+    "items/RPG Items/Crystal1.glb": {
+      "width": 0.18,
+      "depth": 0.1
+    },
+    "items/RPG Items/Crystal2 Damaged.glb": {
+      "width": 0.13,
+      "depth": 0.11
+    },
+    "items/RPG Items/Crystal2.glb": {
+      "width": 0.13,
+      "depth": 0.12
+    },
+    "items/RPG Items/Crystal3 Damaged.glb": {
+      "width": 0.13,
+      "depth": 0.11
+    },
+    "items/RPG Items/Crystal3.glb": {
+      "width": 0.13,
+      "depth": 0.11
+    },
+    "items/RPG Items/Crystal4.glb": {
+      "width": 0.19,
+      "depth": 0.19
+    },
+    "items/RPG Items/Crystal5 Damaged.glb": {
+      "width": 0.25,
+      "depth": 0.23
+    },
+    "items/RPG Items/Crystal5.glb": {
+      "width": 0.25,
+      "depth": 0.23
+    },
+    "items/RPG Items/Dagger Golden.glb": {
+      "width": 0.12,
+      "depth": 0.04
+    },
+    "items/RPG Items/Dagger.glb": {
+      "width": 0.12,
+      "depth": 0.04
+    },
+    "items/RPG Items/Dart Golden.glb": {
+      "width": 0.05,
+      "depth": 0.06
+    },
+    "items/RPG Items/Dart.glb": {
+      "width": 0.05,
+      "depth": 0.06
+    },
+    "items/RPG Items/FishBone.glb": {
+      "width": 0.37,
+      "depth": 0.16
+    },
+    "items/RPG Items/Glove.glb": {
+      "width": 0.24,
+      "depth": 0.38
+    },
+    "items/RPG Items/Gold Ingots.glb": {
+      "width": 0.29,
+      "depth": 0.24
+    },
+    "items/RPG Items/Hammer Double Golden.glb": {
+      "width": 0.47,
+      "depth": 0.17
+    },
+    "items/RPG Items/Hammer Double.glb": {
+      "width": 0.47,
+      "depth": 0.17
+    },
+    "items/RPG Items/Heart Broken.glb": {
+      "width": 0.34,
+      "depth": 0.16
+    },
+    "items/RPG Items/Heart Half.glb": {
+      "width": 0.17,
+      "depth": 0.16
+    },
+    "items/RPG Items/Heart.glb": {
+      "width": 0.32,
+      "depth": 0.16
+    },
+    "items/RPG Items/Key1.glb": {
+      "width": 0.12,
+      "depth": 0.35
+    },
+    "items/RPG Items/Key2.glb": {
+      "width": 0.16,
+      "depth": 0.4
+    },
+    "items/RPG Items/Key3.glb": {
+      "width": 0.18,
+      "depth": 0.44
+    },
+    "items/RPG Items/Key4.glb": {
+      "width": 0.17,
+      "depth": 0.4
+    },
+    "items/RPG Items/Mineral.glb": {
+      "width": 0.24,
+      "depth": 0.23
+    },
+    "items/RPG Items/Necklace1.glb": {
+      "width": 0.35,
+      "depth": 0.39
+    },
+    "items/RPG Items/Necklace2.glb": {
+      "width": 0.36,
+      "depth": 0.4
+    },
+    "items/RPG Items/Necklace3.glb": {
+      "width": 0.34,
+      "depth": 0.4
+    },
+    "items/RPG Items/Padlock.glb": {
+      "width": 0.25,
+      "depth": 0.12
+    },
+    "items/RPG Items/Parchment.glb": {
+      "width": 0.37,
+      "depth": 0.15
+    },
+    "items/RPG Items/Potion1 Empty.glb": {
+      "width": 0.27,
+      "depth": 0.27
+    },
+    "items/RPG Items/Potion1 Filled.glb": {
+      "width": 0.27,
+      "depth": 0.27
+    },
+    "items/RPG Items/Potion10 Empty.glb": {
+      "width": 0.18,
+      "depth": 0.15
+    },
+    "items/RPG Items/Potion10 Filled.glb": {
+      "width": 0.18,
+      "depth": 0.15
+    },
+    "items/RPG Items/Potion11 Empty.glb": {
+      "width": 0.33,
+      "depth": 0.29
+    },
+    "items/RPG Items/Potion11 Filled.glb": {
+      "width": 0.33,
+      "depth": 0.29
+    },
+    "items/RPG Items/Potion2 Empty.glb": {
+      "width": 0.35,
+      "depth": 0.35
+    },
+    "items/RPG Items/Potion2 Filled.glb": {
+      "width": 0.35,
+      "depth": 0.35
+    },
+    "items/RPG Items/Potion3 Empty.glb": {
+      "width": 0.29,
+      "depth": 0.29
+    },
+    "items/RPG Items/Potion3 Filled.glb": {
+      "width": 0.29,
+      "depth": 0.29
+    },
+    "items/RPG Items/Potion4 Empty.glb": {
+      "width": 0.29,
+      "depth": 0.29
+    },
+    "items/RPG Items/Potion4 Filled.glb": {
+      "width": 0.29,
+      "depth": 0.29
+    },
+    "items/RPG Items/Potion5 Empty.glb": {
+      "width": 0.28,
+      "depth": 0.28
+    },
+    "items/RPG Items/Potion5 Filled.glb": {
+      "width": 0.28,
+      "depth": 0.28
+    },
+    "items/RPG Items/Potion6 Empty.glb": {
+      "width": 0.28,
+      "depth": 0.28
+    },
+    "items/RPG Items/Potion6 Filled.glb": {
+      "width": 0.28,
+      "depth": 0.28
+    },
+    "items/RPG Items/Potion7 Empty.glb": {
+      "width": 0.28,
+      "depth": 0.28
+    },
+    "items/RPG Items/Potion7 Filled.glb": {
+      "width": 0.28,
+      "depth": 0.28
+    },
+    "items/RPG Items/Potion8 Empty.glb": {
+      "width": 0.28,
+      "depth": 0.28
+    },
+    "items/RPG Items/Potion8 Filled.glb": {
+      "width": 0.28,
+      "depth": 0.28
+    },
+    "items/RPG Items/Potion9 Empty.glb": {
+      "width": 0.5,
+      "depth": 0.5
+    },
+    "items/RPG Items/Potion9 Filled.glb": {
+      "width": 0.5,
+      "depth": 0.5
+    },
+    "items/RPG Items/Pouch.glb": {
+      "width": 0.19,
+      "depth": 0.19
+    },
+    "items/RPG Items/Ring1.glb": {
+      "width": 0.27,
+      "depth": 0.05
+    },
+    "items/RPG Items/Ring2.glb": {
+      "width": 0.27,
+      "depth": 0.12
+    },
+    "items/RPG Items/Ring3.glb": {
+      "width": 0.27,
+      "depth": 0.07
+    },
+    "items/RPG Items/Ring4.glb": {
+      "width": 0.27,
+      "depth": 0.05
+    },
+    "items/RPG Items/Ring5.glb": {
+      "width": 0.26,
+      "depth": 0.12
+    },
+    "items/RPG Items/Ring6.glb": {
+      "width": 0.27,
+      "depth": 0.12
+    },
+    "items/RPG Items/Ring7.glb": {
+      "width": 0.26,
+      "depth": 0.08
+    },
+    "items/RPG Items/Scroll.glb": {
+      "width": 0.59,
+      "depth": 0.1
+    },
+    "items/RPG Items/Skull.glb": {
+      "width": 0.23,
+      "depth": 0.23
+    },
+    "items/RPG Items/Skull2.glb": {
+      "width": 0.34,
+      "depth": 0.19
+    },
+    "items/RPG Items/Snowflake1.glb": {
+      "width": 0.36,
+      "depth": 0.04
+    },
+    "items/RPG Items/Snowflake2.glb": {
+      "width": 0.36,
+      "depth": 0.04
+    },
+    "items/RPG Items/Snowflake3.glb": {
+      "width": 0.35,
+      "depth": 0.04
+    },
+    "items/RPG Items/Star.glb": {
+      "width": 0.37,
+      "depth": 0.15
+    },
+    "items/RPG Items/Sword Golden.glb": {
+      "width": 0.21,
+      "depth": 0.05
+    },
+    "items/RPG Items/Sword big Golden.glb": {
+      "width": 0.17,
+      "depth": 0.04
+    },
+    "items/RPG Items/Sword big.glb": {
+      "width": 0.17,
+      "depth": 0.04
+    },
+    "items/RPG Items/Sword.glb": {
+      "width": 0.21,
+      "depth": 0.05
+    },
+    "items/Sci-Fi Essentials/Ammo Closed.glb": {
+      "width": 0.57,
+      "depth": 0.72
+    },
+    "items/Sci-Fi Essentials/Ammo Small.glb": {
+      "width": 0.4,
+      "depth": 0.43
+    },
+    "items/Sci-Fi Essentials/Ammo.glb": {
+      "width": 0.57,
+      "depth": 0.72
+    },
+    "items/Sci-Fi Essentials/Grenade.glb": {
+      "width": 0.13,
+      "depth": 0.09
+    },
+    "items/Sci-Fi Essentials/HealthPack Tube.glb": {
+      "width": 0.15,
+      "depth": 0.15
+    },
+    "items/Sci-Fi Essentials/HealthPack.glb": {
+      "width": 0.43,
+      "depth": 0.17
+    },
+    "items/Sci-Fi Essentials/KeyCard.glb": {
+      "width": 0.18,
+      "depth": 0.05
+    },
+    "items/Sci-Fi Essentials/Mine.glb": {
+      "width": 0.81,
+      "depth": 0.7
+    },
+    "items/Sci-Fi Essentials/Pistol.glb": {
+      "width": 0.44,
+      "depth": 0.07
+    },
+    "items/Sci-Fi Essentials/Revolver.glb": {
+      "width": 0.53,
+      "depth": 0.08
+    },
+    "items/Sci-Fi Essentials/Rifle.glb": {
+      "width": 1.06,
+      "depth": 0.09
+    },
+    "items/Sci-Fi Essentials/SMG Ammo.glb": {
+      "width": 0.06,
+      "depth": 0.04
+    },
+    "items/Sci-Fi Essentials/Sniper Ammo.glb": {
+      "width": 0.14,
+      "depth": 0.03
+    },
+    "items/Sci-Fi Essentials/Sniper.glb": {
+      "width": 1.72,
+      "depth": 0.06
+    },
+    "items/Sci-Fi Essentials/Syringe.glb": {
+      "width": 0.11,
+      "depth": 0.11
+    },
+    "items/Survival/Axe Small.glb": {
+      "width": 0.22,
+      "depth": 0.04
+    },
+    "items/Survival/Axe.glb": {
+      "width": 0.32,
+      "depth": 0.05
+    },
+    "items/Survival/Backpack.glb": {
+      "width": 0.84,
+      "depth": 0.44
+    },
+    "items/Survival/Bandages.glb": {
+      "width": 0.08,
+      "depth": 0.08
+    },
+    "items/Survival/Battery Big.glb": {
+      "width": 0.08,
+      "depth": 0.08
+    },
+    "items/Survival/Battery Small.glb": {
+      "width": 0.05,
+      "depth": 0.05
+    },
+    "items/Survival/Can Broken.glb": {
+      "width": 0.12,
+      "depth": 0.12
+    },
+    "items/Survival/Can Closed.glb": {
+      "width": 0.12,
+      "depth": 0.12
+    },
+    "items/Survival/Can Open.glb": {
+      "width": 0.12,
+      "depth": 0.12
+    },
+    "items/Survival/Can Red.glb": {
+      "width": 0.12,
+      "depth": 0.12
+    },
+    "items/Survival/Compass Closed.glb": {
+      "width": 0.16,
+      "depth": 0.07
+    },
+    "items/Survival/Compass Open.glb": {
+      "width": 0.23,
+      "depth": 0.18
+    },
+    "items/Survival/FirstAidKit Hard.glb": {
+      "width": 0.47,
+      "depth": 0.17
+    },
+    "items/Survival/FirstAidKit.glb": {
+      "width": 0.39,
+      "depth": 0.18
+    },
+    "items/Survival/FlareGun.glb": {
+      "width": 0.63,
+      "depth": 0.15
+    },
+    "items/Survival/GasCan.glb": {
+      "width": 0.47,
+      "depth": 0.15
+    },
+    "items/Survival/Knife.glb": {
+      "width": 0.07,
+      "depth": 0.02
+    },
+    "items/Survival/Match Burnt.glb": {
+      "width": 0.01,
+      "depth": 0.02
+    },
+    "items/Survival/Match Fire.glb": {
+      "width": 0.02,
+      "depth": 0.02
+    },
+    "items/Survival/Match.glb": {
+      "width": 0.01,
+      "depth": 0.01
+    },
+    "items/Survival/Matchbox.glb": {
+      "width": 0.13,
+      "depth": 0.04
+    },
+    "items/Survival/Pan Small.glb": {
+      "width": 0.29,
+      "depth": 0.55
+    },
+    "items/Survival/Pan.glb": {
+      "width": 0.43,
+      "depth": 0.71
+    },
+    "items/Survival/Phone.glb": {
+      "width": 0.11,
+      "depth": 0.02
+    },
+    "items/Survival/Pistol 1.glb": {
+      "width": 0.45,
+      "depth": 0.08
+    },
+    "items/Survival/Pistol 2.glb": {
+      "width": 0.45,
+      "depth": 0.08
+    },
+    "items/Survival/Pot Small.glb": {
+      "width": 0.3,
+      "depth": 0.35
+    },
+    "items/Survival/Pot.glb": {
+      "width": 0.43,
+      "depth": 0.51
+    },
+    "items/Survival/Radio.glb": {
+      "width": 0.42,
+      "depth": 0.14
+    },
+    "items/Survival/Raft Paddle.glb": {
+      "width": 0.42,
+      "depth": 3.71
+    },
+    "items/Survival/Revolver 1.glb": {
+      "width": 0.5,
+      "depth": 0.07
+    },
+    "items/Survival/Revolver 2.glb": {
+      "width": 0.37,
+      "depth": 0.07
+    },
+    "items/Survival/Revolver 3.glb": {
+      "width": 0.48,
+      "depth": 0.07
+    },
+    "items/Survival/Shotgun 1.glb": {
+      "width": 1.3,
+      "depth": 0.06
+    },
+    "items/Survival/Shotgun 2.glb": {
+      "width": 1.45,
+      "depth": 0.06
+    },
+    "items/Survival/Shotgun SawedOff.glb": {
+      "width": 0.92,
+      "depth": 0.11
+    },
+    "items/Survival/Shotgun ShortStock.glb": {
+      "width": 1.12,
+      "depth": 0.06
+    },
+    "items/Survival/Shovel.glb": {
+      "width": 0.2,
+      "depth": 0.05
+    },
+    "items/Survival/Torch.glb": {
+      "width": 0.17,
+      "depth": 0.17
+    },
+    "items/Survival/WaterBottle 1.glb": {
+      "width": 0.14,
+      "depth": 0.14
+    },
+    "items/Survival/WaterBottle 2.glb": {
+      "width": 0.14,
+      "depth": 0.14
+    },
+    "items/Survival/WaterBottle 3.glb": {
+      "width": 0.12,
+      "depth": 0.12
+    },
+    "items/Survival/WoodenTorch Fire.glb": {
+      "width": 0.16,
+      "depth": 0.13
+    },
+    "items/Survival/WoodenTorch.glb": {
+      "width": 0.11,
+      "depth": 0.1
+    },
+    "vehicles/Spaceships/Bob.glb": {
+      "width": 10.5,
+      "depth": 5.61
+    },
+    "vehicles/Spaceships/Challenger.glb": {
+      "width": 10.5,
+      "depth": 10.18
+    },
+    "vehicles/Spaceships/Dispatcher.glb": {
+      "width": 4.9,
+      "depth": 10.26
+    },
+    "vehicles/Spaceships/Executioner.glb": {
+      "width": 10.02,
+      "depth": 9.2
+    },
+    "vehicles/Spaceships/Imperial.glb": {
+      "width": 7.73,
+      "depth": 18.55
+    },
+    "vehicles/Spaceships/Insurgent.glb": {
+      "width": 5.57,
+      "depth": 10.95
+    },
+    "vehicles/Spaceships/Omen.glb": {
+      "width": 12.78,
+      "depth": 12.58
+    },
+    "vehicles/Spaceships/Pancake.glb": {
+      "width": 10.5,
+      "depth": 8.23
+    },
+    "vehicles/Spaceships/Spitfire.glb": {
+      "width": 10.52,
+      "depth": 7.53
+    },
+    "vehicles/Spaceships/Striker.glb": {
+      "width": 5.03,
+      "depth": 8.43
+    },
+    "vehicles/Spaceships/Zenith.glb": {
+      "width": 5.63,
+      "depth": 12.07
+    }
+  }
+}

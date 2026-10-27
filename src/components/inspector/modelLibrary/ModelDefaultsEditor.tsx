@@ -6,7 +6,7 @@ import type {
   ResolvedModelSettings,
 } from '../../../types/modelLibrary';
 import { MODEL_CATEGORIES } from '../../../engine/modelLibrary/categories';
-import { SIM_CONFIG } from '../../../engine/sim/types';
+import { SIM_CONFIG } from '../../../runtime/sim/types';
 import { RotateCcw } from 'lucide-react';
 
 interface ModelDefaultsEditorProps {

@@ -5,6 +5,7 @@ import {
   Download,
   FileCode2,
   FolderOpen,
+  PackageCheck,
   Play,
   Redo2,
   RotateCcw,
@@ -24,6 +25,7 @@ interface TopMenuBarProps {
   onLoadMapFile: (file: File) => void;
   onOpenArchModal: () => void;
   onOpenEventEditor: () => void;
+  onOpenExportModal: () => void;
   isPlayFullscreen: boolean;
   onTogglePlayFullscreen: () => void;
   onRespawnPlayer: () => void;
@@ -41,6 +43,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
   onLoadMapFile,
   onOpenArchModal,
   onOpenEventEditor,
+  onOpenExportModal,
   isPlayFullscreen,
   onTogglePlayFullscreen,
   onRespawnPlayer,
@@ -124,6 +127,16 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
         >
           <Download className="w-3 h-3 text-[#478cbf]" />
           <span>Save JSON</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenExportModal}
+          className="ide-btn !h-[20px] text-[#38bdf8] hover:text-[#7dd3fc] font-medium"
+          title="Export Standalone Game (Vite/Three.js ZIP or Single Offline HTML)"
+        >
+          <PackageCheck className="w-3 h-3 text-[#38bdf8]" />
+          <span>Export Game</span>
         </button>
 
         <input

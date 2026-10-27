@@ -9,7 +9,7 @@ import type {
   ModelCollision,
   ResolvedModelSettings,
 } from '../../types/modelLibrary';
-import { SIM_CONFIG } from '../../engine/sim/types';
+import { SIM_CONFIG } from '../../runtime/sim/types';
 import {
   MODEL_CATEGORIES,
   resolveEntityCategory,

@@ -68,6 +68,15 @@ export interface PropertiesInspectorProps {
   onRemoveUploadedModel: (modelId: string) => void;
   onExportLibrary: () => void;
   onImportLibraryFile: (file: File) => void;
+  gitHubRepoInput: string;
+  isSyncingGitHubAssets: boolean;
+  gitHubAssetsStats: {
+    repoLabel: string;
+    textures: number;
+    models: number;
+    error?: string;
+  };
+  onSyncGitHubAssets: (repoInput: string, forceRefresh?: boolean) => void;
 }
 
 type InspectorTabId = 'inspector' | 'assets' | 'world';
@@ -86,7 +95,7 @@ const INSPECTOR_TABS: {
   { id: 'world', label: 'World', icon: <Globe className="w-3 h-3" /> },
 ];
 
-export const PropertiesInspector: React.FC<PropertiesInspectorProps> = (
+export const PropertiesInspector: React.FC<PropertiesInspectorProps> = React.memo((
   props
 ) => {
   const [activeTab, setActiveTab] = useState<InspectorTabId>('assets');
@@ -162,6 +171,10 @@ export const PropertiesInspector: React.FC<PropertiesInspectorProps> = (
             onRemoveUploadedModel={props.onRemoveUploadedModel}
             onExportLibrary={props.onExportLibrary}
             onImportLibraryFile={props.onImportLibraryFile}
+            gitHubRepoInput={props.gitHubRepoInput}
+            isSyncingGitHubAssets={props.isSyncingGitHubAssets}
+            gitHubAssetsStats={props.gitHubAssetsStats}
+            onSyncGitHubAssets={props.onSyncGitHubAssets}
           />
         )}
 
@@ -184,4 +197,4 @@ export const PropertiesInspector: React.FC<PropertiesInspectorProps> = (
       </div>
     </aside>
   );
-};
+});

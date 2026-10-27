@@ -14,8 +14,8 @@ import {
   RegionDefinition,
   TriggerSpec,
   VariableRegistrySpec,
-} from '../engine/sim/types';
-import { validateLevelDataV3, ValidationErrorItem } from '../engine/sim/validator';
+} from '../runtime/sim/types';
+import { validateLevelDataV3, ValidationErrorItem } from '../runtime/sim/validator';
 import { X, Plus, Trash2, CheckCircle2, AlertTriangle, Sliders, ShieldAlert, BookOpen } from 'lucide-react';
 
 interface EventTriggerEditorModalProps {

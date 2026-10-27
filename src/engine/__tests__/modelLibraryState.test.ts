@@ -279,8 +279,8 @@ describe('Model library state, filtering & variants', () => {
     const json = exportLibraryJson(s, [{ id: 'glb-truck', name: 'Truck' }]);
     assert.deepEqual(JSON.parse(json).uploadedModels, [{ id: 'glb-truck', name: 'Truck' }]);
     assert.deepEqual(importLibraryJson(json), s);
-    assert.throws(() => importLibraryJson('[]'), /Not a Pie3D library file/);
-    assert.throws(() => importLibraryJson('not json'), /Not a Pie3D library file/);
+    assert.throws(() => importLibraryJson('[]'), /Not a GridForge library file/);
+    assert.throws(() => importLibraryJson('not json'), /Not a GridForge library file/);
   });
 
   it('the upload store degrades to no-ops when IndexedDB is unavailable', async () => {

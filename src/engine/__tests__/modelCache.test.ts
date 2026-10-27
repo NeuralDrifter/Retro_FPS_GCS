@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { ModelCache, modelCacheKey } from '../modelCache';
+import { ModelCache, modelCacheKey } from '../../runtime/modelCache';
 
 describe('Model cache & model sources', () => {
   it('loads each key once and shares the result', async () => {

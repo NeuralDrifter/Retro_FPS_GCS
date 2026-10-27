@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * PIE3D GLOBAL HISTORY MANAGEMENT SYSTEM (UNDO / REDO ENGINE)
+ * GRIDFORGE 3D GLOBAL HISTORY MANAGEMENT SYSTEM (UNDO / REDO ENGINE)
  * ============================================================================
  * Tracks immutable deep-cloned snapshots of the level design state:
  *  - `grid[row][col]`            : Cell block types (Empty, Wall, Door, Key)

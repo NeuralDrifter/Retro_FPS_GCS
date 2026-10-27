@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * PIE3D MODEL LIBRARY STATE (FOLDERS, TAGS, SETTINGS & FILTERING)
+ * GRIDFORGE 3D MODEL LIBRARY STATE (FOLDERS, TAGS, SETTINGS & FILTERING)
  * ============================================================================
  * Pure, immutable operations on the global model library. Every function
  * returns a new state and never mutates its input.
@@ -306,13 +306,22 @@ export function filterModels(
   f: ModelFilter
 ): Model3DAsset[] {
   const subtree = f.folderId ? folderSubtree(s, f.folderId) : null;
+  const validFolderIds = subtree ? new Set(s.folders.map((folder) => folder.id)) : null;
   const search = f.search.trim().toLowerCase();
   const wantedTags = f.tags.map((t) => t.toLowerCase());
   return assets.filter((asset) => {
-    if (subtree && !subtree.has(resolveModelFolder(s, asset))) return false;
+    if (subtree && validFolderIds) {
+      const stored = s.modelFolder[asset.id];
+      const folderId =
+        stored && validFolderIds.has(stored)
+          ? stored
+          : categoryFolderId(asset.category ?? resolveEntityCategory(asset));
+      if (!subtree.has(folderId)) return false;
+    }
     if (f.usedModelIds && !f.usedModelIds.has(asset.id)) return false;
-    const tags = (s.modelTags[asset.id] ?? asset.tags ?? []).map((t) => t.toLowerCase());
-    if (!wantedTags.every((t) => tags.includes(t))) return false;
+    const rawTags = s.modelTags[asset.id] ?? asset.tags;
+    const tags = rawTags && rawTags.length > 0 ? rawTags.map((t) => t.toLowerCase()) : [];
+    if (wantedTags.length > 0 && !wantedTags.every((t) => tags.includes(t))) return false;
     if (!search) return true;
     return (
       asset.name.toLowerCase().includes(search) ||
@@ -330,17 +339,33 @@ export function mergeDiscoveredFolders(
   s: ModelLibraryState,
   assets: Model3DAsset[]
 ): ModelLibraryState {
+  const unfiled = assets.filter(
+    (asset) => Boolean(asset.folderPath) && !s.modelFolder[asset.id]
+  );
+  if (unfiled.length === 0) return s;
+
   let state = s;
-  for (const asset of assets) {
-    if (!asset.folderPath || state.modelFolder[asset.id]) continue;
-    const category =
-      asset.category ?? resolveEntityCategory(asset);
+  const nextModelFolder = { ...s.modelFolder };
+  const nextModelSettings = { ...s.modelSettings };
+
+  for (const asset of unfiled) {
+    const category = asset.category ?? resolveEntityCategory(asset);
     const { state: withFolder, folderId } = ensureFolderPath(
       state,
       asset.folderAtRoot ? null : categoryFolderId(category),
-      asset.folderPath
+      asset.folderPath!
     );
-    state = moveModelToFolder(withFolder, asset.id, folderId);
+    state = withFolder;
+    nextModelFolder[asset.id] = folderId;
+    nextModelSettings[asset.id] = {
+      ...nextModelSettings[asset.id],
+      category: getFolderCategory(state, folderId),
+    };
   }
-  return state;
+
+  return {
+    ...state,
+    modelFolder: nextModelFolder,
+    modelSettings: nextModelSettings,
+  };
 }

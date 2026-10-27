@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * PIE3D MODEL DISK FOLDER CLASSIFICATION (`/src/assets/models/`)
+ * GRIDFORGE 3D MODEL DISK FOLDER CLASSIFICATION (`/src/assets/models/`)
  * ============================================================================
  *  - `<category>/<sub/folders>/file.glb`: the first folder picks the category
  *    (characters, decorations, items, buildings, vehicles), deeper folders

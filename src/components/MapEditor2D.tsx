@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * PIE3D DESKTOP IDE — 2D ORTHOGRAPHIC GRID MAP EDITOR VIEWPORT
+ * GRIDFORGE 3D DESKTOP IDE — 2D ORTHOGRAPHIC GRID MAP EDITOR VIEWPORT
  * ============================================================================
  * TrenchBroom / Godot style 2D grid drafting canvas injected into the middle
  * split workspace (`#map-editor-container`).
@@ -13,7 +13,7 @@
  *    zoom with the header buttons or Ctrl + mouse wheel, scroll to pan.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CellType,
   DEFAULT_ENTITY_BLUEPRINTS,
@@ -23,7 +23,18 @@ import {
   PlayerTransform,
   TextureAsset,
 } from '../types/engine';
-import { Code2, Square, RotateCcw, ZoomIn, ZoomOut, Maximize, Layers } from 'lucide-react';
+import {
+  Code2,
+  Square,
+  RotateCcw,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
+  Layers,
+  LayoutGrid,
+  Search,
+  LocateFixed,
+} from 'lucide-react';
 import { getEntityRect } from '../engine/modelLibrary/placement';
 import { resolveEntityCategory } from '../engine/modelLibrary/categories';
 import { VARIANT_DRAG_TYPE } from './inspector/modelLibrary/UsedInLevelList';
@@ -32,6 +43,13 @@ import { VARIANT_DRAG_TYPE } from './inspector/modelLibrary/UsedInLevelList';
 const RULER_PX = 22;
 const MIN_CELL_PX = 4;
 const MAX_CELL_PX = 56;
+
+export type ZoomViewMode = 'overview' | 'detailed' | 'custom';
+
+/** Computes a comfortable cell size (pixels) for detailed editing on any grid size */
+export const getDetailedCellPx = (fitPx: number): number => {
+  return Math.min(MAX_CELL_PX, Math.max(38, Math.round(fitPx * 1.5)));
+};
 
 const CELL_COLORS = {
   emptyBg: '#1e1e1e',
@@ -53,9 +71,10 @@ const CELL_COLORS = {
 /** Picks how many cells apart ruler labels are so they never overlap */
 const getRulerStep = (cellPx: number): number => {
   if (cellPx >= 26) return 1;
-  if (cellPx >= 13) return 2;
-  if (cellPx >= 6) return 5;
-  return 10;
+  if (cellPx >= 14) return 2;
+  if (cellPx >= 8) return 5;
+  if (cellPx >= 4) return 10;
+  return 20;
 };
 
 interface MapEditor2DProps {
@@ -69,6 +88,7 @@ interface MapEditor2DProps {
   onSelectCell: (row: number, col: number) => void;
   onStrokeStart: (actionLabel: string) => void;
   onCellInteract: (row: number, col: number, forceValue?: number) => void;
+  onEraseCell: (row: number, col: number) => void;
   onDropTextureOnCell: (row: number, col: number, textureId: string) => void;
   onDropModelOnCell: (row: number, col: number, modelAssetId: string) => void;
   onHoverCellChange: (cell: { row: number; col: number } | null) => void;
@@ -95,6 +115,7 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
   onSelectCell,
   onStrokeStart,
   onCellInteract,
+  onEraseCell,
   onDropTextureOnCell,
   onDropModelOnCell,
   onHoverCellChange,
@@ -109,6 +130,7 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
   openDoors,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
+  const [isRightClickDrag, setIsRightClickDrag] = useState(false);
   const [dragTargetValue, setDragTargetValue] = useState<number | undefined>(
     undefined
   );
@@ -118,8 +140,11 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
   } | null>(null);
   const [showRawMatrix, setShowRawMatrix] = useState(false);
 
-  const texMap = new Map<string, TextureAsset>();
-  textures.forEach((t) => texMap.set(t.id, t));
+  const texMap = useMemo(() => {
+    const map = new Map<string, TextureAsset>();
+    textures.forEach((t) => map.set(t.id, t));
+    return map;
+  }, [textures]);
 
 
   const gridSize = grid.length;
@@ -129,11 +154,34 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
   const [imageLoadTick, setImageLoadTick] = useState(0);
   const lastPointerCellRef = useRef<string | null>(null);
 
-  // `null` zoom means "fit the whole map into the panel"
-  const [zoomCellPx, setZoomCellPx] = useState<number | null>(null);
+  // Zoom level state: 'overview' fits whole map; 'detailed' zooms in for fine-grained editing
+  const [zoomViewMode, setZoomViewMode] = useState<ZoomViewMode>('overview');
+  const [customCellPx, setCustomCellPx] = useState<number | null>(null);
   const [fitCellPx, setFitCellPx] = useState<number>(32);
-  const cellPx = zoomCellPx ?? fitCellPx;
+
+  const detailedCellPx = getDetailedCellPx(fitCellPx);
+  const cellPx =
+    customCellPx ??
+    (zoomViewMode === 'overview' ? fitCellPx : detailedCellPx);
   const canvasPx = RULER_PX + gridSize * cellPx;
+
+  const isOverviewActive =
+    (zoomViewMode === 'overview' && customCellPx === null) ||
+    cellPx === fitCellPx;
+  const isDetailedActive =
+    (zoomViewMode === 'detailed' && customCellPx === null) ||
+    cellPx === detailedCellPx;
+
+  const zoomPct = Math.round((cellPx / 32) * 100);
+
+  // Middle-mouse drag pan state for easy scrolling across large maps
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef<{
+    x: number;
+    y: number;
+    scrollLeft: number;
+    scrollTop: number;
+  } | null>(null);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -153,19 +201,104 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
     return () => observer.disconnect();
   }, [gridSize]);
 
-  const zoomBy = useCallback(
-    (factor: number) => {
-      setZoomCellPx((prev) => {
-        const base = prev ?? fitCellPx;
-        const next = Math.round(base * factor);
-        return Math.max(
-          MIN_CELL_PX,
-          Math.min(MAX_CELL_PX, next === base ? base + Math.sign(factor - 1) : next)
-        );
+  /** Centers the scroll container on a specific grid cell [row, col] */
+  const centerOnCell = useCallback(
+    (
+      row: number,
+      col: number,
+      overrideCellPx?: number,
+      behavior: ScrollBehavior = 'smooth'
+    ) => {
+      const el = scrollRef.current;
+      if (!el) return;
+      const px = overrideCellPx ?? cellPx;
+      const clampedRow = Math.max(0, Math.min(gridSize - 1, row));
+      const clampedCol = Math.max(0, Math.min(gridSize - 1, col));
+      const targetX = RULER_PX + clampedCol * px + px / 2;
+      const targetY = RULER_PX + clampedRow * px + px / 2;
+      const scrollLeft = targetX - el.clientWidth / 2;
+      const scrollTop = targetY - el.clientHeight / 2;
+      el.scrollTo({
+        left: Math.max(0, scrollLeft),
+        top: Math.max(0, scrollTop),
+        behavior,
       });
     },
-    [fitCellPx]
+    [cellPx, gridSize]
   );
+
+  /** Switches to Overview view (fits entire map in viewport) */
+  const handleSwitchToOverview = useCallback(() => {
+    setCustomCellPx(null);
+    setZoomViewMode('overview');
+    const el = scrollRef.current;
+    if (el) {
+      el.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
+    }
+  }, []);
+
+  /** Switches to Detailed view (zooms in to comfortable cell size and centers on selection) */
+  const handleSwitchToDetailed = useCallback(() => {
+    const targetPx = getDetailedCellPx(fitCellPx);
+    setCustomCellPx(null);
+    setZoomViewMode('detailed');
+    const targetRow =
+      selectedCell.row < gridSize ? selectedCell.row : playerTransform.gridRow;
+    const targetCol =
+      selectedCell.col < gridSize ? selectedCell.col : playerTransform.gridCol;
+    setTimeout(() => {
+      centerOnCell(targetRow, targetCol, targetPx, 'smooth');
+    }, 20);
+  }, [fitCellPx, selectedCell, gridSize, playerTransform, centerOnCell]);
+
+  const zoomBy = useCallback(
+    (factor: number) => {
+      const detailedPx = getDetailedCellPx(fitCellPx);
+      const currentBase =
+        customCellPx ??
+        (zoomViewMode === 'overview' ? fitCellPx : detailedPx);
+      const next = Math.round(currentBase * factor);
+      const clamped = Math.max(
+        MIN_CELL_PX,
+        Math.min(
+          MAX_CELL_PX,
+          next === currentBase ? currentBase + Math.sign(factor - 1) : next
+        )
+      );
+      if (clamped === fitCellPx) {
+        setCustomCellPx(null);
+        setZoomViewMode('overview');
+      } else if (clamped === detailedPx) {
+        setCustomCellPx(null);
+        setZoomViewMode('detailed');
+      } else {
+        setCustomCellPx(clamped);
+        setZoomViewMode('custom');
+      }
+    },
+    [customCellPx, fitCellPx, zoomViewMode]
+  );
+
+  // Pressing 'F' / 'f' centers the view on the currently selected cell
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement instanceof HTMLInputElement ||
+        document.activeElement instanceof HTMLTextAreaElement ||
+        document.activeElement?.getAttribute('contenteditable') === 'true'
+      ) {
+        return;
+      }
+      if (e.key === 'f' || e.key === 'F') {
+        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+          e.preventDefault();
+          centerOnCell(selectedCell.row, selectedCell.col, undefined, 'smooth');
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedCell, centerOnCell]);
 
   // Ctrl + wheel zooms (non-passive listener so the page itself does not zoom)
   useEffect(() => {
@@ -280,6 +413,17 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
             ctx.fillStyle = '#ce9178';
             ctx.fillText('K', cx, cy);
           }
+        } else {
+          // High-contrast macro indicators when zoomed out in Overview mode
+          if (cellValue === CellType.DOOR) {
+            ctx.fillStyle = openDoors.has(cellKey) ? '#38bdf8' : '#ffffff';
+            const dotSize = Math.max(2, Math.floor(w * 0.45));
+            ctx.fillRect(cx - dotSize / 2, cy - dotSize / 2, dotSize, dotSize);
+          } else if (cellValue === CellType.KEY) {
+            ctx.fillStyle = '#f59e0b';
+            const dotSize = Math.max(2, Math.floor(w * 0.45));
+            ctx.fillRect(cx - dotSize / 2, cy - dotSize / 2, dotSize, dotSize);
+          }
         }
 
         if (spawn.row === r && spawn.col === c) {
@@ -290,6 +434,10 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
           if (showGlyphs) {
             ctx.fillStyle = CELL_COLORS.spawn;
             ctx.fillText('S', cx, cy);
+          } else {
+            ctx.fillStyle = CELL_COLORS.spawn;
+            const dotSize = Math.max(2, Math.floor(w * 0.5));
+            ctx.fillRect(cx - dotSize / 2, cy - dotSize / 2, dotSize, dotSize);
           }
         }
       }
@@ -326,6 +474,14 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
           RULER_PX + ent.col * cellPx + (cellPx - gap) / 2,
           RULER_PX + ent.row * cellPx + (cellPx - gap) / 2
         );
+      } else {
+        const dotX = RULER_PX + ent.col * cellPx + (cellPx - gap) / 2;
+        const dotY = RULER_PX + ent.row * cellPx + (cellPx - gap) / 2;
+        ctx.fillStyle = color;
+        const dotR = Math.max(1.5, Math.min(3, cellPx * 0.25));
+        ctx.beginPath();
+        ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
 
@@ -405,13 +561,26 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
 
   const handlePointerDown = (row: number, col: number, e: React.PointerEvent) => {
     onSelectCell(row, col);
-    // Right-click or Shift-click only selects the cell in the Inspector without mutating
+
+    // Right-click (and right-drag) erases whatever is under the mouse (floor, wall, door, key, object, NPC)
+    if (e.button === 2) {
+      e.preventDefault();
+      onStrokeStart(`Right-Click Erase at [X:${col}, Z:${row}]`);
+      setIsDragging(true);
+      setIsRightClickDrag(true);
+      setDragTargetValue(undefined);
+      onEraseCell(row, col);
+      return;
+    }
+
+    // Shift-click only selects the cell in the Inspector without mutating
     if (e.button !== 0 || e.shiftKey) return;
 
     // Record pre-stroke state onto the Undo history stack before mutating
     onStrokeStart(`2D Grid ${toolMode.toUpperCase()} at [X:${col}, Z:${row}]`);
 
     setIsDragging(true);
+    setIsRightClickDrag(false);
     if (toolMode === 'toggle') {
       const current = grid[row][col];
       const nextVal =
@@ -428,6 +597,10 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
     onHoverCellChange({ row, col });
     if (!isDragging) return;
     onSelectCell(row, col);
+    if (isRightClickDrag) {
+      onEraseCell(row, col);
+      return;
+    }
     if (toolMode === 'spawn' || toolMode === 'entity') return;
     if (toolMode === 'toggle' && dragTargetValue !== undefined) {
       onCellInteract(row, col, dragTargetValue);
@@ -438,11 +611,32 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
 
   const handlePointerUp = () => {
     setIsDragging(false);
+    setIsRightClickDrag(false);
     setDragTargetValue(undefined);
     lastPointerCellRef.current = null;
+    if (isPanning) {
+      setIsPanning(false);
+      panStartRef.current = null;
+    }
   };
 
   const handleCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // Middle-click (or Alt + left-click) initiates smooth pan for navigating large grids
+    if (e.button === 1 || (e.button === 0 && e.altKey)) {
+      e.preventDefault();
+      setIsPanning(true);
+      const el = scrollRef.current;
+      if (el) {
+        panStartRef.current = {
+          x: e.clientX,
+          y: e.clientY,
+          scrollLeft: el.scrollLeft,
+          scrollTop: el.scrollTop,
+        };
+      }
+      return;
+    }
+
     const cell = getCellFromEvent(e);
     if (!cell) return;
     lastPointerCellRef.current = `${cell.row},${cell.col}`;
@@ -450,6 +644,17 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
   };
 
   const handleCanvasPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (isPanning && panStartRef.current && scrollRef.current) {
+      const dx = e.clientX - panStartRef.current.x;
+      const dy = e.clientY - panStartRef.current.y;
+      scrollRef.current.scrollLeft = panStartRef.current.scrollLeft - dx;
+      scrollRef.current.scrollTop = panStartRef.current.scrollTop - dy;
+      return;
+    }
+
+    if (isDragging && e.buttons === 0) {
+      handlePointerUp();
+    }
     const cell = getCellFromEvent(e);
     if (!cell) {
       if (lastPointerCellRef.current !== null) onHoverCellChange(null);
@@ -491,13 +696,13 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
       return;
     }
 
-    const modelId = e.dataTransfer.getData('application/pie3d-model-id');
+    const modelId = e.dataTransfer.getData('application/gridforge-model-id');
     if (modelId) {
       onDropModelOnCell(row, col, modelId.trim());
       return;
     }
 
-    const texId = e.dataTransfer.getData('application/pie3d-texture-id');
+    const texId = e.dataTransfer.getData('application/gridforge-texture-id');
     if (texId) {
       onDropTextureOnCell(row, col, texId.trim());
       return;
@@ -529,47 +734,98 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
       }}
     >
       {/* Compact 24px IDE Panel Header */}
-      <div className="ide-panel-header">
-        <div className="flex items-center gap-2">
-          <span>
-            2D Orthographic Map [{gridSize}×{gridSize}]
+      <div className="ide-panel-header !h-auto min-h-[26px] py-0.5 flex items-center justify-between gap-1.5 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="font-semibold text-white">
+            2D Map [{gridSize}×{gridSize}]
           </span>
           <span className="font-mono text-[#478cbf]">
             Tool: {toolMode.toUpperCase()}
           </span>
         </div>
 
-        <div className="flex items-center gap-1">
+        {/* Center: Zoom Level Controls (Overview vs Detailed + Steppers + Center) */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Dedicated Zoom Level Control: Overview vs Detailed */}
+          <div
+            className="inline-flex items-center p-0.5 bg-[#181818] border border-[#3e3e42] rounded shrink-0"
+            role="group"
+            aria-label="Map Zoom Level"
+          >
+            <button
+              type="button"
+              onClick={handleSwitchToOverview}
+              className={`flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded transition-colors ${
+                isOverviewActive
+                  ? 'bg-[#3b566e] text-white shadow-sm font-semibold'
+                  : 'text-[#9d9d9d] hover:text-white hover:bg-[#252526]'
+              }`}
+              title="Overview View — Fit entire map for macro layout planning on larger grids"
+            >
+              <LayoutGrid className="w-2.5 h-2.5" />
+              <span>Overview</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSwitchToDetailed}
+              className={`flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded transition-colors ${
+                isDetailedActive
+                  ? 'bg-[#478cbf] text-white shadow-sm font-semibold'
+                  : 'text-[#9d9d9d] hover:text-white hover:bg-[#252526]'
+              }`}
+              title="Detailed View — Zoomed in for micro editing, texture swatches & entity placement"
+            >
+              <Search className="w-2.5 h-2.5" />
+              <span>Detailed</span>
+            </button>
+          </div>
+
+          {/* Stepper Zoom Buttons & Percentage Readout */}
+          <div className="flex items-center bg-[#252526] border border-[#3e3e42] rounded px-1 h-[20px] shrink-0">
+            <button
+              type="button"
+              onClick={() => zoomBy(1 / 1.25)}
+              disabled={cellPx <= MIN_CELL_PX}
+              className="text-[#9d9d9d] hover:text-white disabled:opacity-30 px-0.5"
+              title="Zoom Out (Ctrl + Mouse Wheel Down)"
+            >
+              <ZoomOut className="w-2.5 h-2.5" />
+            </button>
+            <span
+              className="font-mono text-[9px] text-[#cccccc] px-1 min-w-[34px] text-center select-none"
+              title={`Zoom: ${zoomPct}% (${cellPx}px / cell)`}
+            >
+              {zoomPct}%
+            </span>
+            <button
+              type="button"
+              onClick={() => zoomBy(1.25)}
+              disabled={cellPx >= MAX_CELL_PX}
+              className="text-[#9d9d9d] hover:text-white disabled:opacity-30 px-0.5"
+              title="Zoom In (Ctrl + Mouse Wheel Up)"
+            >
+              <ZoomIn className="w-2.5 h-2.5" />
+            </button>
+          </div>
+
+          {/* Center on Selection Button */}
           <button
             type="button"
-            onClick={() => zoomBy(1 / 1.25)}
-            className="ide-btn !h-[18px] !px-1 !text-[10px]"
-            title="Zoom Out (Ctrl + Mouse Wheel)"
+            onClick={() => centerOnCell(selectedCell.row, selectedCell.col, undefined, 'smooth')}
+            className="ide-btn !h-[20px] !px-1.5 !text-[10px] shrink-0"
+            title="Center View on Selected Cell [X, Z] (Keyboard: 'F')"
           >
-            <ZoomOut className="w-2.5 h-2.5" />
+            <LocateFixed className="w-2.5 h-2.5 text-[#4ec9b0]" />
+            <span className="hidden sm:inline">Center [F]</span>
           </button>
-          <button
-            type="button"
-            onClick={() => zoomBy(1.25)}
-            className="ide-btn !h-[18px] !px-1 !text-[10px]"
-            title="Zoom In (Ctrl + Mouse Wheel)"
-          >
-            <ZoomIn className="w-2.5 h-2.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setZoomCellPx(null)}
-            className={`ide-btn !h-[18px] !px-1 !text-[10px] ${
-              zoomCellPx === null ? 'ide-btn--active' : ''
-            }`}
-            title="Fit Whole Map"
-          >
-            <Maximize className="w-2.5 h-2.5" />
-          </button>
+        </div>
+
+        {/* Right: Map Actions */}
+        <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             onClick={onToggleAllowOverlap}
-            className={`ide-btn !h-[18px] !px-1.5 !text-[10px] ${
+            className={`ide-btn !h-[20px] !px-1.5 !text-[10px] ${
               allowOverlap ? 'ide-btn--active' : ''
             }`}
             title={
@@ -584,7 +840,7 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
           <button
             type="button"
             onClick={onBorderWalls}
-            className="ide-btn !h-[18px] !px-1.5 !text-[10px]"
+            className="ide-btn !h-[20px] !px-1.5 !text-[10px]"
             title="Build Perimeter Walls around the Grid"
           >
             <Square className="w-2.5 h-2.5" />
@@ -593,7 +849,7 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
           <button
             type="button"
             onClick={onClearGrid}
-            className="ide-btn !h-[18px] !px-1.5 !text-[10px]"
+            className="ide-btn !h-[20px] !px-1.5 !text-[10px]"
             title="Clear all walls and entities"
           >
             <RotateCcw className="w-2.5 h-2.5" />
@@ -602,7 +858,7 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
           <button
             type="button"
             onClick={() => setShowRawMatrix((prev) => !prev)}
-            className={`ide-btn !h-[18px] !px-1.5 !text-[10px] ${
+            className={`ide-btn !h-[20px] !px-1.5 !text-[10px] ${
               showRawMatrix ? 'ide-btn--active' : ''
             }`}
             title="Toggle Raw 2D Matrix Array View"
@@ -627,7 +883,7 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
               ref={canvasRef}
               aria-label={`2D Grid Map ${gridSize} by ${gridSize}`}
               style={{ width: canvasPx, height: canvasPx }}
-              className="block cursor-pointer"
+              className={`block ${isPanning ? 'cursor-grabbing' : 'cursor-pointer'}`}
               onPointerDown={handleCanvasPointerDown}
               onPointerMove={handleCanvasPointerMove}
               onContextMenu={(e) => e.preventDefault()}
@@ -682,7 +938,13 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
 
       {/* Compact 22px Bottom Legend Strip */}
       <div className="h-[22px] px-2.5 bg-[#252526] border-t border-[#3e3e42] flex items-center justify-between text-[10px] font-mono text-[#858585] shrink-0">
-        <span>Drag Texture / 3D .glb → Cell</span>
+        <div className="flex items-center gap-2">
+          <span>Drag Texture / .glb → Cell · Right-Click: Erase · Middle-Click: Pan</span>
+          <span className="text-[#3e3e42]">|</span>
+          <span className="text-[#cccccc]">
+            View: <strong className="text-white font-medium capitalize">{isOverviewActive ? 'Overview' : isDetailedActive ? 'Detailed' : 'Custom'}</strong> ({cellPx}px · {zoomPct}%)
+          </span>
+        </div>
         <div className="flex items-center gap-2.5">
           <span className="text-[#478cbf]">■ 1:Wall</span>
           <span className="text-[#d14d41]">■ E:Enemy</span>

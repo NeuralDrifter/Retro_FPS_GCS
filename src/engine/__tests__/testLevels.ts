@@ -2,7 +2,7 @@
  * Shared level fixtures for the engine and model library test files.
  */
 import { ENGINE_CONFIG, createUniformTextureMatrix } from '../../types/engine';
-import { BAM_HALF_TURN, LevelDataV3, SIM_CONFIG, SimCellType } from '../sim';
+import { BAM_HALF_TURN, LevelDataV3, SIM_CONFIG, SimCellType } from '../../runtime/sim';
 
 export function createBaseTestLevelV3(): LevelDataV3 {
   const grid: number[][] = Array.from({ length: SIM_CONFIG.GRID_SIZE }, (_, r) =>
