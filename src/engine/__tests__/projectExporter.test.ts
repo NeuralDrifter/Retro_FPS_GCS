@@ -164,6 +164,17 @@ describe('Phase 4 Acceptance: Standalone Project (ZIP) Export', () => {
     // The exported Vite project should not warn about the expected ~900 kB Three.js bundle
     const viteConfig = await unzipped.file(`${prefix}vite.config.js`)!.async('string');
     assert.match(viteConfig, /chunkSizeWarningLimit:\s*\d+/);
+
+    // Exported runtime must be readable source, never minified code cut from a bundle
+    const runtimeFiles = Object.keys(unzipped.files).filter(
+      (p) => p.startsWith(`${prefix}src/runtime/`) && p.endsWith('.ts')
+    );
+    assert.ok(runtimeFiles.length > 0);
+    for (const p of runtimeFiles) {
+      const text = await unzipped.file(p)!.async('string');
+      const longest = Math.max(...text.split('\n').map((line) => line.length));
+      assert.ok(longest <= 1000, `${p} has a ${longest}-char line; it looks minified`);
+    }
   });
 
   it('ACCEPTANCE: Exports Test Level 2 ZIP with bundled assets, Draco decoders, and verifies full unpack, build, and 3000-tick replay', async () => {
