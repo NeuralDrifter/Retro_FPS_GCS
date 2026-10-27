@@ -43,7 +43,18 @@ import {
   duplicateModelId,
   uploadedModelId,
 } from '../../engine/modelLibrary/uploadStore';
-import { Check, Download, GripVertical, PaintBucket, Trash2, Upload } from 'lucide-react';
+import {
+  Check,
+  Download,
+  FolderGit2,
+  GripVertical,
+  PaintBucket,
+  RefreshCw,
+  Trash2,
+  Upload,
+} from 'lucide-react';
+
+const ASSET_GRID_PAGE_SIZE = 48;
 
 interface AssetLibraryTabProps {
   textures: TextureAsset[];
@@ -67,6 +78,15 @@ interface AssetLibraryTabProps {
   onRemoveUploadedModel: (modelId: string) => void;
   onExportLibrary: () => void;
   onImportLibraryFile: (file: File) => void;
+  gitHubRepoInput?: string;
+  isSyncingGitHubAssets?: boolean;
+  gitHubAssetsStats?: {
+    repoLabel: string;
+    textures: number;
+    models: number;
+    error?: string;
+  };
+  onSyncGitHubAssets?: (repoInput: string, forceRefresh?: boolean) => void;
 }
 
 /** Uploaded or URL-linked models (not built-ins or project folder files) can be removed */
@@ -134,13 +154,21 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
   onRemoveUploadedModel,
   onExportLibrary,
   onImportLibraryFile,
+  gitHubRepoInput = 'NeuralDrifter/Retro_FPS_GCS-assets@main',
+  isSyncingGitHubAssets = false,
+  gitHubAssetsStats,
+  onSyncGitHubAssets,
 }) => {
   const [texFolder, setTexFolder] = useState<TextureFolderFilter>('all');
   const [texSearch, setTexSearch] = useState('');
+  const [texLimit, setTexLimit] = useState<number>(ASSET_GRID_PAGE_SIZE);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [modelSearch, setModelSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [usedOnly, setUsedOnly] = useState(false);
+  const [modelLimit, setModelLimit] = useState<number>(ASSET_GRID_PAGE_SIZE);
+  const [repoDraft, setRepoDraft] = useState<string>(gitHubRepoInput);
+  const [showRepoEditor, setShowRepoEditor] = useState<boolean>(false);
   const libraryFileInputRef = useRef<HTMLInputElement | null>(null);
   const [draggingTexId, setDraggingTexId] = useState<string | null>(null);
   const [draggingModelId, setDraggingModelId] = useState<string | null>(null);
@@ -165,9 +193,19 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
     () => filterTextures(textures, texFolder, texSearch),
     [textures, texFolder, texSearch]
   );
+  const visibleTextures = useMemo(
+    () => displayedTextures.slice(0, texLimit),
+    [displayedTextures, texLimit]
+  );
 
-  const uploadedModels = model3DAssets.filter(
-    (m) => m.sourceType === 'file' || m.sourceType === 'url'
+  const uploadedModels = useMemo(
+    () =>
+      model3DAssets.filter(
+        (m) =>
+          m.id.startsWith('glb-') &&
+          (m.sourceType === 'file' || m.sourceType === 'url')
+      ),
+    [model3DAssets]
   );
   const usedModelIds = useMemo(
     () =>
@@ -180,12 +218,28 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
     () => groupPlacementsIntoVariants(placedEntities),
     [placedEntities]
   );
-  const displayedModels = filterModels(model3DAssets, libraryState, {
-    folderId: selectedFolderId,
-    search: modelSearch,
-    tags: selectedTags,
-    usedModelIds: usedOnly ? usedModelIds : null,
-  });
+  const displayedModels = useMemo(
+    () =>
+      filterModels(model3DAssets, libraryState, {
+        folderId: selectedFolderId,
+        search: modelSearch,
+        tags: selectedTags,
+        usedModelIds: usedOnly ? usedModelIds : null,
+      }),
+    [
+      model3DAssets,
+      libraryState,
+      selectedFolderId,
+      modelSearch,
+      selectedTags,
+      usedOnly,
+      usedModelIds,
+    ]
+  );
+  const visibleModels = useMemo(
+    () => displayedModels.slice(0, modelLimit),
+    [displayedModels, modelLimit]
+  );
   const allTags = useMemo(() => {
     const seen = new Map<string, string>();
     for (const m of model3DAssets) {
@@ -336,7 +390,7 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
     e: React.DragEvent<HTMLElement>,
     tex: TextureAsset
   ) => {
-    e.dataTransfer.setData('application/pie3d-texture-id', tex.id);
+    e.dataTransfer.setData('application/gridforge-texture-id', tex.id);
     e.dataTransfer.setData('text/plain', `tex:${tex.id}`);
     e.dataTransfer.effectAllowed = 'copy';
     setDraggingTexId(tex.id);
@@ -347,7 +401,7 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
     e: React.DragEvent<HTMLElement>,
     model: Model3DAsset
   ) => {
-    e.dataTransfer.setData('application/pie3d-model-id', model.id);
+    e.dataTransfer.setData('application/gridforge-model-id', model.id);
     e.dataTransfer.setData('text/plain', `model:${model.id}`);
     e.dataTransfer.effectAllowed = 'copy';
     setDraggingModelId(model.id);
@@ -356,6 +410,84 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
 
   return (
     <>
+      {/* 0. CONNECTED GITHUB ASSETS REPOSITORY BAR */}
+      {onSyncGitHubAssets && (
+        <div className="p-2 bg-[#181818] border-b border-[#333333] space-y-1.5">
+          <div className="flex items-center justify-between gap-1">
+            <div className="flex items-center gap-1 min-w-0">
+              <FolderGit2 className="w-3.5 h-3.5 text-[#4ec9b0] shrink-0" />
+              <span
+                className="font-mono text-[10px] text-[#cccccc] truncate"
+                title={gitHubAssetsStats?.repoLabel || gitHubRepoInput}
+              >
+                {gitHubAssetsStats?.repoLabel || gitHubRepoInput}
+              </span>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowRepoEditor((prev) => !prev)}
+                className="ide-btn !h-[18px] !px-1.5 !text-[9px]"
+                title="Change GitHub assets repository"
+              >
+                Repo
+              </button>
+              <button
+                type="button"
+                disabled={isSyncingGitHubAssets}
+                onClick={() => onSyncGitHubAssets(repoDraft || gitHubRepoInput, true)}
+                className="ide-btn !h-[18px] !px-1.5 !text-[9px]"
+                title="Refresh textures and 3D models from GitHub repository"
+              >
+                <RefreshCw
+                  className={`w-2.5 h-2.5 ${isSyncingGitHubAssets ? 'animate-spin' : ''}`}
+                />
+                <span>{isSyncingGitHubAssets ? 'Syncing' : 'Sync'}</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-[9px] font-mono text-[#858585]">
+            <span>
+              GitHub Pack: {gitHubAssetsStats?.textures ?? 0} tex ·{' '}
+              {gitHubAssetsStats?.models ?? 0} .glb
+            </span>
+            {gitHubAssetsStats?.error && (
+              <span className="text-[#f48771] truncate" title={gitHubAssetsStats.error}>
+                {gitHubAssetsStats.error}
+              </span>
+            )}
+          </div>
+
+          {showRepoEditor && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!repoDraft.trim()) return;
+                onSyncGitHubAssets(repoDraft.trim(), true);
+                setShowRepoEditor(false);
+              }}
+              className="flex gap-1 pt-0.5"
+            >
+              <input
+                type="text"
+                value={repoDraft}
+                onChange={(e) => setRepoDraft(e.target.value)}
+                placeholder="owner/repo or https://github.com/owner/repo"
+                className="ide-input flex-1"
+              />
+              <button
+                type="submit"
+                disabled={!repoDraft.trim() || isSyncingGitHubAssets}
+                className="ide-btn ide-btn--primary !px-2 !text-[10px]"
+              >
+                Load
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
       {/* 1. TEXTURE ASSET LIBRARY: DRAG-AND-DROP TEXTURE THUMBNAILS */}
       <div>
         <div className="ide-section-header">
@@ -392,7 +524,10 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
           <div className="flex items-center justify-between gap-1 pt-0.5">
             <select
               value={texFolder}
-              onChange={(e) => setTexFolder(e.target.value)}
+              onChange={(e) => {
+                setTexFolder(e.target.value);
+                setTexLimit(ASSET_GRID_PAGE_SIZE);
+              }}
               aria-label="Texture folder"
               className="ide-select flex-1 min-w-0"
             >
@@ -422,7 +557,10 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
           <input
             type="search"
             value={texSearch}
-            onChange={(e) => setTexSearch(e.target.value)}
+            onChange={(e) => {
+              setTexSearch(e.target.value);
+              setTexLimit(ASSET_GRID_PAGE_SIZE);
+            }}
             placeholder="Search textures by name"
             className="ide-input w-full"
           />
@@ -433,59 +571,73 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
               an image file below.
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-1.5">
-              {displayedTextures.map((tex) => {
-                const isSelected = tex.id === selectedTextureId;
-                const isBeingDragged = tex.id === draggingTexId;
-                return (
-                  <div
-                    key={tex.id}
-                    draggable={true}
-                    onDragStart={(e) => handleTextureDragStart(e, tex)}
-                    onDragEnd={() => setDraggingTexId(null)}
-                    onClick={() => onSelectTexture(tex.id)}
-                    title={`Drag '${tex.name}' onto any 2D Grid cell (applies to ${targetSurface})`}
-                    className={`group relative p-1.5 rounded-[2px] border text-left cursor-grab active:cursor-grabbing select-none transition-colors ${
-                      isBeingDragged
-                        ? 'border-[#4ec9b0] bg-[#094771]/70 opacity-75'
-                        : isSelected
-                        ? 'border-[#478cbf] bg-[#094771]/50'
-                        : 'border-[#333333] bg-[#181818] hover:border-[#555558]'
-                    }`}
-                  >
-                    <div className="relative w-full aspect-square bg-[#111111] overflow-hidden border border-[#2d2d30]">
-                      <img
-                        src={tex.previewUrl}
-                        alt={tex.name}
-                        draggable={false}
-                        loading="lazy"
-                        decoding="async"
-                        referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover pointer-events-none"
-                      />
-                      <span className="absolute top-1 left-1 px-1 py-0.5 bg-[#181818]/85 border border-[#3e3e42] text-[9px] font-mono text-[#cccccc] flex items-center gap-0.5">
-                        <GripVertical className="w-2.5 h-2.5 text-[#478cbf]" />
-                        <span>DRAG</span>
-                      </span>
-                      {isSelected && (
-                        <span className="absolute top-1 right-1 w-4 h-4 bg-[#478cbf] text-white flex items-center justify-center">
-                          <Check className="w-2.5 h-2.5" />
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-2 gap-1.5">
+                {visibleTextures.map((tex) => {
+                  const isSelected = tex.id === selectedTextureId;
+                  const isBeingDragged = tex.id === draggingTexId;
+                  return (
+                    <div
+                      key={tex.id}
+                      draggable={true}
+                      onDragStart={(e) => handleTextureDragStart(e, tex)}
+                      onDragEnd={() => setDraggingTexId(null)}
+                      onClick={() => onSelectTexture(tex.id)}
+                      title={`Drag '${tex.name}' onto any 2D Grid cell (applies to ${targetSurface})`}
+                      className={`group relative p-1.5 rounded-[2px] border text-left cursor-grab active:cursor-grabbing select-none transition-colors ${
+                        isBeingDragged
+                          ? 'border-[#4ec9b0] bg-[#094771]/70 opacity-75'
+                          : isSelected
+                          ? 'border-[#478cbf] bg-[#094771]/50'
+                          : 'border-[#333333] bg-[#181818] hover:border-[#555558]'
+                      }`}
+                    >
+                      <div className="relative w-full aspect-square bg-[#111111] overflow-hidden border border-[#2d2d30]">
+                        <img
+                          src={tex.previewUrl}
+                          alt={tex.name}
+                          draggable={false}
+                          loading="lazy"
+                          decoding="async"
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover pointer-events-none"
+                        />
+                        <span className="absolute top-1 left-1 px-1 py-0.5 bg-[#181818]/85 border border-[#3e3e42] text-[9px] font-mono text-[#cccccc] flex items-center gap-0.5">
+                          <GripVertical className="w-2.5 h-2.5 text-[#478cbf]" />
+                          <span>DRAG</span>
                         </span>
-                      )}
+                        {isSelected && (
+                          <span className="absolute top-1 right-1 w-4 h-4 bg-[#478cbf] text-white flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5" />
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1 flex items-center justify-between gap-1">
+                        <span className="text-[10px] font-medium truncate text-[#cccccc]">
+                          {tex.name}
+                        </span>
+                        <span className="text-[9px] font-mono uppercase text-[#858585] shrink-0">
+                          {tex.sourceType === 'procedural'
+                            ? 'STD'
+                            : tex.sourceType.toUpperCase()}
+                        </span>
+                      </div>
                     </div>
-                    <div className="mt-1 flex items-center justify-between gap-1">
-                      <span className="text-[10px] font-medium truncate text-[#cccccc]">
-                        {tex.name}
-                      </span>
-                      <span className="text-[9px] font-mono uppercase text-[#858585] shrink-0">
-                        {tex.sourceType === 'procedural'
-                          ? 'STD'
-                          : tex.sourceType.toUpperCase()}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+              {displayedTextures.length > visibleTextures.length && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setTexLimit((prev) => prev + ASSET_GRID_PAGE_SIZE)
+                  }
+                  className="ide-btn w-full justify-center !text-[10px]"
+                >
+                  Show more textures (
+                  {displayedTextures.length - visibleTextures.length} remaining)
+                </button>
+              )}
             </div>
           )}
 
@@ -562,7 +714,10 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
           <ModelFolderTree
             state={libraryState}
             selectedFolderId={selectedFolderId}
-            onSelectFolder={setSelectedFolderId}
+            onSelectFolder={(id) => {
+              setSelectedFolderId(id);
+              setModelLimit(ASSET_GRID_PAGE_SIZE);
+            }}
             onCreateFolder={(name, parentId) =>
               applyLibraryEdit(() => createFolder(libraryState, name, parentId).state)
             }
@@ -580,18 +735,25 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
 
           <ModelLibraryFilters
             search={modelSearch}
-            onSearch={setModelSearch}
+            onSearch={(val) => {
+              setModelSearch(val);
+              setModelLimit(ASSET_GRID_PAGE_SIZE);
+            }}
             allTags={allTags}
             selectedTags={selectedTags}
-            onToggleTag={(tag) =>
+            onToggleTag={(tag) => {
+              setModelLimit(ASSET_GRID_PAGE_SIZE);
               setSelectedTags((prev) =>
                 prev.some((t) => t.toLowerCase() === tag.toLowerCase())
                   ? prev.filter((t) => t.toLowerCase() !== tag.toLowerCase())
                   : [...prev, tag]
-              )
-            }
+              );
+            }}
             usedOnly={usedOnly}
-            onToggleUsedOnly={() => setUsedOnly((prev) => !prev)}
+            onToggleUsedOnly={() => {
+              setModelLimit(ASSET_GRID_PAGE_SIZE);
+              setUsedOnly((prev) => !prev);
+            }}
           />
 
           {usedOnly && (
@@ -611,79 +773,93 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
               filters, or drop a .glb/.gltf file below.
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-1.5">
-              {displayedModels.map((model) => {
-                const isSelected = model.id === selectedModelAssetId;
-                const isBeingDragged = model.id === draggingModelId;
-                return (
-                  <div
-                    key={model.id}
-                    draggable={true}
-                    onDragStart={(e) => handleModelDragStart(e, model)}
-                    onDragEnd={() => setDraggingModelId(null)}
-                    onClick={() => onSelectModelAsset(model.id)}
-                    title={`Drag 3D Model '${model.name}' onto any 2D Grid cell to spawn`}
-                    className={`group relative p-1.5 rounded-[2px] border text-left cursor-grab active:cursor-grabbing select-none transition-colors ${
-                      isBeingDragged
-                        ? 'border-[#4ec9b0] bg-[#094771]/70 opacity-75'
-                        : isSelected
-                        ? 'border-[#478cbf] bg-[#094771]/50'
-                        : 'border-[#333333] bg-[#181818] hover:border-[#555558]'
-                    }`}
-                  >
-                    <div className="relative w-full aspect-square bg-[#111111] overflow-hidden border border-[#2d2d30]">
-                      <Model3DThumbnailSvg
-                        blueprintId={model.blueprintId}
-                        accentHex={model.accentHex}
-                        isEnemy={model.isEnemy}
-                      />
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-2 gap-1.5">
+                {visibleModels.map((model) => {
+                  const isSelected = model.id === selectedModelAssetId;
+                  const isBeingDragged = model.id === draggingModelId;
+                  return (
+                    <div
+                      key={model.id}
+                      draggable={true}
+                      onDragStart={(e) => handleModelDragStart(e, model)}
+                      onDragEnd={() => setDraggingModelId(null)}
+                      onClick={() => onSelectModelAsset(model.id)}
+                      title={`Drag 3D Model '${model.name}' onto any 2D Grid cell to spawn`}
+                      className={`group relative p-1.5 rounded-[2px] border text-left cursor-grab active:cursor-grabbing select-none transition-colors ${
+                        isBeingDragged
+                          ? 'border-[#4ec9b0] bg-[#094771]/70 opacity-75'
+                          : isSelected
+                          ? 'border-[#478cbf] bg-[#094771]/50'
+                          : 'border-[#333333] bg-[#181818] hover:border-[#555558]'
+                      }`}
+                    >
+                      <div className="relative w-full aspect-square bg-[#111111] overflow-hidden border border-[#2d2d30]">
+                        <Model3DThumbnailSvg
+                          blueprintId={model.blueprintId}
+                          accentHex={model.accentHex}
+                          isEnemy={model.isEnemy}
+                        />
 
-                      <span className="absolute top-1 left-1 px-1 py-0.5 bg-[#181818]/90 border border-[#3e3e42] text-[9px] font-mono text-[#cccccc] flex items-center gap-0.5">
-                        <GripVertical className="w-2.5 h-2.5 text-[#478cbf]" />
-                        <span>DRAG</span>
-                      </span>
-
-                      {isSelected ? (
-                        <span className="absolute top-1 right-1 w-4 h-4 bg-[#478cbf] text-white flex items-center justify-center">
-                          <Check className="w-2.5 h-2.5" />
+                        <span className="absolute top-1 left-1 px-1 py-0.5 bg-[#181818]/90 border border-[#3e3e42] text-[9px] font-mono text-[#cccccc] flex items-center gap-0.5">
+                          <GripVertical className="w-2.5 h-2.5 text-[#478cbf]" />
+                          <span>DRAG</span>
                         </span>
-                      ) : (
-                        <span
-                          className="absolute top-1 right-1 px-1 py-0.5 text-[9px] font-mono font-bold border"
-                          style={{
-                            backgroundColor: `${model.accentHex}22`,
-                            borderColor: model.accentHex,
-                            color: model.accentHex,
-                          }}
-                        >
-                          {model.badgeText}
+
+                        {isSelected ? (
+                          <span className="absolute top-1 right-1 w-4 h-4 bg-[#478cbf] text-white flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5" />
+                          </span>
+                        ) : (
+                          <span
+                            className="absolute top-1 right-1 px-1 py-0.5 text-[9px] font-mono font-bold border"
+                            style={{
+                              backgroundColor: `${model.accentHex}22`,
+                              borderColor: model.accentHex,
+                              color: model.accentHex,
+                            }}
+                          >
+                            {model.badgeText}
+                          </span>
+                        )}
+
+                        <span className="absolute bottom-1 left-1 right-1 px-1 py-0.5 bg-[#181818]/90 text-[9px] font-mono text-center truncate text-[#cccccc]">
+                          {(() => {
+                            const resolved = resolveModelSettings(libraryState, model);
+                            const label = getCategoryInfo(resolved.category).label.toUpperCase();
+                            return resolved.isEnemy
+                              ? `${label} · ${resolved.maxHealth}HP`
+                              : label;
+                          })()}
                         </span>
-                      )}
+                      </div>
 
-                      <span className="absolute bottom-1 left-1 right-1 px-1 py-0.5 bg-[#181818]/90 text-[9px] font-mono text-center truncate text-[#cccccc]">
-                        {(() => {
-                          const resolved = resolveModelSettings(libraryState, model);
-                          const label = getCategoryInfo(resolved.category).label.toUpperCase();
-                          return resolved.isEnemy
-                            ? `${label} · ${resolved.maxHealth}HP`
-                            : label;
-                        })()}
-                      </span>
+                      <div className="mt-1 flex items-center justify-between gap-1">
+                        <span className="text-[10px] font-medium truncate text-[#cccccc]">
+                          {model.name}
+                        </span>
+                        <span className="text-[9px] font-mono uppercase text-[#858585] shrink-0">
+                          {model.sourceType === 'builtin'
+                            ? 'GLB'
+                            : model.sourceType.toUpperCase()}
+                        </span>
+                      </div>
                     </div>
-
-                    <div className="mt-1 flex items-center justify-between gap-1">
-                      <span className="text-[10px] font-medium truncate text-[#cccccc]">
-                        {model.name}
-                      </span>
-                      <span className="text-[9px] font-mono uppercase text-[#858585] shrink-0">
-                        {model.sourceType === 'builtin'
-                          ? 'GLB'
-                          : model.sourceType.toUpperCase()}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+              {displayedModels.length > visibleModels.length && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setModelLimit((prev) => prev + ASSET_GRID_PAGE_SIZE)
+                  }
+                  className="ide-btn w-full justify-center !text-[10px]"
+                >
+                  Show more models (
+                  {displayedModels.length - visibleModels.length} remaining)
+                </button>
+              )}
             </div>
           )}
 
@@ -864,7 +1040,7 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
               type="button"
               onClick={onExportLibrary}
               className="ide-btn flex-1"
-              title="Save folders, tags and model settings to a pie3d-library.json file"
+              title="Save folders, tags and model settings to a gridforge-library.json file"
             >
               <Download className="w-3 h-3" />
               <span>Export Library</span>
@@ -873,7 +1049,7 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
               type="button"
               onClick={() => libraryFileInputRef.current?.click()}
               className="ide-btn flex-1"
-              title="Load folders, tags and model settings from a pie3d-library.json file"
+              title="Load folders, tags and model settings from a gridforge-library.json file"
             >
               <Upload className="w-3 h-3" />
               <span>Import Library</span>

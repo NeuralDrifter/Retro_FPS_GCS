@@ -1,31 +1,24 @@
 /**
  * ============================================================================
- * PIE3D MODEL LIBRARY TYPES (CATEGORIES, COLLISION & SIZING)
+ * GRIDFORGE 3D MODEL LIBRARY TYPES (EDITOR FOLDERS, FILTERS & SETTINGS)
  * ============================================================================
- * Shared vocabulary for organizing 3D models into world-building categories
- * and for how a placed model sizes itself and collides.
+ * Runtime category/collision/sizing types live in `src/runtime/types.ts` and
+ * are re-exported here; editor-only library folder/filter/variant types stay here.
  */
 
-export type ModelCategoryId =
-  | 'characters'
-  | 'decorations'
-  | 'items'
-  | 'buildings'
-  | 'vehicles';
+import type {
+  ModelCategoryId,
+  ModelCategoryInfo,
+  ModelCollision,
+  ModelSizing,
+} from '../runtime/types';
 
-/** 'solid' blocks movement like a wall; 'nonSolid' can be walked through */
-export type ModelCollision = 'solid' | 'nonSolid';
-
-/** 'normalized' scales to a fixed character height; 'real' keeps the model's own size */
-export type ModelSizing = 'normalized' | 'real';
-
-export interface ModelCategoryInfo {
-  id: ModelCategoryId;
-  label: string;
-  defaultCollision: ModelCollision;
-  sizing: ModelSizing;
-  runsAI: boolean;
-}
+export type {
+  ModelCategoryId,
+  ModelCategoryInfo,
+  ModelCollision,
+  ModelSizing,
+};
 
 /** A folder in the model library tree; built-in category folders carry `categoryId` */
 export interface LibraryFolder {

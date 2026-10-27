@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { LibraryFolder, ModelLibraryState } from '../../../types/modelLibrary';
 import { Folder, FolderPlus, Pencil, Trash2, Check, X, Library } from 'lucide-react';
 
@@ -12,7 +12,8 @@ interface ModelFolderTreeProps {
   onDropModel: (modelId: string, folderId: string) => void;
 }
 
-const MODEL_DRAG_TYPE = 'application/pie3d-model-id';
+const MODEL_DRAG_TYPE = 'application/gridforge-model-id';
+const EMPTY_FOLDERS: LibraryFolder[] = [];
 
 /**
  * Folder tree of the model library: built-in category folders plus user
@@ -33,8 +34,18 @@ export const ModelFolderTree: React.FC<ModelFolderTreeProps> = ({
   const [draftName, setDraftName] = useState('');
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string | null, LibraryFolder[]>();
+    for (const f of state.folders) {
+      const list = map.get(f.parentId);
+      if (list) list.push(f);
+      else map.set(f.parentId, [f]);
+    }
+    return map;
+  }, [state.folders]);
+
   const childrenOf = (parentId: string | null): LibraryFolder[] =>
-    state.folders.filter((f) => f.parentId === parentId);
+    childrenByParent.get(parentId) ?? EMPTY_FOLDERS;
 
   const commitEdit = () => {
     const name = draftName.trim();

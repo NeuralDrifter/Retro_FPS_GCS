@@ -7,7 +7,7 @@ import {
   createUniformTextureMatrix,
   resizeSquareMatrix,
 } from '../../types/engine';
-import { CollisionSystem } from '../CollisionSystem';
+import { CollisionSystem } from '../../runtime/CollisionSystem';
 import { HistoryManager } from '../HistoryManager';
 import {
   LevelSerializer,
@@ -39,7 +39,7 @@ import {
   step,
   validateLevelDataV3,
   validateSimulationState,
-} from '../sim';
+} from '../../runtime/sim';
 
 import { createBaseTestLevelV3, createSizedTestLevelV3 } from './testLevels';
 

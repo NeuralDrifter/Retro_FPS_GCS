@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * PIE3D UPLOADED MODEL FILE STORE (INDEXEDDB)
+ * GRIDFORGE 3D UPLOADED MODEL FILE STORE (INDEXEDDB)
  * ============================================================================
  * Keeps `.glb` files uploaded through the app (and URL-linked models, as just
  * their URL) across page reloads. Every
@@ -12,7 +12,7 @@
 import type { Model3DAsset } from '../../types/engine';
 import { computeDeterministicAssetId } from '../AssetRegistry';
 
-const DB_NAME = 'pie3d-models';
+const DB_NAME = 'gridforge-models';
 const STORE_NAME = 'uploads';
 
 export interface UploadedModelRecord {
@@ -178,6 +178,15 @@ export function getAllUploadedModels(): Promise<UploadedModelRecord[]> {
     (store) => store.getAll(),
     (result) => (Array.isArray(result) ? (result as UploadedModelRecord[]) : []),
     []
+  );
+}
+
+export function getUploadedModel(id: string): Promise<UploadedModelRecord | null> {
+  return withStore<UploadedModelRecord | null>(
+    'readonly',
+    (store) => store.get(id),
+    (result) => (result ? (result as UploadedModelRecord) : null),
+    null
   );
 }
 

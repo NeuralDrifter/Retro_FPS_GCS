@@ -9,7 +9,7 @@ interface UsedInLevelListProps {
 }
 
 /** Drag data carrying the id of a placed copy whose settings a new placement should copy */
-export const VARIANT_DRAG_TYPE = 'application/pie3d-variant-entity-id';
+export const VARIANT_DRAG_TYPE = 'application/gridforge-variant-entity-id';
 
 /**
  * Models placed in the current level, one row per variant. Identical copies

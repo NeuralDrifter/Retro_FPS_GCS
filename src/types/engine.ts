@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * PIE3D GAME CREATION SYSTEM - CORE ENGINE, COMBAT & AI TYPES (PHASE 1, 2 & 3)
+ * GRIDFORGE 3D GAME CREATION SYSTEM - CORE ENGINE, COMBAT & AI TYPES (PHASE 1, 2 & 3)
  * ============================================================================
  * Defines the shared data structures across our modular architecture:
  *  - `src/types/engine.ts`          : Data contracts, constants & starter presets
@@ -17,16 +17,59 @@ import type {
   EventDefinition,
   RegionDefinition,
   VariableRegistrySpec,
-} from '../engine/sim/types';
-import { SIM_CONFIG } from '../engine/sim/types';
-import type { ModelCategoryId, ModelCollision } from './modelLibrary';
+} from '../runtime/sim/types';
+import {
+  AmmoLootSnapshot,
+  BuiltInTextureId,
+  CellType,
+  DEFAULT_ENTITY_BLUEPRINTS,
+  ENGINE_CONFIG,
+  EnemyAIState,
+  EnemyTelemetrySnapshot,
+  EntityArchetypeId,
+  EntityBlueprint,
+  GridCoord,
+  LevelStateData,
+  Model3DAsset,
+  PlacedEntity,
+  PlayerCombatState,
+  PlayerTransform,
+  SKYBOX_THEMES,
+  SkyboxThemeId,
+  SurfaceTarget,
+  TextureAsset,
+  WallTexturePresetId,
+  createUniformTextureMatrix,
+  resizeSquareMatrix,
+} from '../runtime/types';
 
-export enum CellType {
-  EMPTY = 0, // Walkable corridor / floor space
-  WALL = 1,  // Solid extruded 3D wall block (collidable)
-  DOOR = 2,  // Interactive bulkhead door (opens when player has key or presses E)
-  KEY = 3,   // Collectible keycard pickup (unlocks doors; the player still opens them)
-}
+export {
+  CellType,
+  DEFAULT_ENTITY_BLUEPRINTS,
+  SKYBOX_THEMES,
+  ENGINE_CONFIG,
+  createUniformTextureMatrix,
+  resizeSquareMatrix,
+};
+
+export type {
+  SurfaceTarget,
+  BuiltInTextureId,
+  WallTexturePresetId,
+  TextureAsset,
+  EntityArchetypeId,
+  EnemyAIState,
+  EntityBlueprint,
+  Model3DAsset,
+  PlacedEntity,
+  EnemyTelemetrySnapshot,
+  AmmoLootSnapshot,
+  PlayerCombatState,
+  SkyboxThemeId,
+  GridCoord,
+  PlayerTransform,
+  LevelStateData,
+};
 
 /**
  * Editor Paint Modes (Phase 1 + Phase 2 + Phase 3)
@@ -49,315 +92,6 @@ export type EditorToolMode =
   | 'spawn'
   | 'door'
   | 'key';
-
-/**
- * Target Surface Channel when painting textures in the 2D Grid
- */
-export type SurfaceTarget = 'wall' | 'floor' | 'ceiling';
-
-/**
- * Built-in Procedural Texture Asset IDs
- */
-export type BuiltInTextureId =
-  | 'default-grid'     // Crisp UV architectural measurement grid
-  | 'techbase-panel'   // Doom-inspired riveted industrial steel bulkhead
-  | 'dungeon-stone'    // Classic 90s shareware mossy stone masonry
-  | 'labyrinth-check'  // Ken's Labyrinth high-contrast retro checkerboard
-  | 'floor-obsidian'   // Default dark industrial floor grating
-  | 'ceiling-coffer';  // Default recessed acoustic coffer ceiling
-
-export type WallTexturePresetId = BuiltInTextureId | string;
-
-/**
- * Texture Asset Item in the Phase 2 Asset Panel
- */
-export interface TextureAsset {
-  id: string;
-  name: string;
-  sourceType: 'procedural' | 'file' | 'url';
-  /** DataURL or remote URL (for 'file' and 'url' textures) or thumbnail preview */
-  previewUrl: string;
-  recommendedSurface: SurfaceTarget | 'any';
-  /** True for textures shipped with the project (`src/assets/textures/` or the public manifest) */
-  fromProject?: boolean;
-  /** Disk subfolder under `src/assets/textures/`, e.g. "Horror/Brick" */
-  folderPath?: string;
-}
-
-/**
- * Built-in Entity Archetypes (Loaded via the modular GLTFLoader pipeline)
- */
-export type EntityArchetypeId =
-  | 'sentinel-bot'   // Hostile Cyber Sentinel Droid (.glb Enemy AI)
-  | 'turret-guardian'// Hostile Heavy Quad-Laser Defense Guerilla (.glb Enemy AI)
-  | 'supply-crate'   // Armored Techbase Supply Crate (.glb Prop)
-  | 'custom-glb';    // User-uploaded or URL-linked custom rigged .glb avatar
-
-/**
- * Phase 3 Finite State Machine (FSM) States for Enemy AI
- */
-export type EnemyAIState = 'Idle' | 'Chase' | 'Attack' | 'Dead';
-
-export interface EntityBlueprint {
-  id: EntityArchetypeId;
-  name: string;
-  role: 'enemy' | 'object';
-  isEnemy: boolean;
-  defaultHealth: number;
-  moveSpeed: number;      // World units per second during Chase state
-  attackDamage: number;   // Health points deducted per melee attack
-  accentHex: string;
-  badgeText: string;
-  /** Optional custom .glb URL or ObjectURL supplied by the user */
-  customGlbUrl?: string;
-}
-
-export const DEFAULT_ENTITY_BLUEPRINTS: EntityBlueprint[] = [
-  {
-    id: 'sentinel-bot',
-    name: 'Cyber Sentinel Bot (.glb)',
-    role: 'enemy',
-    isEnemy: true,
-    defaultHealth: 75,
-    moveSpeed: 4.8,
-    attackDamage: 12,
-    accentHex: '#F43F5E',
-    badgeText: 'E1',
-  },
-  {
-    id: 'turret-guardian',
-    name: 'Heavy Mech Stalker (.glb)',
-    role: 'enemy',
-    isEnemy: true,
-    defaultHealth: 100,
-    moveSpeed: 3.4,
-    attackDamage: 18,
-    accentHex: '#A855F7',
-    badgeText: 'E2',
-  },
-  {
-    id: 'supply-crate',
-    name: 'Supply Crate (.glb)',
-    role: 'object',
-    isEnemy: false,
-    defaultHealth: 50,
-    moveSpeed: 0,
-    attackDamage: 0,
-    accentHex: '#38BDF8',
-    badgeText: 'E3',
-  },
-];
-
-/**
- * 3D Model Asset Item in the Asset Library (.glb / .gltf)
- * -------------------------------------------------------
- * Represents either a built-in procedural .glb archetype OR a user-uploaded
- * .glb/.gltf file OR a remote .glb URL that can be dragged and dropped
- * directly onto cells in the 2D Map Editor.
- */
-export interface Model3DAsset {
-  id: string;
-  blueprintId: EntityArchetypeId;
-  name: string;
-  sourceType: 'builtin' | 'file' | 'url';
-  isEnemy: boolean;
-  defaultHealth: number;
-  moveSpeed: number;
-  attackDamage: number;
-  accentHex: string;
-  badgeText: string;
-  customGlbUrl?: string;
-  /** World-building category (absent on legacy assets: resolved from isEnemy) */
-  category?: ModelCategoryId;
-  tags?: string[];
-  /** Slash path of the custom folder the model was found in on disk or in the manifest */
-  folderPath?: string;
-  /** True when `folderPath` starts at the library root instead of inside the category folder */
-  folderAtRoot?: boolean;
-  collision?: ModelCollision;
-  footprintW?: number;
-  footprintD?: number;
-  /** Footprint in cells measured from the model's real size */
-  measuredFootprint?: { w: number; d: number };
-  /** Real size in meters shipped with a project model (`models/model-sizes.json`), so it need not be loaded to be measured */
-  measuredSizeMeters?: { width: number; depth: number };
-}
-
-/**
- * Instance of an Entity placed on the Grid
- */
-export interface PlacedEntity {
-  id: string;
-  row: number;
-  col: number;
-  blueprintId: EntityArchetypeId;
-  modelAssetId?: string; // Deterministic AssetRegistry model ID (used in v3 levels instead of customGlbUrl)
-  name: string;
-  yaw: number;          // Facing angle in radians (converted to integer yawBam in v3 level & sim)
-  scale: number;        // Uniform scale multiplier (default 1.0, converted to scalePct in v3)
-  customGlbUrl?: string;// UI/runtime resolved URL (never persisted in v3 LevelDataV3)
-  /** Phase 3 Combat & AI Properties */
-  isEnemy?: boolean;
-  maxHealth?: number;
-  moveSpeed?: number;
-  attackDamage?: number;
-  tag?: number;
-  patrol?: boolean;
-  ambush?: boolean;
-  /** Resolved placement settings (absent on legacy entities) */
-  category?: ModelCategoryId;
-  collision?: ModelCollision;
-  footprintW?: number;
-  footprintD?: number;
-  /** True when the footprint was set by hand instead of measured */
-  footprintOverride?: boolean;
-}
-
-/**
- * Live Telemetry Snapshot of an Active Enemy in the 3D World
- * (Used to sync real-time AI coordinates & states to the HUD and Minimap)
- */
-export interface EnemyTelemetrySnapshot {
-  id: string;
-  name: string;
-  x: number;
-  z: number;
-  yaw: number;
-  health: number;
-  maxHealth: number;
-  state: EnemyAIState;
-  isEnemy: boolean;
-}
-
-/**
- * Live Snapshot of a Dropped Ammo Loot Pickup at a Dead Enemy's Coordinates
- */
-export interface AmmoLootSnapshot {
-  id: string;
-  x: number;
-  z: number;
-  amount: number;
-  collected: boolean;
-}
-
-/**
- * Phase 3 Player Combat HUD State
- */
-export interface PlayerCombatState {
-  health: number;
-  maxHealth: number;
-  ammo: number;
-  maxAmmo: number;
-  kills: number;
-  totalEnemies: number;
-  isDead: boolean;
-  lastHitEnemyName: string | null;
-  lastHitEnemyHealth: number | null;
-  lastHitEnemyMaxHealth: number | null;
-}
-
-/**
- * Procedural 360° Equirectangular Skybox Themes
- */
-export type SkyboxThemeId =
-  | 'retro-nebula'
-  | 'starry-void'
-  | 'crimson-dusk'
-  | 'emerald-grid';
-
-export const SKYBOX_THEMES: {
-  id: SkyboxThemeId;
-  label: string;
-  fogHex: number;
-}[] = [
-  { id: 'retro-nebula', label: 'Purple Nebula', fogHex: 0x160b24 },
-  { id: 'starry-void', label: 'Dark Starry Void', fogHex: 0x070a10 },
-  { id: 'crimson-dusk', label: 'Crimson Dusk', fogHex: 0x1f0c11 },
-  { id: 'emerald-grid', label: 'Vector Horizon', fogHex: 0x061512 },
-];
-
-export interface GridCoord {
-  row: number;
-  col: number;
-}
-
-export interface PlayerTransform {
-  x: number;
-  y: number;
-  z: number;
-  yaw: number;
-  pitch: number;
-  gridRow: number;
-  gridCol: number;
-  speed: number;
-}
-
-/**
- * Complete Serializable Level State (Save/Load Format)
- */
-export interface LevelStateData {
-  engine: string;
-  version: '2.0';
-  formatVersion?: 3;
-  timestamp: string;
-  gridSize: number;
-  nextEntityId?: number;
-  rngSeed?: number;
-  spawn: { row: number; col: number; yaw: number };
-  /** Whether the exported game displays the in-game Minimap HUD overlay */
-  minimapEnabled?: boolean;
-  skybox: {
-    theme: SkyboxThemeId;
-    seed: number;
-    showCeiling: boolean;
-  };
-  /** gridSize x gridSize numeric layout array (0=Empty, 1=Wall, 2=Door, 3=Key) */
-  grid: number[][];
-  /** Per-cell wall texture asset IDs */
-  wallTextures: string[][];
-  /** Per-cell floor texture asset IDs */
-  floorTextures: string[][];
-  /** Per-cell ceiling texture asset IDs */
-  ceilingTextures: string[][];
-  /** Custom user-uploaded or URL texture definitions */
-  customTextures: TextureAsset[];
-  /** One line per custom model the level uses that this library lacks (set by parseLevelJson) */
-  missingModelWarnings?: string[];
-  /** Placed 3D entities (.glb Enemies and Objects) */
-  entities: PlacedEntity[];
-  /** Optional per-cell tag numbers for event triggers */
-  cellTags?: number[][];
-  /** Optional declarative regions, variables, and events */
-  regions?: RegionDefinition[];
-  variables?: VariableRegistrySpec;
-  events?: EventDefinition[];
-}
-
-export const ENGINE_CONFIG = {
-  GRID_SIZE: 10, // Default size for new levels; each level's size is its grid's length
-  MIN_GRID_SIZE: SIM_CONFIG.MIN_GRID_SIZE,
-  MAX_GRID_SIZE: SIM_CONFIG.MAX_GRID_SIZE,
-  CELL_SIZE: 4.0,
-  WALL_HEIGHT: 4.0,
-  PLAYER_EYE_HEIGHT: 1.75,
-  PLAYER_RADIUS: 0.95,
-  ENTITY_RADIUS: 0.78,
-  WALK_SPEED: 10.5,
-  SPRINT_MULTIPLIER: 1.6,
-  TURN_SPEED: 2.2,
-  // Phase 3 Combat & Enemy AI Constants
-  PLAYER_MAX_HEALTH: 100,
-  PLAYER_START_AMMO: 32,
-  PLAYER_MAX_AMMO: 99,
-  WEAPON_DAMAGE: 25,
-  WEAPON_FIRE_COOLDOWN: 0.2,    // Seconds between shots
-  HIT_FLASH_DURATION: 0.12,     // 0.12s red flash when an enemy is hit
-  ENEMY_LOS_RANGE: 22.0,        // Max distance (world units) for Line-of-Sight chase
-  ENEMY_ATTACK_RANGE: 2.35,     // Melee range (world units) where Enemy attacks Player
-  ENEMY_ATTACK_COOLDOWN: 0.95,  // Seconds between enemy melee strikes
-  AMMO_DROP_AMOUNT: 12,         // Ammo restored when picking up dropped loot
-  AMMO_PICKUP_RADIUS: 1.55,     // World units pickup distance
-} as const;
 
 export interface MapPreset {
   id: string;
@@ -839,30 +573,4 @@ export const MAP_PRESETS: MapPreset[] = [
   },
 ];
 
-/**
- * Helper to create a size x size 2D string matrix filled with a default texture ID
- */
-export function createUniformTextureMatrix(
-  defaultId: string,
-  size: number
-): string[][] {
-  return Array.from({ length: size }, () =>
-    Array.from({ length: size }, () => defaultId)
-  );
-}
 
-/**
- * Returns a copy of a square per-cell matrix resized to size x size, anchored at
- * the top-left [X:0, Z:0] corner. Cropped cells are dropped and new cells get `fill`.
- */
-export function resizeSquareMatrix<T>(
-  matrix: T[][],
-  size: number,
-  fill: T
-): T[][] {
-  return Array.from({ length: size }, (_, r) =>
-    Array.from({ length: size }, (__, c) =>
-      r < matrix.length && c < (matrix[r]?.length ?? 0) ? matrix[r][c] : fill
-    )
-  );
-}

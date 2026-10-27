@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * PIE3D DESKTOP IDE — ARCHITECTURE & JSON STATE SERIALIZATION DIALOG
+ * GRIDFORGE 3D DESKTOP IDE — ARCHITECTURE & JSON STATE SERIALIZATION DIALOG
  * ============================================================================
  */
 

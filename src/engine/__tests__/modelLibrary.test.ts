@@ -22,9 +22,9 @@ import {
   quarterTurnsFromBam,
   rotatedFootprint,
   validateLevelDataV3,
-} from '../sim';
+} from '../../runtime/sim';
 import { LevelSerializer } from '../LevelSerializer';
-import { CollisionSystem } from '../CollisionSystem';
+import { CollisionSystem } from '../../runtime/CollisionSystem';
 import { ENGINE_CONFIG } from '../../types/engine';
 import { createSizedTestLevelV3 } from './testLevels';
 

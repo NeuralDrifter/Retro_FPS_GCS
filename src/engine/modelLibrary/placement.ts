@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * PIE3D MULTI-CELL PLACEMENT CHECKS (EDITOR SIDE)
+ * GRIDFORGE 3D MULTI-CELL PLACEMENT CHECKS (EDITOR SIDE)
  * ============================================================================
  * Footprint lookups and conflict checks for placing, moving, rotating, or
  * resizing models in the 2D editor. Rectangles follow the same quarter-turn
@@ -8,8 +8,8 @@
  */
 
 import { CellType, PlacedEntity } from '../../types/engine';
-import { getFootprintRect } from '../sim/footprint';
-import { radiansToBam } from '../sim/trigTable';
+import { getFootprintRect } from '../../runtime/sim/footprint';
+import { radiansToBam } from '../../runtime/sim/trigTable';
 
 export interface CellRect {
   row0: number;

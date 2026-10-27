@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * PIE3D PLACEMENT VARIANTS ("USED IN THIS LEVEL")
+ * GRIDFORGE 3D PLACEMENT VARIANTS ("USED IN THIS LEVEL")
  * ============================================================================
  * Groups placed copies of a model by the settings that define a variant, so
  * five identical trees list once (x5) while a non-solid one lists separately.

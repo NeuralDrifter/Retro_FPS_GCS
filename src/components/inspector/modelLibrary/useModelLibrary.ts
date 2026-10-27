@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * PIE3D MODEL LIBRARY HOOK (STATE, PERSISTENCE & UPLOAD RESTORE)
+ * GRIDFORGE 3D MODEL LIBRARY HOOK (STATE, PERSISTENCE & UPLOAD RESTORE)
  * ============================================================================
  * Owns the global model library state for `App`: loads it from browser
  * storage, saves every change, files disk-folder models into library folders,
@@ -150,12 +150,12 @@ export function useModelLibrary(params: {
     const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = 'pie3d-library.json';
+    anchor.download = 'gridforge-library.json';
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
     URL.revokeObjectURL(url);
-    onLogRef.current('Library: Exported folders, tags and model settings to pie3d-library.json.');
+    onLogRef.current('Library: Exported folders, tags and model settings to gridforge-library.json.');
   }, [libraryState, models]);
 
   const handleImportLibraryFile = useCallback((file: File) => {

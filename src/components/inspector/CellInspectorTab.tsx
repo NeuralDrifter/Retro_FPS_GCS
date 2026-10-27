@@ -6,7 +6,7 @@ import {
   SurfaceTarget,
   TextureAsset,
 } from '../../types/engine';
-import { CollisionSystem } from '../../engine/CollisionSystem';
+import { CollisionSystem } from '../../runtime/CollisionSystem';
 import { getEntitiesCoveringCell } from '../../engine/modelLibrary/placement';
 import type { ResolvedModelSettings } from '../../types/modelLibrary';
 import { PlacedModelEditor } from './PlacedModelEditor';

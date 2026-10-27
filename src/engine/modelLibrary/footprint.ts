@@ -1,12 +1,12 @@
 /**
  * ============================================================================
- * PIE3D MODEL FOOTPRINT MEASUREMENT (EDITOR SIDE)
+ * GRIDFORGE 3D MODEL FOOTPRINT MEASUREMENT (EDITOR SIDE)
  * ============================================================================
  * Converts a model's measured size in meters into a footprint in grid cells.
  */
 
 import { ENGINE_CONFIG } from '../../types/engine';
-import { SIM_CONFIG } from '../sim/types';
+import { SIM_CONFIG } from '../../runtime/sim/types';
 
 function sizeToCells(sizeMeters: number, cellSizeMeters: number): number {
   if (!Number.isFinite(sizeMeters) || sizeMeters <= 0) return 1;

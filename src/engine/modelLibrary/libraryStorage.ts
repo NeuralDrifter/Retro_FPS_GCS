@@ -1,16 +1,16 @@
 /**
  * ============================================================================
- * PIE3D MODEL LIBRARY PERSISTENCE (BROWSER STORAGE + EXPORT / IMPORT FILE)
+ * GRIDFORGE 3D MODEL LIBRARY PERSISTENCE (BROWSER STORAGE + EXPORT / IMPORT FILE)
  * ============================================================================
  * Browser storage is per-site and can be blocked, full, or cleared (private
  * windows, AI Studio iframes), so every access is guarded and falls back to an
- * empty library. The exported `pie3d-library.json` file is the durable copy.
+ * empty library. The exported `gridforge-library.json` file is the durable copy.
  */
 
 import type { ModelLibraryState } from '../../types/modelLibrary';
 import { createEmptyLibraryState } from './libraryState';
 
-export const LIBRARY_STORAGE_KEY = 'pie3d.modelLibrary.v1';
+export const LIBRARY_STORAGE_KEY = 'gridforge.modelLibrary.v1';
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -83,7 +83,7 @@ export function exportLibraryJson(
   uploadedModels: { id: string; name: string }[]
 ): string {
   return JSON.stringify(
-    { format: 'pie3d-library', version: 1, library: s, uploadedModels },
+    { format: 'gridforge-library', version: 1, library: s, uploadedModels },
     null,
     2
   );
@@ -94,12 +94,12 @@ export function importLibraryJson(json: string): ModelLibraryState {
   try {
     parsed = JSON.parse(json);
   } catch {
-    throw new Error('Not a Pie3D library file');
+    throw new Error('Not a GridForge library file');
   }
   const library =
-    isRecord(parsed) && parsed.format === 'pie3d-library'
+    isRecord(parsed) && parsed.format === 'gridforge-library'
       ? normalizeLibraryState(parsed.library)
       : null;
-  if (!library) throw new Error('Not a Pie3D library file');
+  if (!library) throw new Error('Not a GridForge library file');
   return library;
 }

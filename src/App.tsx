@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * ============================================================================
- * PIE3D GAME CREATION SYSTEM — DESKTOP GAME ENGINE IDE SHELL (PHASE 1, 2 & 3)
+ * GRIDFORGE 3D GAME CREATION SYSTEM — DESKTOP GAME ENGINE IDE SHELL (PHASE 1, 2 & 3)
  * ============================================================================
  * Structured as a native-style Desktop Game Engine IDE (Godot / TrenchBroom /
  * Unity layout) using CSS Grid (`.ide-shell` in `src/index.css`):
@@ -31,8 +31,8 @@ import {
   createUniformTextureMatrix,
   resizeSquareMatrix,
 } from './types/engine';
-import { CollisionSystem } from './engine/CollisionSystem';
-import { TextureGenerator } from './engine/TextureGenerator';
+import { CollisionSystem } from './runtime/CollisionSystem';
+import { TextureGenerator } from './runtime/TextureGenerator';
 import {
   LevelSerializer,
   computeNextEntityId,
@@ -47,7 +47,7 @@ import {
   EventDefinition,
   RegionDefinition,
   VariableRegistrySpec,
-} from './engine/sim';
+} from './runtime/sim';
 import {
   DesignStateSnapshot,
   HistoryManager,
@@ -58,6 +58,7 @@ import { Viewport3D } from './components/Viewport3D';
 import { PropertiesInspector } from './components/PropertiesInspector';
 import { ArchitectureModal } from './components/ArchitectureModal';
 import { EventTriggerEditorModal } from './components/EventTriggerEditorModal';
+import { ExportModal } from './components/ide/ExportModal';
 import { TopMenuBar } from './components/ide/TopMenuBar';
 import { LeftToolPalette } from './components/ide/LeftToolPalette';
 import { BottomStatusBar } from './components/ide/BottomStatusBar';
@@ -76,7 +77,7 @@ import {
   remapEntityModelIds,
   removeModelCopies,
 } from './engine/modelLibrary/placement';
-import { EntityLoader } from './engine/EntityLoader';
+import { EntityLoader } from './runtime/EntityLoader';
 
 export default function App() {
   const initialPreset = MAP_PRESETS[0];
@@ -151,12 +152,81 @@ export default function App() {
     [builtInModel3DAssets, customModel3DAssets]
   );
 
-  // Load any external assets listed in /public/assets/manifest.json on mount
+  const [gitHubRepoInput, setGitHubRepoInput] = useState<string>(() =>
+    AssetFolderLoader.getSavedGitHubRepoInput()
+  );
+  const [isSyncingGitHubAssets, setIsSyncingGitHubAssets] =
+    useState<boolean>(false);
+  const [gitHubAssetsStats, setGitHubAssetsStats] = useState<{
+    repoLabel: string;
+    textures: number;
+    models: number;
+    error?: string;
+  }>(() => AssetFolderLoader.getBundledGitHubAssetsStats());
+
+  const handleSyncGitHubAssets = useCallback(
+    async (repoToLoad: string, forceRefresh = false) => {
+      const targetRepo = repoToLoad.trim() || AssetFolderLoader.getSavedGitHubRepoInput();
+      setIsSyncingGitHubAssets(true);
+      const res = await AssetFolderLoader.fetchGitHubRepoAssets(targetRepo, {
+        forceRefresh,
+      });
+      setIsSyncingGitHubAssets(false);
+
+      if (res.error || !res.spec) {
+        const errMsg = res.error || 'Could not load GitHub assets repository.';
+        setGitHubAssetsStats((prev) => ({
+          ...prev,
+          repoLabel: targetRepo,
+          error: errMsg,
+        }));
+        setEngineLog(`GitHub Assets: ${errMsg}`);
+        return;
+      }
+
+      const repoLabel = `${res.spec.owner}/${res.spec.repo}@${res.spec.branch}`;
+      AssetFolderLoader.setSavedGitHubRepoInput(repoLabel);
+      setGitHubRepoInput(repoLabel);
+
+      for (const t of res.textures) AssetRegistry.registerTexture(t);
+      for (const m of res.models) AssetRegistry.registerModel(m);
+
+      if (res.textures.length > 0) {
+        setCustomTextures((prev) => {
+          const byId = new Map(prev.map((t) => [t.id, t]));
+          for (const t of res.textures) byId.set(t.id, t);
+          return [...byId.values()];
+        });
+      }
+      if (res.models.length > 0) {
+        setCustomModel3DAssets((prev) => {
+          const byId = new Map(prev.map((m) => [m.id, m]));
+          for (const m of res.models) byId.set(m.id, m);
+          return [...byId.values()];
+        });
+      }
+
+      setGitHubAssetsStats({
+        repoLabel,
+        textures: res.textures.length,
+        models: res.models.length,
+      });
+      setEngineLog(
+        `GitHub Assets: Loaded ${res.textures.length} textures & ${res.models.length} 3D models from ${repoLabel}${
+          res.fromCache ? ' (cached)' : ''
+        }.`
+      );
+    },
+    []
+  );
+
+  // Load any external assets listed in /public/assets/manifest.json and the GitHub Assets repo on mount
   useEffect(() => {
     let active = true;
     AssetFolderLoader.fetchPublicManifestAssets().then((manifestAssets) => {
       if (!active) return;
       if (manifestAssets.textures.length > 0) {
+        for (const t of manifestAssets.textures) AssetRegistry.registerTexture(t);
         setCustomTextures((prev) => {
           const existingIds = new Set(prev.map((t) => t.id));
           const fresh = manifestAssets.textures.filter(
@@ -166,6 +236,7 @@ export default function App() {
         });
       }
       if (manifestAssets.models.length > 0) {
+        for (const m of manifestAssets.models) AssetRegistry.registerModel(m);
         setCustomModel3DAssets((prev) => {
           const existingIds = new Set(prev.map((m) => m.id));
           const fresh = manifestAssets.models.filter(
@@ -175,10 +246,18 @@ export default function App() {
         });
       }
     });
+    const savedRepo = AssetFolderLoader.getSavedGitHubRepoInput();
+    const bundledRepo = AssetFolderLoader.getBundledGitHubAssetsStats().repoLabel;
+    if (
+      savedRepo.toLowerCase() !== bundledRepo.toLowerCase() &&
+      `${savedRepo.toLowerCase()}@main` !== bundledRepo.toLowerCase()
+    ) {
+      void handleSyncGitHubAssets(savedRepo, false);
+    }
     return () => {
       active = false;
     };
-  }, []);
+  }, [handleSyncGitHubAssets]);
 
   const [selectedModelAssetId, setSelectedModelAssetId] =
     useState<string>('sentinel-bot');
@@ -273,6 +352,7 @@ export default function App() {
   const [resetSignal, setResetSignal] = useState<number>(0);
   const [isArchModalOpen, setIsArchModalOpen] = useState<boolean>(false);
   const [isEventEditorOpen, setIsEventEditorOpen] = useState<boolean>(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [engineLog, setEngineLog] = useState<string>(
     'Ready — Click 2D grid to sculpt level (Ctrl+Z Undo / Ctrl+Y Redo) or click 3D viewport to fire.'
   );
@@ -328,6 +408,10 @@ export default function App() {
       ) {
         continue;
       }
+      // Remote folder models without precomputed model-sizes.json measure only when selected
+      if (asset.id.startsWith('folder-glb-') && asset.id !== selectedModelAssetId) {
+        continue;
+      }
       const settings = resolveModelSettings(libraryState, asset);
       if (getCategoryInfo(settings.category).sizing !== 'real' || settings.measuredSizeMeters) {
         continue;
@@ -342,7 +426,7 @@ export default function App() {
         );
       });
     }
-  }, [allModel3DAssets, libraryState, setLibraryState]);
+  }, [allModel3DAssets, libraryState, setLibraryState, selectedModelAssetId]);
 
   const getLibrarySettings = useCallback(
     (entity: PlacedEntity) => {
@@ -798,6 +882,90 @@ export default function App() {
   );
 
   /**
+   * Completely clears whatever is on cell `[row, col]`:
+   *  - Any placed 3D object / prop / NPC / enemy covering `[row, col]`
+   *  - Any wall, door, or keycard in `grid[row][col]`
+   *  - Any custom floor, wall, or ceiling texture assigned to `[row, col]`
+   */
+  const handleEraseCell = useCallback((row: number, col: number) => {
+    const currentDesign = currentDesignRef.current;
+    const prevCell = currentDesign.grid[row]?.[col] ?? CellType.EMPTY;
+    const coveringEntities = getEntitiesCoveringCell(
+      currentDesign.entities,
+      row,
+      col
+    );
+    const prevFloorTex = currentDesign.floorTextures[row]?.[col];
+    const prevWallTex = currentDesign.wallTextures[row]?.[col];
+    const prevCeilTex = currentDesign.ceilingTextures[row]?.[col];
+
+    setGrid((prev) => {
+      if (prev[row]?.[col] === CellType.EMPTY) return prev;
+      const next = prev.map((r) => [...r]);
+      next[row][col] = CellType.EMPTY;
+      return next;
+    });
+
+    setEntities((ents) => {
+      const coveringIds = new Set(
+        getEntitiesCoveringCell(ents, row, col).map((e) => e.id)
+      );
+      if (coveringIds.size === 0) return ents;
+      return ents.filter((e) => !coveringIds.has(e.id));
+    });
+
+    setFloorTextures((prev) => {
+      if (!prev[row] || prev[row][col] === 'floor-obsidian') return prev;
+      const next = prev.map((r) => [...r]);
+      next[row][col] = 'floor-obsidian';
+      return next;
+    });
+
+    setWallTextures((prev) => {
+      if (!prev[row] || prev[row][col] === 'default-grid') return prev;
+      const next = prev.map((r) => [...r]);
+      next[row][col] = 'default-grid';
+      return next;
+    });
+
+    setCeilingTextures((prev) => {
+      if (!prev[row] || prev[row][col] === 'ceiling-coffer') return prev;
+      const next = prev.map((r) => [...r]);
+      next[row][col] = 'ceiling-coffer';
+      return next;
+    });
+
+    const removedItems: string[] = [];
+    if (coveringEntities.length > 0) {
+      removedItems.push(coveringEntities.map((e) => `'${e.name}'`).join(', '));
+    }
+    if (prevCell === CellType.WALL) removedItems.push('Wall');
+    else if (prevCell === CellType.DOOR) removedItems.push('Door');
+    else if (prevCell === CellType.KEY) removedItems.push('Keycard');
+    if (prevFloorTex && prevFloorTex !== 'floor-obsidian') {
+      removedItems.push(`Floor (${prevFloorTex})`);
+    }
+    if (
+      prevWallTex &&
+      prevWallTex !== 'default-grid' &&
+      prevCell !== CellType.WALL
+    ) {
+      removedItems.push(`Wall Tex (${prevWallTex})`);
+    }
+    if (prevCeilTex && prevCeilTex !== 'ceiling-coffer') {
+      removedItems.push(`Ceiling (${prevCeilTex})`);
+    }
+
+    if (removedItems.length > 0) {
+      setEngineLog(
+        `Erase: Removed ${removedItems.join(' + ')} at [X:${col}, Z:${row}].`
+      );
+    } else {
+      setEngineLog(`Erase: Cleared cell [X:${col}, Z:${row}].`);
+    }
+  }, []);
+
+  /**
    * Invoked by 2D Map Editor cells (where `onStrokeStart` has already recorded
    * the pre-stroke snapshot onto the Undo stack).
    */
@@ -878,17 +1046,7 @@ export default function App() {
         });
         applyTextureToCell(row, col, 'wall', selectedTextureId);
       } else if (toolMode === 'empty') {
-        setGrid((prev) => {
-          const next = prev.map((r) => [...r]);
-          next[row][col] = CellType.EMPTY;
-          return next;
-        });
-        setEntities((ents) => {
-          const covering = new Set(
-            getEntitiesCoveringCell(ents, row, col).map((e) => e.id)
-          );
-          return ents.filter((e) => !covering.has(e.id));
-        });
+        handleEraseCell(row, col);
       } else if (toolMode === 'door') {
         setGrid((prev) => {
           const next = prev.map((r) => [...r]);
@@ -914,6 +1072,7 @@ export default function App() {
       targetSurface,
       selectedTextureId,
       applyTextureToCell,
+      handleEraseCell,
     ]
   );
 
@@ -1044,7 +1203,12 @@ export default function App() {
       setWallTextures(state.wallTextures.map((r) => [...r]));
       setFloorTextures(state.floorTextures.map((r) => [...r]));
       setCeilingTextures(state.ceilingTextures.map((r) => [...r]));
-      setCustomTextures([...state.customTextures]);
+      setCustomTextures((prev) => {
+        const projectTextures = prev.filter((t) => t.fromProject);
+        const byId = new Map(projectTextures.map((t) => [t.id, t]));
+        for (const t of state.customTextures) byId.set(t.id, t);
+        return [...byId.values()];
+      });
       const restoredEnts = state.entities.map((e) => ({ ...e }));
       setEntities(restoredEnts);
       setNextEntityId(
@@ -1138,35 +1302,20 @@ export default function App() {
     ]
   );
 
-  const currentLevelState = useMemo(
-    () =>
-      LevelSerializer.serializeLevel({
-        grid,
-        wallTextures,
-        floorTextures,
-        ceilingTextures,
-        customTextures,
-        entities,
-        nextEntityId,
-        spawn,
-        skyboxTheme,
-        skyboxSeed,
-        showCeiling,
-        minimapEnabled,
-        events: simState.events,
-        regions: simState.regions,
-        variables: {
-          flags: simState.flags,
-          counters: simState.counters,
-          timers: Object.keys(simState.timers),
-        },
-      }),
-    [
+  const buildCurrentLevelState = useCallback(() => {
+    const usedTexIds = new Set<string>();
+    for (const row of wallTextures) for (const id of row) usedTexIds.add(id);
+    for (const row of floorTextures) for (const id of row) usedTexIds.add(id);
+    for (const row of ceilingTextures) for (const id of row) usedTexIds.add(id);
+    const levelCustomTextures = customTextures.filter(
+      (t) => !t.fromProject || usedTexIds.has(t.id)
+    );
+    return LevelSerializer.serializeLevel({
       grid,
       wallTextures,
       floorTextures,
       ceilingTextures,
-      customTextures,
+      customTextures: levelCustomTextures,
       entities,
       nextEntityId,
       spawn,
@@ -1174,18 +1323,38 @@ export default function App() {
       skyboxSeed,
       showCeiling,
       minimapEnabled,
-      simState.events,
-      simState.regions,
-      simState.flags,
-      simState.counters,
-      simState.timers,
-    ]
-  );
+      events: simState.events,
+      regions: simState.regions,
+      variables: {
+        flags: simState.flags,
+        counters: simState.counters,
+        timers: Object.keys(simState.timers),
+      },
+    });
+  }, [
+    grid,
+    wallTextures,
+    floorTextures,
+    ceilingTextures,
+    customTextures,
+    entities,
+    nextEntityId,
+    spawn,
+    skyboxTheme,
+    skyboxSeed,
+    showCeiling,
+    minimapEnabled,
+    simState.events,
+    simState.regions,
+    simState.flags,
+    simState.counters,
+    simState.timers,
+  ]);
 
   const handleSaveMap = useCallback(() => {
-    LevelSerializer.downloadLevelJson(currentLevelState);
+    LevelSerializer.downloadLevelJson(buildCurrentLevelState());
     setEngineLog('File: Exported level state to downloadable .json file.');
-  }, [currentLevelState]);
+  }, [buildCurrentLevelState]);
 
   const handleLoadMapFile = useCallback(
     (file: File) => {
@@ -1271,6 +1440,98 @@ export default function App() {
     }));
   }, [recordHistorySnapshot]);
 
+  const handleSelectTexture = useCallback((id: string) => {
+    setSelectedTextureId(id);
+    setToolMode((prev) => (prev !== 'paint' && prev !== 'toggle' ? 'paint' : prev));
+  }, []);
+
+  const handleChangeTargetSurface = useCallback((surf: SurfaceTarget) => {
+    setTargetSurface(surf);
+    setToolMode('paint');
+  }, []);
+
+  const handleAddCustomTexture = useCallback((asset: TextureAsset) => {
+    setCustomTextures((prev) => [...prev, asset]);
+  }, []);
+
+  const handleSetSpawnCell = useCallback(
+    (row: number, col: number) => {
+      recordHistorySnapshot(`Move Player Spawn to [X:${col}, Z:${row}]`);
+      setGrid((prev) => {
+        const next = prev.map((r) => [...r]);
+        next[row][col] = CellType.EMPTY;
+        return next;
+      });
+      setSpawn((prev) => ({ ...prev, row, col }));
+    },
+    [recordHistorySnapshot]
+  );
+
+  const setSelectedVariant = modelLibrary.setSelectedVariant;
+  const handleSelectModelAsset = useCallback(
+    (assetId: string) => {
+      setSelectedModelAssetId(assetId);
+      setSelectedVariant(null);
+      setToolMode('entity');
+    },
+    [setSelectedVariant]
+  );
+
+  const handleAddCustomModel3DAsset = useCallback((asset: Model3DAsset) => {
+    setCustomModel3DAssets((prev) => [
+      ...prev.filter((m) => m.id !== asset.id),
+      asset,
+    ]);
+    setSelectedModelAssetId(asset.id);
+    setToolMode('entity');
+    setEngineLog(
+      `Asset Library: Imported 3D model '${asset.name}' — drag it onto any 2D grid cell!`
+    );
+  }, []);
+
+  const handleChangeSkyboxTheme = useCallback((theme: SkyboxThemeId) => {
+    setSkyboxTheme(theme);
+    setShowCeiling(false);
+  }, []);
+
+  const handleRegenerateSkybox = useCallback(() => {
+    setSkyboxSeed((s) => {
+      const next = s + 1;
+      setEngineLog(`Skybox: Generated procedural seed #${next}.`);
+      return next;
+    });
+    setShowCeiling(false);
+  }, []);
+
+  const handleToggleCeiling = useCallback(() => {
+    setShowCeiling((prev) => !prev);
+  }, []);
+
+  const handleToggleMinimap = useCallback(() => {
+    setMinimapEnabled((prev) => !prev);
+  }, []);
+
+  const handleTogglePlayFullscreen = useCallback(() => {
+    setIsPlayFullscreen((prev) => !prev);
+  }, []);
+
+  const handlePickVariant = useCallback(
+    (variant: NonNullable<typeof modelLibrary.selectedVariant>) => {
+      setSelectedVariant(variant);
+      setSelectedModelAssetId(variant.modelAssetId);
+      setToolMode('entity');
+    },
+    [setSelectedVariant]
+  );
+
+  const handleSelectCell = useCallback((row: number, col: number) => {
+    setSelectedCell({ row, col });
+  }, []);
+
+  const handleToggleAllowOverlap = useCallback(() => {
+    setAllowOverlap((prev) => !prev);
+  }, []);
+
   const wallCount = useMemo(() => {
     let count = 0;
     for (const row of grid) {
@@ -1309,8 +1570,9 @@ export default function App() {
         onLoadMapFile={handleLoadMapFile}
         onOpenArchModal={() => setIsArchModalOpen(true)}
         onOpenEventEditor={() => setIsEventEditorOpen(true)}
+        onOpenExportModal={() => setIsExportModalOpen(true)}
         isPlayFullscreen={isPlayFullscreen}
-        onTogglePlayFullscreen={() => setIsPlayFullscreen((prev) => !prev)}
+        onTogglePlayFullscreen={handleTogglePlayFullscreen}
         onRespawnPlayer={() => setResetSignal((n) => n + 1)}
       />
 
@@ -1348,9 +1610,10 @@ export default function App() {
                 entities={entities}
                 toolMode={toolMode}
                 selectedCell={selectedCell}
-                onSelectCell={(row, col) => setSelectedCell({ row, col })}
+                onSelectCell={handleSelectCell}
                 onStrokeStart={recordHistorySnapshot}
                 onCellInteract={handleCellInteract}
+                onEraseCell={handleEraseCell}
                 onDropTextureOnCell={handleDropTextureOnCell}
                 onDropModelOnCell={handleDropModelOnCell}
                 onHoverCellChange={setHoveredCell}
@@ -1360,7 +1623,7 @@ export default function App() {
                 onBorderWalls={handleBorderWalls}
                 onDropVariantOnCell={handleDropVariantOnCell}
                 allowOverlap={allowOverlap}
-                onToggleAllowOverlap={() => setAllowOverlap((prev) => !prev)}
+                onToggleAllowOverlap={handleToggleAllowOverlap}
                 collectedKeys={collectedKeys}
                 openDoors={openDoors}
               />
@@ -1390,11 +1653,11 @@ export default function App() {
             entities={entities}
             spawn={spawn}
             showCeiling={showCeiling}
-            onToggleCeiling={() => setShowCeiling((prev) => !prev)}
+            onToggleCeiling={handleToggleCeiling}
             minimapEnabled={minimapEnabled}
-            onToggleMinimap={() => setMinimapEnabled((prev) => !prev)}
+            onToggleMinimap={handleToggleMinimap}
             isPlayFullscreen={isPlayFullscreen}
-            onTogglePlayFullscreen={() => setIsPlayFullscreen((prev) => !prev)}
+            onTogglePlayFullscreen={handleTogglePlayFullscreen}
             skyboxTheme={skyboxTheme}
             skyboxSeed={skyboxSeed}
             playerTransform={playerTransform}
@@ -1419,90 +1682,48 @@ export default function App() {
           ceilingTextures={ceilingTextures}
           textures={allTextures}
           selectedTextureId={selectedTextureId}
-          onSelectTexture={(id) => {
-            setSelectedTextureId(id);
-            if (toolMode !== 'paint' && toolMode !== 'toggle') {
-              setToolMode('paint');
-            }
-          }}
+          onSelectTexture={handleSelectTexture}
           targetSurface={targetSurface}
-          onChangeTargetSurface={(surf) => {
-            setTargetSurface(surf);
-            setToolMode('paint');
-          }}
-          onAddCustomTexture={(asset) =>
-            setCustomTextures((prev) => [...prev, asset])
-          }
+          onChangeTargetSurface={handleChangeTargetSurface}
+          onAddCustomTexture={handleAddCustomTexture}
           onAssignCellTexture={handleAssignCellTextureFromInspector}
           onFillSurfaceWithTexture={handleFillSurfaceWithTexture}
           onSetCellType={handleSetCellType}
           spawn={spawn}
-          onSetSpawnCell={(row, col) => {
-            recordHistorySnapshot(
-              `Move Player Spawn to [X:${col}, Z:${row}]`
-            );
-            setGrid((prev) => {
-              const next = prev.map((r) => [...r]);
-              next[row][col] = CellType.EMPTY;
-              return next;
-            });
-            setSpawn((prev) => ({ ...prev, row, col }));
-          }}
+          onSetSpawnCell={handleSetSpawnCell}
           onRotateSpawn={handleRotateSpawn}
           entities={entities}
           model3DAssets={allModel3DAssets}
           selectedModelAssetId={selectedModelAssetId}
-          onSelectModelAsset={(assetId) => {
-            setSelectedModelAssetId(assetId);
-            // Picking a library model places it with library settings, not a variant's
-            modelLibrary.setSelectedVariant(null);
-            setToolMode('entity');
-          }}
-          onAddCustomModel3DAsset={(asset) => {
-            setCustomModel3DAssets((prev) => [
-              ...prev.filter((m) => m.id !== asset.id),
-              asset,
-            ]);
-            setSelectedModelAssetId(asset.id);
-            setToolMode('entity');
-            setEngineLog(
-              `Asset Library: Imported 3D model '${asset.name}' — drag it onto any 2D grid cell!`
-            );
-          }}
+          onSelectModelAsset={handleSelectModelAsset}
+          onAddCustomModel3DAsset={handleAddCustomModel3DAsset}
           onUpdateEntity={handleUpdateEntity}
           onPlaceEntityAtCell={handlePlaceEntityFromInspector}
           onRemoveEntity={handleRemoveEntity}
           getLibrarySettings={getLibrarySettings}
           skyboxTheme={skyboxTheme}
-          onChangeSkyboxTheme={(theme) => {
-            setSkyboxTheme(theme);
-            if (showCeiling) setShowCeiling(false);
-          }}
+          onChangeSkyboxTheme={handleChangeSkyboxTheme}
           skyboxSeed={skyboxSeed}
-          onRegenerateSkybox={() => {
-            setSkyboxSeed((s) => s + 1);
-            if (showCeiling) setShowCeiling(false);
-            setEngineLog(`Skybox: Generated procedural seed #${skyboxSeed + 1}.`);
-          }}
+          onRegenerateSkybox={handleRegenerateSkybox}
           showCeiling={showCeiling}
-          onToggleCeiling={() => setShowCeiling((prev) => !prev)}
+          onToggleCeiling={handleToggleCeiling}
           minimapEnabled={minimapEnabled}
-          onToggleMinimap={() => setMinimapEnabled((prev) => !prev)}
+          onToggleMinimap={handleToggleMinimap}
           onBorderWalls={handleBorderWalls}
           onClearGrid={handleClearGrid}
           onResizeMap={handleResizeMap}
           libraryState={libraryState}
           onLibraryChange={setLibraryState}
           selectedVariantKey={modelLibrary.selectedVariant?.key ?? null}
-          onPickVariant={(variant) => {
-            modelLibrary.setSelectedVariant(variant);
-            setSelectedModelAssetId(variant.modelAssetId);
-            setToolMode('entity');
-          }}
+          onPickVariant={handlePickVariant}
           onModelAdded={modelLibrary.handleModelAdded}
           onRemoveUploadedModel={modelLibrary.handleRemoveUploadedModel}
           onExportLibrary={modelLibrary.handleExportLibrary}
           onImportLibraryFile={modelLibrary.handleImportLibraryFile}
+          gitHubRepoInput={gitHubRepoInput}
+          isSyncingGitHubAssets={isSyncingGitHubAssets}
+          gitHubAssetsStats={gitHubAssetsStats}
+          onSyncGitHubAssets={handleSyncGitHubAssets}
         />
       )}
 
@@ -1517,12 +1738,14 @@ export default function App() {
       />
 
       {/* Engine Architecture & JSON State Inspector Modal */}
-      <ArchitectureModal
-        isOpen={isArchModalOpen}
-        onClose={() => setIsArchModalOpen(false)}
-        levelState={currentLevelState}
-        onImportLevelState={handleRestoreLevelState}
-      />
+      {isArchModalOpen && (
+        <ArchitectureModal
+          isOpen={isArchModalOpen}
+          onClose={() => setIsArchModalOpen(false)}
+          levelState={buildCurrentLevelState()}
+          onImportLevelState={handleRestoreLevelState}
+        />
+      )}
 
       {/* Phase 4 Visual Event & Trigger Authoring IDE Modal (mounted only while open so each open starts from fresh level data) */}
       {isEventEditorOpen && <EventTriggerEditorModal
@@ -1539,6 +1762,16 @@ export default function App() {
         gridSize={grid.length}
         onSaveLevelData={handleSaveLevelDataFromEditor}
       />}
+
+      {/* Phase 6 Game Export Modal */}
+      {isExportModalOpen && (
+        <ExportModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          levelState={buildCurrentLevelState()}
+          setEngineLog={setEngineLog}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * PIE3D TEXTURE LIBRARY FOLDERS
+ * GRIDFORGE 3D TEXTURE LIBRARY FOLDERS
  * ============================================================================
  * Textures in `/src/assets/textures/` subfolders are grouped by their path,
  * e.g. `textures/Horror/Brick/x.webp` shows under Horror › Brick. Folders come
