@@ -1,130 +1,214 @@
 /**
- * FORGECORE DETERMINISTIC FNV-1A 64-BIT HASH & CANONICAL JSON (/src/runtime/sim/hash.ts)
+ * ============================================================================
+ * CANONICAL SIMULATION SERIALIZATION, FLOAT VERIFIER & STATE HASH
+ * ============================================================================
+ * Ensures cross-engine determinism verification:
+ *  - Sorts all unordered set arrays (`collectedKeys`, `firedOnceEvents`,
+ *    `foundSecretIds`, `player.items`) and object keys recursively.
+ *  - Recursively verifies that no floating-point number (or `-0`, `NaN`, `Infinity`)
+ *    exists anywhere in `SimulationState`.
+ *  - Computes a deterministic 64-bit (dual-32-bit FNV-1a) hex hash using only
+ *    `Math.imul` and `>>> 0` so Node and browser engines produce identical hashes.
  */
 
 import { SimulationState } from './types';
 
-export function canonicalizeValue(val: any): any {
-  if (Array.isArray(val)) {
-    return val.map(canonicalizeValue);
-  }
-  if (val !== null && typeof val === 'object') {
-    const keys = Object.keys(val).sort();
-    const result: Record<string, any> = {};
-    for (const k of keys) {
-      if (val[k] !== undefined) {
-        result[k] = canonicalizeValue(val[k]);
-      }
+/**
+ * Recursively inspects `value` and returns the paths of any numbers that are
+ * not safe integers (floats, NaN, Infinity, or -0).
+ */
+export function findFloatPaths(value: unknown, currentPath = '$'): string[] {
+  const issues: string[] = [];
+
+  if (typeof value === 'number') {
+    if (
+      !Number.isFinite(value) ||
+      !Number.isInteger(value) ||
+      !Number.isSafeInteger(value) ||
+      Object.is(value, -0)
+    ) {
+      issues.push(`${currentPath}=${String(value)}`);
     }
-    return result;
+    return issues;
   }
-  if (typeof val === 'number' && Object.is(val, -0)) {
-    return 0;
+
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      issues.push(...findFloatPaths(value[i], `${currentPath}[${i}]`));
+    }
+    return issues;
   }
-  return val;
+
+  if (value !== null && typeof value === 'object') {
+    const keys = Object.keys(value as Record<string, unknown>);
+    for (const k of keys) {
+      issues.push(
+        ...findFloatPaths(
+          (value as Record<string, unknown>)[k],
+          `${currentPath}.${k}`
+        )
+      );
+    }
+  }
+
+  return issues;
 }
 
-export function canonicalJson(state: SimulationState): string {
-  const players: Record<string, any> = {};
-  const sortedPlayerIds = Object.keys(state.players)
-    .map(Number)
+/**
+ * Throws a descriptive error if any non-integer number exists anywhere in `state`.
+ */
+export function assertNoFloatsInState(state: unknown): void {
+  const badPaths = findFloatPaths(state);
+  if (badPaths.length > 0) {
+    throw new Error(
+      `SimulationState contains non-integer values at: ${badPaths.join(', ')}`
+    );
+  }
+}
+
+/**
+ * Recursively sorts all object keys alphabetically so `JSON.stringify` is canonical.
+ */
+export function sortKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortKeysDeep);
+  }
+  if (value !== null && typeof value === 'object') {
+    const src = value as Record<string, unknown>;
+    const sortedKeys = Object.keys(src).sort();
+    const out: Record<string, unknown> = {};
+    for (const k of sortedKeys) {
+      if (src[k] !== undefined) {
+        out[k] = sortKeysDeep(src[k]);
+      }
+    }
+    return out;
+  }
+  if (typeof value === 'number' && Object.is(value, -0)) {
+    return 0;
+  }
+  return value;
+}
+
+/**
+ * Produces a canonical JSON string from `SimulationState`, sorting all unordered
+ * sets (`collectedKeys`, `firedOnceEvents`, `foundSecretIds`, player `items`),
+ * `pendingContinuations`, and all record keys.
+ */
+export function canonicalizeSimulationState(state: SimulationState): string {
+  const sortedPlayers: Record<string, unknown> = {};
+  const playerIds = Object.keys(state.players)
+    .map((k) => Number(k))
     .sort((a, b) => a - b);
-  for (const id of sortedPlayerIds) {
-    const p = state.players[id];
-    players[String(id)] = {
+
+  for (const pid of playerIds) {
+    const p = state.players[pid];
+    sortedPlayers[String(pid)] = {
       ...p,
       items: [...p.items].sort(),
     };
   }
 
-  const cleanState: any = {
+  const normalized: Record<string, unknown> = {
     ...state,
-    players,
+    players: sortedPlayers,
     collectedKeys: [...state.collectedKeys].sort(),
     firedOnceEvents: [...state.firedOnceEvents].sort(),
     foundSecretIds: [...state.foundSecretIds].sort(),
-    pendingContinuations: [...state.pendingContinuations].sort((a, b) => a.id - b.id),
+    pendingContinuations: [...state.pendingContinuations].sort(
+      (a, b) => a.id - b.id
+    ),
     events: [...state.events].sort((a, b) => a.id.localeCompare(b.id)),
     regions: [...state.regions].sort((a, b) => a.id.localeCompare(b.id)),
   };
 
   if (state.entities && Object.keys(state.entities).length > 0) {
-    const ents: Record<string, any> = {};
-    const sortedKeys = Object.keys(state.entities).sort();
-    for (const k of sortedKeys) {
-      ents[k] = { ...state.entities[k] };
+    const sortedEntities: Record<string, unknown> = {};
+    const entKeys = Object.keys(state.entities).sort();
+    for (const k of entKeys) {
+      sortedEntities[k] = { ...state.entities[k] };
     }
-    cleanState.entities = ents;
+    normalized.entities = sortedEntities;
   } else {
-    delete cleanState.entities;
+    delete normalized.entities;
   }
 
   if (state.earthquake && state.earthquake.remainingTicks > 0) {
-    cleanState.earthquake = {
+    normalized.earthquake = {
       intensity: state.earthquake.intensity,
       remainingTicks: state.earthquake.remainingTicks,
     };
   } else {
-    delete cleanState.earthquake;
+    delete normalized.earthquake;
   }
 
   if (state.hazardRegions && Object.keys(state.hazardRegions).length > 0) {
-    const haz: Record<string, any> = {};
+    const sortedHazards: Record<string, unknown> = {};
     for (const k of Object.keys(state.hazardRegions).sort()) {
-      haz[k] = { ...state.hazardRegions[k] };
+      sortedHazards[k] = { ...state.hazardRegions[k] };
     }
-    cleanState.hazardRegions = haz;
+    normalized.hazardRegions = sortedHazards;
   } else {
-    delete cleanState.hazardRegions;
+    delete normalized.hazardRegions;
   }
 
   if (state.lightEffects && Object.keys(state.lightEffects).length > 0) {
-    const lights: Record<string, any> = {};
+    const sortedLights: Record<string, unknown> = {};
     for (const k of Object.keys(state.lightEffects).sort()) {
-      lights[k] = { ...state.lightEffects[k] };
+      sortedLights[k] = { ...state.lightEffects[k] };
     }
-    cleanState.lightEffects = lights;
+    normalized.lightEffects = sortedLights;
   } else {
-    delete cleanState.lightEffects;
+    delete normalized.lightEffects;
   }
 
   if (state.regionDwellTicks && Object.keys(state.regionDwellTicks).length > 0) {
-    const dwells: Record<string, any> = {};
-    for (const r of Object.keys(state.regionDwellTicks).sort()) {
-      const pMap: Record<string, any> = {};
-      for (const a of Object.keys(state.regionDwellTicks[r]).sort()) {
-        pMap[a] = state.regionDwellTicks[r][Number(a)];
+    const sortedDwell: Record<string, unknown> = {};
+    for (const rk of Object.keys(state.regionDwellTicks).sort()) {
+      const pDwell: Record<string, number> = {};
+      for (const pk of Object.keys(state.regionDwellTicks[rk]).sort()) {
+        pDwell[pk] = state.regionDwellTicks[rk][Number(pk)];
       }
-      dwells[r] = pMap;
+      sortedDwell[rk] = pDwell;
     }
-    cleanState.regionDwellTicks = dwells;
+    normalized.regionDwellTicks = sortedDwell;
   } else {
-    delete cleanState.regionDwellTicks;
+    delete normalized.regionDwellTicks;
   }
 
-  return JSON.stringify(canonicalizeValue(cleanState));
+  return JSON.stringify(sortKeysDeep(normalized));
 }
 
-export function fnv1a64Hex(str: string): string {
-  let h1 = 2166136261;
-  let h2 = 84696351;
-  for (let r = 0; r < str.length; r++) {
-    const o = str.charCodeAt(r);
-    h1 ^= o & 255;
-    h1 = Math.imul(h1, 16777619) >>> 0;
-    if (o > 255) {
-      h1 ^= (o >>> 8) & 255;
-      h1 = Math.imul(h1, 16777619) >>> 0;
+/**
+ * Deterministic 64-bit hex digest (two independent 32-bit FNV-1a lanes using
+ * `Math.imul` and `>>> 0`) for any string. Works identically in Node and browsers.
+ */
+export function fnv1a64Hex(input: string): string {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x050c5d1f;
+
+  for (let i = 0; i < input.length; i++) {
+    const code = input.charCodeAt(i);
+    h1 ^= code & 0xff;
+    h1 = Math.imul(h1, 0x01000193) >>> 0;
+    if (code > 0xff) {
+      h1 ^= (code >>> 8) & 0xff;
+      h1 = Math.imul(h1, 0x01000193) >>> 0;
     }
-    h2 ^= (o * 31 + r) & 255;
-    h2 = Math.imul(h2, 16777619) >>> 0;
+
+    h2 ^= (code * 31 + i) & 0xff;
+    h2 = Math.imul(h2, 0x01000193) >>> 0;
   }
-  const n = (h1 >>> 0).toString(16).padStart(8, '0');
-  const i = (h2 >>> 0).toString(16).padStart(8, '0');
-  return `${n}${i}`;
+
+  const hex1 = (h1 >>> 0).toString(16).padStart(8, '0');
+  const hex2 = (h2 >>> 0).toString(16).padStart(8, '0');
+  return `${hex1}${hex2}`;
 }
 
+/**
+ * Computes the canonical 16-char hex state hash for a `SimulationState`.
+ */
 export function hashSimulationState(state: SimulationState): string {
-  const json = canonicalJson(state);
-  return fnv1a64Hex(json);
+  const canonicalJson = canonicalizeSimulationState(state);
+  return fnv1a64Hex(canonicalJson);
 }
