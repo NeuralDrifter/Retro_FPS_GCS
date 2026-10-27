@@ -160,6 +160,10 @@ describe('Phase 4 Acceptance: Standalone Project (ZIP) Export', () => {
 
     // No Draco files for Level 1 since Level 1 has no Draco models
     assert.equal(unzipped.file(`${prefix}public/draco/draco_decoder.wasm`), null);
+
+    // The exported Vite project should not warn about the expected ~900 kB Three.js bundle
+    const viteConfig = await unzipped.file(`${prefix}vite.config.js`)!.async('string');
+    assert.match(viteConfig, /chunkSizeWarningLimit:\s*\d+/);
   });
 
   it('ACCEPTANCE: Exports Test Level 2 ZIP with bundled assets, Draco decoders, and verifies full unpack, build, and 3000-tick replay', async () => {
