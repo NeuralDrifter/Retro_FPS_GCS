@@ -70,23 +70,8 @@ export async function loadSingleHtmlRuntimeBundle(): Promise<string> {
       }
 
       // If not yet compiled on disk, compile with esbuild on the fly
-      const esbuild = await import('esbuild');
-      const entryPath = path.resolve('src/runtime/singleHtmlLauncher.ts');
-      const res = await esbuild.build({
-        entryPoints: [entryPath],
-        bundle: true,
-        format: 'iife',
-        write: false,
-        platform: 'browser',
-        target: 'es2020',
-        minify: true,
-        define: {
-          'import.meta.url': 'document.baseURI',
-        },
-      });
-      if (res.outputFiles && res.outputFiles[0]) {
-        return res.outputFiles[0].text;
-      }
+      const { buildSingleHtmlRuntime } = await import('./singleHtmlRuntimeBuild');
+      return await buildSingleHtmlRuntime(path.resolve('.'));
     } catch (err) {
       console.warn('Failed to load runtime bundle via Node fs/esbuild:', err);
     }
