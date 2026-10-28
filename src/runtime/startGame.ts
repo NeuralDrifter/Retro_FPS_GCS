@@ -21,8 +21,10 @@ import {
   PlayerTransform,
   SkyboxThemeId,
   TextureAsset,
+  VerticalLevelData,
 } from './types';
 import { migrateGameManifest } from './manifest';
+import { verticalFromLevelV3 } from './verticalLevelData';
 import {
   LevelDataV3,
   PlayerTickInput,
@@ -36,6 +38,7 @@ import {
   getCollectedKeysSetFromSim,
   getOpenDoorsSetFromSim,
   hashSimulationState,
+  isBlockedVertical,
   lerpBamToRadians,
   radiansToBam,
   recordEntityKilledInSim,
@@ -117,6 +120,7 @@ export interface EditorLevelSyncPayload {
   skyboxSeed: number;
   showCeiling: boolean;
   minimapEnabled: boolean;
+  vertical?: VerticalLevelData;
 }
 
 export interface GameRuntimeHandle {
@@ -159,6 +163,57 @@ function normalizeManifestToLevelV3(input: StartGameManifestInput): {
     levelV3: manifest.level,
     customTextures: explicitTextures ?? [],
   };
+}
+
+/** Horizontal half-angle (radians) within which auto-aim picks an enemy */
+const AUTO_AIM_CONE = 0.14;
+const autoAimRay = new THREE.Raycaster();
+
+/** Heights partway between two ticks; returns `curr` itself when nothing is moving */
+function lerpHeights(prev: number[][], curr: number[][], alpha: number): number[][] {
+  if (prev === curr || prev.every((row, r) => row.every((h, c) => h === curr[r]?.[c]))) return curr;
+  return curr.map((row, r) =>
+    row.map((h, c) => {
+      const from = prev[r]?.[c] ?? h;
+      return from + (h - from) * alpha;
+    })
+  );
+}
+
+/**
+ * Doom-style vertical auto-aim: when a visible enemy is roughly in front of the camera,
+ * pitches the camera toward it (the caller restores the view after the shot).
+ */
+function applyAutoAim(
+  camera: THREE.PerspectiveCamera,
+  enemyAI: EnemyAISystem,
+  occluders: THREE.Object3D[]
+): void {
+  const forward = new THREE.Vector3();
+  camera.getWorldDirection(forward);
+  const yaw = Math.atan2(forward.x, forward.z);
+  let best: { target: THREE.Vector3; offset: number } | null = null;
+  enemyAI.getAgents().forEach((agent) => {
+    if (agent.state === 'Dead' || !agent.instance.isEnemy) return;
+    const target = new THREE.Vector3();
+    agent.instance.hitboxMesh.getWorldPosition(target);
+    const dx = target.x - camera.position.x;
+    const dz = target.z - camera.position.z;
+    let offset = Math.abs(Math.atan2(dx, dz) - yaw);
+    if (offset > Math.PI) offset = 2 * Math.PI - offset;
+    if (offset > AUTO_AIM_CONE || (best && offset >= best.offset)) return;
+    const toTarget = target.clone().sub(camera.position);
+    const dist = toTarget.length();
+    autoAimRay.set(camera.position, toTarget.normalize());
+    autoAimRay.far = dist;
+    if (autoAimRay.intersectObjects(occluders, true).length > 0) return;
+    best = { target, offset };
+  });
+  if (!best) return;
+  const { target } = best as { target: THREE.Vector3; offset: number };
+  const horizontal = Math.hypot(target.x - camera.position.x, target.z - camera.position.z);
+  const pitch = Math.atan2(target.y - camera.position.y, horizontal);
+  camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw + Math.PI, 0, 'YXZ'));
 }
 
 function createInputReader(
@@ -253,6 +308,8 @@ export function startGame(
   let collisionEnabled: boolean = options.collisionEnabled ?? true;
   let minimapEnabled: boolean =
     options.minimapEnabled ?? currentLevelV3.minimapEnabled ?? true;
+  let vertical: VerticalLevelData | undefined = verticalFromLevelV3(currentLevelV3);
+  let updateLayeredHeights: ((floors: number[][], ceilings: number[][]) => void) | null = null;
 
   const inputReader = createInputReader(options.inputSource);
   const isReplayOrDeterministic =
@@ -407,6 +464,11 @@ export function startGame(
     }
 
     const occluders = getActiveOccluderMeshes();
+    // Auto-aim (a per-game setting): tilt the shot up or down toward an enemy in front
+    const savedAim = camera.quaternion.clone();
+    if (currSimState.vertical?.movement.aim === 'auto') {
+      applyAutoAim(camera, enemyAI, occluders);
+    }
     const shot = combatSystem.fireWeapon(
       camera,
       combatState.ammo,
@@ -414,6 +476,7 @@ export function startGame(
       enemyAI,
       occluders
     );
+    camera.quaternion.copy(savedAim);
 
     if (!shot.fired) return;
 
@@ -541,10 +604,12 @@ export function startGame(
         spawn,
         collectedKeys: collectedKeysSet,
         openDoors: openDoorsSet,
+        vertical,
       }
     );
 
     worldGroup = built.worldGroup;
+    updateLayeredHeights = built.updateLayeredHeights ?? null;
     wallMeshes = built.wallMeshes;
     getWallBlockGroup = built.getWallBlockGroup;
     doorMeshes = built.doorMeshes;
@@ -576,8 +641,12 @@ export function startGame(
         counters: currSimState.counters,
         timers: Object.keys(currSimState.timers),
       },
+      vertical,
     });
     const freshSim = createInitialSimulationState(levelV3, [0]);
+    const spawnEyeY = freshSim.vertical
+      ? (freshSim.players[0]?.yUnits ?? 0) * UNITS_TO_METERS
+      : ENGINE_CONFIG.PLAYER_EYE_HEIGHT;
     prevSimState = freshSim;
     currSimState = freshSim;
     lastLogCount = freshSim.logs.length;
@@ -590,14 +659,14 @@ export function startGame(
       grid.length
     );
     if (camera) {
-      camera.position.set(x, ENGINE_CONFIG.PLAYER_EYE_HEIGHT, z);
+      camera.position.set(x, spawnEyeY, z);
       euler.set(0, spawn.yaw, 0, 'YXZ');
       camera.quaternion.setFromEuler(euler);
     }
 
     playerTransform = {
       x,
-      y: ENGINE_CONFIG.PLAYER_EYE_HEIGHT,
+      y: spawnEyeY,
       z,
       yaw: spawn.yaw,
       pitch: 0,
@@ -659,6 +728,9 @@ export function startGame(
           );
           simEnt.row = cell.row;
           simEnt.col = cell.col;
+          if (preSim.vertical) {
+            simEnt.yUnits = Math.round(agent.instance.rootGroup.position.y * METERS_TO_UNITS);
+          }
           simEnt.health = Math.max(0, Math.round(agent.health));
           simEnt.state = agent.state === 'Dead' ? 'dead' : 'idle';
           simEnt.ambush = true;
@@ -727,6 +799,16 @@ export function startGame(
             use: useTriggered,
             shoot: shootTriggered,
             noclip: !collisionEnabled,
+            ...(currSimState.vertical?.movement.jump
+              ? { jump: Boolean(keysPressed['Space']) }
+              : {}),
+            ...(currSimState.vertical?.movement.crouch
+              ? {
+                  crouch: Boolean(
+                    keysPressed['KeyC'] || keysPressed['ControlLeft'] || keysPressed['ControlRight']
+                  ),
+                }
+              : {}),
           };
     }
 
@@ -776,41 +858,44 @@ export function startGame(
           const worldX = p0.xUnits * UNITS_TO_METERS;
           const worldZ = p0.zUnits * UNITS_TO_METERS;
           const openDoorsForTick = getOpenDoorsSetFromSim(nextSim);
+          const feetUnits = p0.feetUnits ?? 0;
           const entResolved = enemyAI.resolvePlayerEntityCollision(
             worldX,
             worldZ,
             collisionEnabled,
             nextSim.grid,
             openDoorsForTick,
-            nextSim.solidFootprint
+            nextSim.solidFootprint,
+            feetUnits * UNITS_TO_METERS
           );
           const candXUnits = Math.round(entResolved.x * METERS_TO_UNITS);
           const candZUnits = Math.round(entResolved.z * METERS_TO_UNITS);
+          const blockedAt = (x: number, z: number) =>
+            nextSim.vertical
+              ? isBlockedVertical(
+                  nextSim,
+                  x,
+                  z,
+                  SIM_CONFIG.PLAYER_RADIUS_UNITS,
+                  feetUnits,
+                  p0.crouching
+                    ? SIM_CONFIG.PLAYER_CROUCH_HEIGHT_UNITS
+                    : SIM_CONFIG.PLAYER_BODY_HEIGHT_UNITS,
+                  nextSim.vertical.movement.stepUnits
+                )
+              : checkCircleCollisionUnits(
+                  x,
+                  z,
+                  SIM_CONFIG.PLAYER_RADIUS_UNITS,
+                  nextSim.grid,
+                  nextSim.movers,
+                  nextSim.solidFootprint
+                );
 
-          if (
-            candXUnits !== p0.xUnits &&
-            !checkCircleCollisionUnits(
-              candXUnits,
-              p0.zUnits,
-              SIM_CONFIG.PLAYER_RADIUS_UNITS,
-              nextSim.grid,
-              nextSim.movers,
-              nextSim.solidFootprint
-            )
-          ) {
+          if (candXUnits !== p0.xUnits && !blockedAt(candXUnits, p0.zUnits)) {
             p0.xUnits = candXUnits;
           }
-          if (
-            candZUnits !== p0.zUnits &&
-            !checkCircleCollisionUnits(
-              p0.xUnits,
-              candZUnits,
-              SIM_CONFIG.PLAYER_RADIUS_UNITS,
-              nextSim.grid,
-              nextSim.movers,
-              nextSim.solidFootprint
-            )
-          ) {
+          if (candZUnits !== p0.zUnits && !blockedAt(p0.xUnits, candZUnits)) {
             p0.zUnits = candZUnits;
           }
           const nextCell = worldUnitsToGrid(
@@ -1101,7 +1186,9 @@ export function startGame(
           handleReloadAmmo();
         }
 
-        if (e.code === 'KeyE' || e.code === 'Space') {
+        // Space jumps when jumping is on; otherwise it uses, like E
+        const spaceJumps = Boolean(currSimState.vertical?.movement.jump);
+        if (e.code === 'KeyE' || (e.code === 'Space' && !spaceJumps)) {
           pendingUse = true;
         }
       };
@@ -1133,7 +1220,9 @@ export function startGame(
 
       camera.position.set(
         initialWorld.x,
-        ENGINE_CONFIG.PLAYER_EYE_HEIGHT,
+        currSimState.vertical
+          ? (currSimState.players[0]?.yUnits ?? 0) * UNITS_TO_METERS
+          : ENGINE_CONFIG.PLAYER_EYE_HEIGHT,
         initialWorld.z
       );
       euler.set(0, spawn.yaw, 0, 'YXZ');
@@ -1311,7 +1400,16 @@ export function startGame(
           const interpFloorH =
             (prevFloorH + (currFloorH - prevFloorH) * alpha) * UNITS_TO_METERS;
 
-          if (currP.speedUnitsPerTick > 0 && !combatState.isDead) {
+          if (curSim.vertical) {
+            // Vertical levels: the sim tracks the eye height through steps, jumps and falls
+            const eyeY =
+              (prevP.yUnits + (currP.yUnits - prevP.yUnits) * alpha) * UNITS_TO_METERS;
+            const bob =
+              currP.speedUnitsPerTick > 0 && currP.onGround && !combatState.isDead
+                ? Math.sin(elapsedSec * 10) * 0.045
+                : 0;
+            camera.position.y = eyeY + bob;
+          } else if (currP.speedUnitsPerTick > 0 && !combatState.isDead) {
             const isSprinting = Boolean(
               keysPressed['ShiftLeft'] || keysPressed['ShiftRight']
             );
@@ -1344,6 +1442,7 @@ export function startGame(
         const openDoorsSet = getOpenDoorsSetFromSim(curSim);
 
         if (enemyAI && !isReplayOrDeterministic) {
+          enemyAI.setVerticalWorld(curSim.vertical ? curSim : null);
           const occluders = [...wallMeshes];
           doorMeshes.forEach((doorGroup, cKey) => {
             if (!openDoorsSet.has(cKey)) {
@@ -1474,6 +1573,14 @@ export function startGame(
           ) {
             wallGroup.visible = false;
           }
+        }
+
+        // Lifts and moving floors glide between ticks, like the flat levels' floor tiles
+        if (updateLayeredHeights) {
+          updateLayeredHeights(
+            lerpHeights(prevSim.floorHeights, curSim.floorHeights, alpha),
+            lerpHeights(prevSim.ceilingHeights, curSim.ceilingHeights, alpha)
+          );
         }
 
         const defaultCeilH = SIM_CONFIG.DEFAULT_CEILING_HEIGHT_UNITS;
@@ -1688,8 +1795,9 @@ export function startGame(
         updateSkybox();
       }
 
-      if (payload.grid.length !== currSimState.gridSize) {
+      if (payload.grid.length !== currSimState.gridSize || payload.vertical !== vertical) {
         grid = payload.grid.map((r) => [...r]);
+        vertical = payload.vertical;
         rebuild3DWorld();
         teleportToSpawn();
         return;

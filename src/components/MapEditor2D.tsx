@@ -38,6 +38,20 @@ import {
 import { getEntityRect } from '../engine/modelLibrary/placement';
 import { resolveEntityCategory } from '../engine/modelLibrary/categories';
 import { VARIANT_DRAG_TYPE } from './inspector/modelLibrary/UsedInLevelList';
+import type { FloorSlopeSpec } from '../runtime/sim';
+
+/** What the 2D map shows about the layer being edited */
+export interface MapLayerView {
+  layer: number;
+  floorHeights: number[][];
+  ceilingHeights: number[][];
+  slopes: FloorSlopeSpec[];
+  /** The grid of the layer below, shown faintly through solid tiles (null on the ground layer) */
+  belowGrid: number[][] | null;
+  showSpawn: boolean;
+}
+
+const METERS_PER_UNIT = 4 / 1000;
 
 /** Pixel width of the X/Z coordinate rulers drawn along the canvas edges */
 const RULER_PX = 22;
@@ -102,6 +116,7 @@ interface MapEditor2DProps {
   onToggleAllowOverlap: () => void;
   collectedKeys: Set<string>;
   openDoors: Set<string>;
+  layerView?: MapLayerView;
 }
 
 export const MapEditor2D: React.FC<MapEditor2DProps> = ({
@@ -128,6 +143,7 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
   onToggleAllowOverlap,
   collectedKeys,
   openDoors,
+  layerView,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isRightClickDrag, setIsRightClickDrag] = useState(false);
@@ -366,7 +382,8 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
     for (let r = 0; r < gridSize; r++) {
       for (let c = 0; c < gridSize; c++) {
         const cellValue = grid[r][c];
-        const cellKey = `${r},${c}`;
+        // Door and keycard state is kept per layer ("L<layer>:row,col" above the ground)
+        const cellKey = layerView && layerView.layer > 0 ? `L${layerView.layer}:${r},${c}` : `${r},${c}`;
         const x = RULER_PX + c * cellPx;
         const y = RULER_PX + r * cellPx;
         const w = cellPx - gap;
@@ -379,8 +396,28 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
           bg = openDoors.has(cellKey) ? CELL_COLORS.doorOpenBg : CELL_COLORS.doorClosedBg;
         else if (cellValue === CellType.KEY)
           bg = collectedKeys.has(cellKey) ? CELL_COLORS.keyCollectedBg : CELL_COLORS.keyBg;
+        if (cellValue === CellType.HOLE) bg = '#07090c';
         ctx.fillStyle = bg;
         ctx.fillRect(x, y, w, w);
+
+        if (cellValue === CellType.HOLE) {
+          // Hatched: open to the layer below (or a bottomless pit on the ground layer)
+          ctx.strokeStyle = layerView && layerView.layer > 0 ? '#2f6f63' : '#6b2c2c';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          for (let k = -w; k < w; k += Math.max(4, w / 4)) {
+            ctx.moveTo(x + Math.max(0, k), y + Math.max(0, -k));
+            ctx.lineTo(x + Math.min(w, k + w), y + Math.min(w, w - k));
+          }
+          ctx.stroke();
+        }
+
+        // The layer below shows faintly through this layer's solid tiles
+        const below = layerView?.belowGrid?.[r]?.[c];
+        if (cellValue === CellType.WALL && below !== undefined && below !== CellType.WALL) {
+          ctx.fillStyle = 'rgba(78, 201, 176, 0.16)';
+          ctx.fillRect(x, y, w, w);
+        }
 
         // Texture preview swatch inside the cell
         if (cellValue === CellType.WALL) {
@@ -405,6 +442,50 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
           }
         }
 
+        // Raised or lowered floors and ceilings, and slopes
+        if (layerView && cellValue !== CellType.WALL && cellValue !== CellType.HOLE) {
+          const floorH = layerView.floorHeights[r]?.[c] ?? 0;
+          const ceilH = layerView.ceilingHeights[r]?.[c] ?? 1000;
+          if (floorH !== 0) {
+            ctx.fillStyle = floorH > 0 ? `rgba(255, 220, 120, ${Math.min(0.35, floorH / 2500)})` : `rgba(0, 0, 0, ${Math.min(0.5, -floorH / 2000)})`;
+            ctx.fillRect(x, y, w, w);
+          }
+          // Uphill arrows: yellow for a floor slope, dashed blue for a ceiling slope
+          for (const slope of w >= 6 ? layerView.slopes : []) {
+            if (slope.row !== r || slope.col !== c) continue;
+            const isCeiling = slope.surface === 'ceiling';
+            const dx = slope.dir === 'E' ? 1 : slope.dir === 'W' ? -1 : 0;
+            const dz = slope.dir === 'S' ? 1 : slope.dir === 'N' ? -1 : 0;
+            const len = w * (isCeiling ? 0.25 : 0.35);
+            ctx.strokeStyle = isCeiling ? '#9cdcfe' : '#ffd866';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash(isCeiling ? [2, 2] : []);
+            ctx.beginPath();
+            ctx.moveTo(cx - dx * len, cy - dz * len);
+            ctx.lineTo(cx + dx * len, cy + dz * len);
+            ctx.lineTo(cx + dx * len * 0.4 - dz * len * 0.45, cy + dz * len * 0.4 + dx * len * 0.45);
+            ctx.moveTo(cx + dx * len, cy + dz * len);
+            ctx.lineTo(cx + dx * len * 0.4 + dz * len * 0.45, cy + dz * len * 0.4 - dx * len * 0.45);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+          if (showGlyphs && cellPx >= 30 && (floorH !== 0 || ceilH !== 1000)) {
+            const font = ctx.font;
+            ctx.font = '8px ui-monospace, monospace';
+            ctx.fillStyle = '#ffd866';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            if (floorH !== 0) ctx.fillText(`${(floorH * METERS_PER_UNIT).toFixed(1)}`, x + 2, y + w - 1);
+            ctx.fillStyle = '#9cdcfe';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'top';
+            if (ceilH !== 1000) ctx.fillText(`${(ceilH * METERS_PER_UNIT).toFixed(1)}`, x + w - 2, y + 1);
+            ctx.font = font;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+          }
+        }
+
         if (showGlyphs) {
           if (cellValue === CellType.DOOR) {
             ctx.fillStyle = openDoors.has(cellKey) ? CELL_COLORS.doorClosedBg : '#ffffff';
@@ -426,7 +507,7 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
           }
         }
 
-        if (spawn.row === r && spawn.col === c) {
+        if (spawn.row === r && spawn.col === c && (layerView?.showSpawn ?? true)) {
           const inset = Math.max(1, cellPx * 0.08);
           ctx.strokeStyle = CELL_COLORS.spawn;
           ctx.lineWidth = 1;
@@ -517,6 +598,7 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
     canvasPx,
     gridSize,
     imageLoadTick,
+    layerView,
   ]);
 
   /** Maps a mouse/drag event to the grid cell under it, or null outside the grid */
@@ -601,7 +683,7 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
       onEraseCell(row, col);
       return;
     }
-    if (toolMode === 'spawn' || toolMode === 'entity') return;
+    if (toolMode === 'spawn' || toolMode === 'entity' || toolMode === 'slope') return;
     if (toolMode === 'toggle' && dragTargetValue !== undefined) {
       onCellInteract(row, col, dragTargetValue);
     } else {

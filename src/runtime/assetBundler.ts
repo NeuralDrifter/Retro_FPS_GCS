@@ -40,6 +40,7 @@ export const BUILTIN_PROCEDURAL_TEXTURE_IDS = new Set<string>([
   'labyrinth-check',
   'floor-obsidian',
   'ceiling-coffer',
+  'grate-alpha',
   'brick',
   'metal',
   'stone',
@@ -168,6 +169,22 @@ export function collectAllReferencedAssets(
       if (Array.isArray(row)) {
         for (const id of row) {
           if (id) textureIdSet.add(id);
+        }
+      }
+    }
+  }
+
+  // 1b. Scan the textures of stacked layers
+  if (Array.isArray(level.layers)) {
+    for (const layer of level.layers) {
+      for (const mat of [layer?.wallTextures, layer?.floorTextures, layer?.ceilingTextures]) {
+        if (!Array.isArray(mat)) continue;
+        for (const row of mat) {
+          if (Array.isArray(row)) {
+            for (const id of row) {
+              if (id) textureIdSet.add(id);
+            }
+          }
         }
       }
     }

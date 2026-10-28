@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   CellType,
   Model3DAsset,
@@ -36,6 +36,9 @@ interface CellInspectorTabProps {
   onRemoveEntity: (entityId: string) => void;
   /** Library settings of the model a placed copy came from (null when unknown) */
   getLibrarySettings: (entity: PlacedEntity) => ResolvedModelSettings | null;
+  /** The model selected in the 3D editor, shown first when it covers this cell */
+  preferredEntityId?: string | null;
+  layerCount?: number;
 }
 
 export const CellInspectorTab: React.FC<CellInspectorTabProps> = ({
@@ -56,8 +59,13 @@ export const CellInspectorTab: React.FC<CellInspectorTabProps> = ({
   onPlaceEntityAtCell,
   onRemoveEntity,
   getLibrarySettings,
+  preferredEntityId,
+  layerCount,
 }) => {
   const [pickedEntityId, setPickedEntityId] = useState<string | null>(null);
+  useEffect(() => {
+    if (preferredEntityId) setPickedEntityId(preferredEntityId);
+  }, [preferredEntityId]);
   const { row, col } = selectedCell;
   const cellType = grid[row]?.[col] ?? CellType.EMPTY;
   const worldPos = CollisionSystem.gridToWorld(row, col, grid.length);
@@ -199,6 +207,7 @@ export const CellInspectorTab: React.FC<CellInspectorTabProps> = ({
                 librarySettings={getLibrarySettings(entityOnCell)}
                 onUpdate={onUpdateEntity}
                 onRemove={() => onRemoveEntity(entityOnCell.id)}
+                layerCount={layerCount}
               />
             </>
           ) : (

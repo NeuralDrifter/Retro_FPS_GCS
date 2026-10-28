@@ -6,3 +6,5 @@ export * from './hash';
 export * from './validator';
 export * from './executor';
 export * from './footprint';
+export * from './vertical';
+export * from './verticalMovement';

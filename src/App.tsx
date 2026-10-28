@@ -55,6 +55,27 @@ import {
 } from './engine/HistoryManager';
 import { MapEditor2D } from './components/MapEditor2D';
 import { Viewport3D } from './components/Viewport3D';
+import { EditorViewport3D, SurfaceDrop } from './components/EditorViewport3D';
+import { LayerBar } from './components/LayerBar';
+import type { ModelBounds, SurfaceHit } from './editor3d/EditorScene';
+import {
+  EditorLayerData,
+  VerticalLevelData,
+  cloneVerticalData,
+  createDefaultVerticalData,
+  createSolidLayer,
+  isFlatVerticalData,
+  resizeVerticalData,
+} from './runtime/types';
+import { LAYER_METERS, entityAnchorWorld } from './runtime/entityPlacement';
+import {
+  CardinalDirection,
+  FloorSlopeSpec,
+  MovementSettingsSpec,
+  SIM_CONFIG,
+  SlopeSurface,
+  WalkSurfaceSpec,
+} from './runtime/sim';
 import { PropertiesInspector } from './components/PropertiesInspector';
 import { ArchitectureModal } from './components/ArchitectureModal';
 import { EventTriggerEditorModal } from './components/EventTriggerEditorModal';
@@ -100,6 +121,87 @@ export default function App() {
   );
   const [ceilingTextures, setCeilingTextures] = useState<string[][]>(() =>
     createUniformTextureMatrix('ceiling-coffer', initialPreset.grid.length)
+  );
+
+  // Stacked layers, tile heights, slopes and movement settings. The ground layer's grid
+  // and textures stay in the states above; every layer above it lives in `vertical.layers`.
+  const [vertical, setVertical] = useState<VerticalLevelData>(() =>
+    createDefaultVerticalData(initialPreset.grid.length)
+  );
+  const [activeLayer, setActiveLayer] = useState<number>(0);
+  const activeLayerRef = useRef(activeLayer);
+  activeLayerRef.current = activeLayer;
+  useEffect(() => {
+    if (activeLayer > vertical.layers.length) setActiveLayer(vertical.layers.length);
+  }, [activeLayer, vertical.layers.length]);
+
+  // The center pane starts as the 3D editor; Test Play turns it into the game
+  const [viewMode, setViewMode] = useState<'edit' | 'play'>('edit');
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+
+  // Height and slope tool settings (sim units: 1000 = one layer = 4 m)
+  const [heightTarget, setHeightTarget] = useState<'floor' | 'ceiling'>('floor');
+  const [heightStep, setHeightStep] = useState<number>(125);
+  const [heightRaise, setHeightRaise] = useState<boolean>(true);
+
+  /**
+   * Setters for one matrix of the layer being edited: the ground layer's own state, or the
+   * matching matrix of a stacked layer inside `vertical`.
+   */
+  type LayerMatrixKey = 'grid' | 'wallTextures' | 'floorTextures' | 'ceilingTextures';
+  const routeToActiveLayer = useCallback(
+    <T,>(key: LayerMatrixKey, setGround: React.Dispatch<React.SetStateAction<T[][]>>) =>
+      (updater: (prev: T[][]) => T[][]) => {
+        const layer = activeLayerRef.current;
+        if (layer === 0) {
+          setGround(updater);
+          return;
+        }
+        setVertical((v) => {
+          const target = v.layers[layer - 1];
+          if (!target) return v;
+          const before = target[key] as unknown as T[][];
+          const after = updater(before);
+          if (after === before) return v;
+          const layers = [...v.layers];
+          layers[layer - 1] = { ...target, [key]: after };
+          return { ...v, layers };
+        });
+      },
+    []
+  );
+  const setActiveGrid = useMemo(
+    () => routeToActiveLayer<number>('grid', setGrid),
+    [routeToActiveLayer]
+  );
+  const setActiveWallTextures = useMemo(
+    () => routeToActiveLayer<string>('wallTextures', setWallTextures),
+    [routeToActiveLayer]
+  );
+  const setActiveFloorTextures = useMemo(
+    () => routeToActiveLayer<string>('floorTextures', setFloorTextures),
+    [routeToActiveLayer]
+  );
+  const setActiveCeilingTextures = useMemo(
+    () => routeToActiveLayer<string>('ceilingTextures', setCeilingTextures),
+    [routeToActiveLayer]
+  );
+
+  /** The layer being edited, with every field filled in (layer 0 reads the top-level state) */
+  const activeLayerData: EditorLayerData = useMemo(
+    () =>
+      activeLayer === 0 || !vertical.layers[activeLayer - 1]
+        ? {
+            grid,
+            wallTextures,
+            floorTextures,
+            ceilingTextures,
+            floorHeights: vertical.floorHeights,
+            ceilingHeights: vertical.ceilingHeights,
+            slopes: vertical.slopes,
+          }
+        : vertical.layers[activeLayer - 1],
+    [activeLayer, grid, wallTextures, floorTextures, ceilingTextures, vertical]
   );
 
   // --------------------------------------------------------------------------
@@ -458,6 +560,7 @@ export default function App() {
     ceilingTextures,
     entities,
     spawn,
+    vertical,
     actionLabel: 'Initial State',
   });
   currentDesignRef.current = {
@@ -467,8 +570,29 @@ export default function App() {
     ceilingTextures,
     entities,
     spawn,
+    vertical,
     actionLabel: 'Current State',
   };
+
+  /** The matrices of the layer being edited, read synchronously from the latest design */
+  const getActiveLayerSnapshot = (): EditorLayerData => {
+    const d = currentDesignRef.current;
+    const layer = activeLayerRef.current;
+    const v = d.vertical!;
+    return layer === 0 || !v.layers[layer - 1]
+      ? {
+          grid: d.grid,
+          wallTextures: d.wallTextures,
+          floorTextures: d.floorTextures,
+          ceilingTextures: d.ceilingTextures,
+          floorHeights: v.floorHeights,
+          ceilingHeights: v.ceilingHeights,
+          slopes: v.slopes,
+        }
+      : v.layers[layer - 1];
+  };
+  /** Placed models on the layer being edited */
+  const onActiveLayer = (e: PlacedEntity) => (e.layer ?? 0) === activeLayerRef.current;
 
   /**
    * Records a deep-cloned snapshot of the current map state (`grid`, `entities`,
@@ -531,6 +655,7 @@ export default function App() {
     setCeilingTextures(restored.ceilingTextures);
     setEntities(restored.entities);
     setSpawn(restored.spawn);
+    if (restored.vertical) setVertical(restored.vertical);
 
     setEngineLog(
       `Undo (Ctrl+Z): Reverted '${targetSnapshot.actionLabel}' (${remainingPast.length} steps left).`
@@ -567,6 +692,7 @@ export default function App() {
     setCeilingTextures(restored.ceilingTextures);
     setEntities(restored.entities);
     setSpawn(restored.spawn);
+    if (restored.vertical) setVertical(restored.vertical);
 
     setEngineLog(
       `Redo (Ctrl+Y): Restored '${targetSnapshot.actionLabel}' (${remainingFuture.length} steps left).`
@@ -653,19 +779,19 @@ export default function App() {
   const applyTextureToCell = useCallback(
     (row: number, col: number, surface: SurfaceTarget, texId: string) => {
       if (surface === 'wall') {
-        setWallTextures((prev) => {
+        setActiveWallTextures((prev) => {
           const next = prev.map((r) => [...r]);
           next[row][col] = texId;
           return next;
         });
       } else if (surface === 'floor') {
-        setFloorTextures((prev) => {
+        setActiveFloorTextures((prev) => {
           const next = prev.map((r) => [...r]);
           next[row][col] = texId;
           return next;
         });
       } else if (surface === 'ceiling') {
-        setCeilingTextures((prev) => {
+        setActiveCeilingTextures((prev) => {
           const next = prev.map((r) => [...r]);
           next[row][col] = texId;
           return next;
@@ -673,7 +799,7 @@ export default function App() {
         setShowCeiling(true);
       }
     },
-    []
+    [setActiveWallTextures, setActiveFloorTextures, setActiveCeilingTextures]
   );
 
   const handleAssignCellTextureFromInspector = useCallback(
@@ -703,7 +829,7 @@ export default function App() {
 
       // If dropping a Wall texture onto an Empty cell, also extrude the cell as a Solid Wall
       if (targetSurface === 'wall') {
-        setGrid((prev) => {
+        setActiveGrid((prev) => {
           if (prev[row][col] === CellType.WALL) return prev;
           const next = prev.map((r) => [...r]);
           next[row][col] = CellType.WALL;
@@ -716,25 +842,25 @@ export default function App() {
         `Asset Library Drop: Applied '${texAsset.name}' to ${targetSurface} at [X:${col}, Z:${row}].`
       );
     },
-    [allTextures, recordHistorySnapshot, targetSurface, applyTextureToCell]
+    [allTextures, recordHistorySnapshot, targetSurface, applyTextureToCell, setActiveGrid]
   );
 
   const handleFillSurfaceWithTexture = useCallback(
     (surface: SurfaceTarget, texId: string) => {
       recordHistorySnapshot(`Fill all ${surface}s with '${texId}'`);
       if (surface === 'wall') {
-        setWallTextures((prev) => createUniformTextureMatrix(texId, prev.length));
+        setActiveWallTextures((prev) => createUniformTextureMatrix(texId, prev.length));
       } else if (surface === 'floor') {
-        setFloorTextures((prev) => createUniformTextureMatrix(texId, prev.length));
+        setActiveFloorTextures((prev) => createUniformTextureMatrix(texId, prev.length));
       } else if (surface === 'ceiling') {
-        setCeilingTextures((prev) =>
+        setActiveCeilingTextures((prev) =>
           createUniformTextureMatrix(texId, prev.length)
         );
         setShowCeiling(true);
       }
       setEngineLog(`Assets: Applied texture '${texId}' to all ${surface} cells.`);
     },
-    [recordHistorySnapshot]
+    [recordHistorySnapshot, setActiveWallTextures, setActiveFloorTextures, setActiveCeilingTextures]
   );
 
   /**
@@ -747,7 +873,8 @@ export default function App() {
       row: number,
       col: number,
       assetOverride?: Model3DAsset,
-      settingsOverride?: ModelSettings
+      settingsOverride?: ModelSettings,
+      surfaceDrop?: SurfaceDrop
     ): boolean => {
       const targetAsset =
         assetOverride ||
@@ -787,21 +914,46 @@ export default function App() {
         maxHealth: settings.maxHealth ?? 75,
         moveSpeed: settings.moveSpeed ?? 0,
         attackDamage: settings.attackDamage ?? 0,
+        ...(activeLayerRef.current > 0 ? { layer: activeLayerRef.current } : {}),
       };
 
-      const { grid: currentGrid, entities: currentEntities } = currentDesignRef.current;
-      const reasons = findPlacementConflicts(currentGrid, currentEntities, newEntity);
-      if (
-        reasons.includes('off the map edge') ||
-        (!allowOverlapRef.current && reasons.length > 0)
-      ) {
-        setEngineLog(`Placement blocked: ${reasons.join('; ')}`);
-        return false;
+      if (surfaceDrop) {
+        // Dropped in the 3D view: stick to the surface under the mouse, turned to face out of it
+        const { hit, point } = surfaceDrop;
+        const gridSize = currentDesignRef.current.grid.length;
+        newEntity.layer = hit.layer;
+        if (hit.surface === 'wall') {
+          newEntity.yaw = Math.atan2(hit.normal.x, hit.normal.z);
+        } else if (hit.surface === 'ceiling') {
+          newEntity.roll = Math.PI;
+        }
+        // Anchor the footprint on the tile in front of the surface, then offset to the exact point
+        const rect = getEntityRect(newEntity);
+        const w = rect.col1 - rect.col0 + 1;
+        const d = rect.row1 - rect.row0 + 1;
+        newEntity.col = Math.max(0, Math.min(gridSize - w, hit.col - Math.floor((w - 1) / 2)));
+        newEntity.row = Math.max(0, Math.min(gridSize - d, hit.row - Math.floor((d - 1) / 2)));
+        const anchor = entityAnchorWorld(newEntity, gridSize);
+        newEntity.offsetX = Math.round((point.x - anchor.x) * 1000) / 1000;
+        newEntity.offsetZ = Math.round((point.z - anchor.z) * 1000) / 1000;
+        newEntity.elevation = Math.round((point.y - hit.layer * LAYER_METERS) * 1000) / 1000;
+      } else {
+        const layerSnapshot = getActiveLayerSnapshot();
+        const currentEntities = currentDesignRef.current.entities.filter(onActiveLayer);
+        const reasons = findPlacementConflicts(layerSnapshot.grid, currentEntities, newEntity);
+        if (
+          reasons.includes('off the map edge') ||
+          (!allowOverlapRef.current && reasons.length > 0)
+        ) {
+          setEngineLog(`Placement blocked: ${reasons.join('; ')}`);
+          return false;
+        }
       }
 
       nextEntityIdRef.current = allocatedIdNum + 1;
       setNextEntityId(allocatedIdNum + 1);
       setEntities((prev) => [...prev, newEntity]);
+      setSelectedEntityId(newEntity.id);
       setEngineLog(
         `Entity: Placed '${newEntity.name}' (${newEntity.id}) at cell [X:${col}, Z:${row}].`
       );
@@ -888,10 +1040,10 @@ export default function App() {
    *  - Any custom floor, wall, or ceiling texture assigned to `[row, col]`
    */
   const handleEraseCell = useCallback((row: number, col: number) => {
-    const currentDesign = currentDesignRef.current;
+    const currentDesign = getActiveLayerSnapshot();
     const prevCell = currentDesign.grid[row]?.[col] ?? CellType.EMPTY;
     const coveringEntities = getEntitiesCoveringCell(
-      currentDesign.entities,
+      currentDesignRef.current.entities.filter(onActiveLayer),
       row,
       col
     );
@@ -899,7 +1051,7 @@ export default function App() {
     const prevWallTex = currentDesign.wallTextures[row]?.[col];
     const prevCeilTex = currentDesign.ceilingTextures[row]?.[col];
 
-    setGrid((prev) => {
+    setActiveGrid((prev) => {
       if (prev[row]?.[col] === CellType.EMPTY) return prev;
       const next = prev.map((r) => [...r]);
       next[row][col] = CellType.EMPTY;
@@ -908,27 +1060,27 @@ export default function App() {
 
     setEntities((ents) => {
       const coveringIds = new Set(
-        getEntitiesCoveringCell(ents, row, col).map((e) => e.id)
+        getEntitiesCoveringCell(ents.filter(onActiveLayer), row, col).map((e) => e.id)
       );
       if (coveringIds.size === 0) return ents;
       return ents.filter((e) => !coveringIds.has(e.id));
     });
 
-    setFloorTextures((prev) => {
+    setActiveFloorTextures((prev) => {
       if (!prev[row] || prev[row][col] === 'floor-obsidian') return prev;
       const next = prev.map((r) => [...r]);
       next[row][col] = 'floor-obsidian';
       return next;
     });
 
-    setWallTextures((prev) => {
+    setActiveWallTextures((prev) => {
       if (!prev[row] || prev[row][col] === 'default-grid') return prev;
       const next = prev.map((r) => [...r]);
       next[row][col] = 'default-grid';
       return next;
     });
 
-    setCeilingTextures((prev) => {
+    setActiveCeilingTextures((prev) => {
       if (!prev[row] || prev[row][col] === 'ceiling-coffer') return prev;
       const next = prev.map((r) => [...r]);
       next[row][col] = 'ceiling-coffer';
@@ -963,7 +1115,83 @@ export default function App() {
     } else {
       setEngineLog(`Erase: Cleared cell [X:${col}, Z:${row}].`);
     }
-  }, []);
+  }, [setActiveGrid, setActiveWallTextures, setActiveFloorTextures, setActiveCeilingTextures]);
+
+  /** Changes the floor/ceiling heights or slopes of one layer */
+  const updateLayerHeights = useCallback(
+    (
+      layer: number,
+      edit: (cur: Pick<EditorLayerData, 'floorHeights' | 'ceilingHeights' | 'slopes'>) => Partial<
+        Pick<EditorLayerData, 'floorHeights' | 'ceilingHeights' | 'slopes'>
+      >
+    ) => {
+      setVertical((v) => {
+        if (layer === 0) return { ...v, ...edit(v) };
+        const target = v.layers[layer - 1];
+        if (!target) return v;
+        const layers = [...v.layers];
+        layers[layer - 1] = { ...target, ...edit(target) };
+        return { ...v, layers };
+      });
+    },
+    []
+  );
+
+  /** Height tool: raises or lowers the floor or ceiling of a tile by one step */
+  const adjustTileHeight = useCallback(
+    (row: number, col: number) => {
+      const layer = activeLayerRef.current;
+      const delta = heightRaise ? heightStep : -heightStep;
+      const minFloor = layer === 0 ? SIM_CONFIG.MIN_FLOOR_HEIGHT_UNITS : 0;
+      const LAYER = SIM_CONFIG.LAYER_HEIGHT_UNITS;
+      updateLayerHeights(layer, (cur) => {
+        const floors = cur.floorHeights.map((r) => [...r]);
+        const ceilings = cur.ceilingHeights.map((r) => [...r]);
+        if (heightTarget === 'floor') {
+          floors[row][col] = Math.max(minFloor, Math.min(ceilings[row][col] - 100, floors[row][col] + delta));
+        } else {
+          ceilings[row][col] = Math.max(floors[row][col] + 100, Math.min(LAYER, ceilings[row][col] + delta));
+        }
+        return { floorHeights: floors, ceilingHeights: ceilings };
+      });
+      setEngineLog(
+        `Height: ${heightRaise ? 'Raised' : 'Lowered'} the ${heightTarget} at [X:${col}, Z:${row}] by ${(heightStep * ENGINE_CONFIG.CELL_SIZE / SIM_CONFIG.CELL_UNITS).toFixed(2)} m.`
+      );
+    },
+    [heightRaise, heightStep, heightTarget, updateLayerHeights]
+  );
+
+  /**
+   * Slope tool: turns a tile's floor (or ceiling, per the Floor/Ceiling setting) slope through
+   * none, N, E, S, W; it rises by one height step
+   */
+  const cycleTileSlope = useCallback(
+    (row: number, col: number) => {
+      const order: (CardinalDirection | null)[] = [null, 'N', 'E', 'S', 'W'];
+      const layer = activeLayerRef.current;
+      const surface = heightTarget;
+      const isThis = (sl: FloorSlopeSpec) =>
+        sl.row === row && sl.col === col && (sl.surface ?? 'floor') === surface;
+      let label = 'flat';
+      updateLayerHeights(layer, (cur) => {
+        const existing = cur.slopes.find(isThis);
+        const nextDir = order[(order.indexOf(existing?.dir ?? null) + 1) % order.length];
+        const others = cur.slopes.filter((sl) => !isThis(sl));
+        label = nextDir ? `rising to the ${nextDir}` : 'flat';
+        const riseUnits = Math.min(SIM_CONFIG.MAX_SLOPE_RISE_UNITS, heightStep);
+        return {
+          slopes: nextDir
+            ? [
+                ...others,
+                { row, col, dir: nextDir, riseUnits, ...(surface === 'ceiling' ? { surface } : {}) },
+              ]
+            : others,
+        };
+      });
+      setEngineLog(`Slope: The ${surface} of tile [X:${col}, Z:${row}] is now ${label}.`);
+    },
+    [heightStep, heightTarget, updateLayerHeights]
+  );
 
   /**
    * Invoked by 2D Map Editor cells (where `onStrokeStart` has already recorded
@@ -972,12 +1200,15 @@ export default function App() {
   const handleCellInteract = useCallback(
     (row: number, col: number, forceValue?: number) => {
       if (toolMode === 'spawn') {
-        setGrid((prev) => {
+        setActiveGrid((prev) => {
           const next = prev.map((r) => [...r]);
           next[row][col] = CellType.EMPTY;
           return next;
         });
         setSpawn((prev) => ({ ...prev, row, col }));
+        setVertical((v) =>
+          v.spawnLayer === activeLayerRef.current ? v : { ...v, spawnLayer: activeLayerRef.current }
+        );
         setEngineLog(`Spawn: Relocated Player Spawn to [X:${col}, Z:${row}].`);
         return;
       }
@@ -989,7 +1220,7 @@ export default function App() {
 
         // Clicking a cell covered by the active model removes that copy
         const existingAtCell = activeAsset
-          ? getEntitiesCoveringCell(entities, row, col).find(
+          ? getEntitiesCoveringCell(entities.filter(onActiveLayer), row, col).find(
               (e) => (e.modelAssetId ?? e.blueprintId) === activeAsset.id
             )
           : undefined;
@@ -1005,9 +1236,31 @@ export default function App() {
         return;
       }
 
+      if (toolMode === 'height') {
+        adjustTileHeight(row, col);
+        return;
+      }
+      if (toolMode === 'slope') {
+        cycleTileSlope(row, col);
+        return;
+      }
+      if (toolMode === 'hole') {
+        setActiveGrid((prev) => {
+          const next = prev.map((r) => [...r]);
+          next[row][col] = prev[row][col] === CellType.HOLE ? CellType.EMPTY : CellType.HOLE;
+          return next;
+        });
+        setEngineLog(
+          activeLayerRef.current === 0
+            ? `Hole: Toggled a bottomless pit at [X:${col}, Z:${row}] (falling in kills the player).`
+            : `Hole: Toggled an opening to the layer below at [X:${col}, Z:${row}].`
+        );
+        return;
+      }
+
       if (toolMode === 'paint') {
         if (targetSurface === 'wall') {
-          setGrid((prev) => {
+          setActiveGrid((prev) => {
             if (prev[row][col] === CellType.WALL) return prev;
             const next = prev.map((r) => [...r]);
             next[row][col] = CellType.WALL;
@@ -1021,7 +1274,7 @@ export default function App() {
         return;
       }
 
-      const currentCellVal = currentDesignRef.current.grid[row]?.[col];
+      const currentCellVal = getActiveLayerSnapshot().grid[row]?.[col];
 
       if (toolMode === 'toggle') {
         const nextVal =
@@ -1030,7 +1283,7 @@ export default function App() {
             : currentCellVal === CellType.WALL
             ? CellType.EMPTY
             : CellType.WALL;
-        setGrid((prev) => {
+        setActiveGrid((prev) => {
           const next = prev.map((r) => [...r]);
           next[row][col] = nextVal;
           return next;
@@ -1039,7 +1292,7 @@ export default function App() {
           applyTextureToCell(row, col, 'wall', selectedTextureId);
         }
       } else if (toolMode === 'wall') {
-        setGrid((prev) => {
+        setActiveGrid((prev) => {
           const next = prev.map((r) => [...r]);
           next[row][col] = CellType.WALL;
           return next;
@@ -1048,14 +1301,14 @@ export default function App() {
       } else if (toolMode === 'empty') {
         handleEraseCell(row, col);
       } else if (toolMode === 'door') {
-        setGrid((prev) => {
+        setActiveGrid((prev) => {
           const next = prev.map((r) => [...r]);
           next[row][col] =
             prev[row][col] === CellType.DOOR ? CellType.EMPTY : CellType.DOOR;
           return next;
         });
       } else if (toolMode === 'key') {
-        setGrid((prev) => {
+        setActiveGrid((prev) => {
           const next = prev.map((r) => [...r]);
           next[row][col] =
             prev[row][col] === CellType.KEY ? CellType.EMPTY : CellType.KEY;
@@ -1073,6 +1326,9 @@ export default function App() {
       selectedTextureId,
       applyTextureToCell,
       handleEraseCell,
+      setActiveGrid,
+      adjustTileHeight,
+      cycleTileSlope,
     ]
   );
 
@@ -1081,7 +1337,7 @@ export default function App() {
       recordHistorySnapshot(
         `Set cell [X:${col}, Z:${row}] to type ${cellType}`
       );
-      setGrid((prev) => {
+      setActiveGrid((prev) => {
         const next = prev.map((r) => [...r]);
         next[row][col] = cellType;
         return next;
@@ -1090,21 +1346,36 @@ export default function App() {
         `Inspector: Set cell [X:${col}, Z:${row}] to type ${cellType}.`
       );
     },
-    [recordHistorySnapshot]
+    [recordHistorySnapshot, setActiveGrid]
   );
 
   const handleUpdateEntity = useCallback(
-    (updated: PlacedEntity) => {
+    (updatedIn: PlacedEntity) => {
+      let updated = updatedIn;
       // Moving, rotating or resizing a footprint must still fit (and not overlap while overlap is off)
-      const { grid: currentGrid, entities: currentEntities } = currentDesignRef.current;
+      const { entities: currentEntities } = currentDesignRef.current;
+      const currentGrid = getActiveLayerSnapshot().grid;
       const previous = currentEntities.find((e) => e.id === updated.id);
+      const placedIn3D = updated.elevation !== undefined || (updated.layer ?? 0) > 0;
+      // A walkable model's baked shape is in world space: moving it means baking again
       if (
         previous &&
+        updated.walkable &&
+        updated.walkSurface &&
+        updated.walkSurface === previous.walkSurface &&
+        JSON.stringify([previous.row, previous.col, previous.layer, previous.offsetX, previous.offsetZ, previous.elevation, previous.yaw, previous.pitch, previous.roll, previous.scale]) !==
+          JSON.stringify([updated.row, updated.col, updated.layer, updated.offsetX, updated.offsetZ, updated.elevation, updated.yaw, updated.pitch, updated.roll, updated.scale])
+      ) {
+        updated = { ...updated, walkSurface: undefined };
+      }
+      if (
+        previous &&
+        !placedIn3D &&
         JSON.stringify(getEntityRect(previous)) !== JSON.stringify(getEntityRect(updated))
       ) {
         const reasons = findPlacementConflicts(
           currentGrid,
-          currentEntities,
+          currentEntities.filter(onActiveLayer),
           updated,
           updated.id
         );
@@ -1167,6 +1438,9 @@ export default function App() {
         computeNextEntityId(nextEnts, Math.max(prev, found.nextEntityId ?? 1))
       );
       setSpawn({ ...found.spawn });
+      setVertical(createDefaultVerticalData(nextGrid.length));
+      setActiveLayer(0);
+      setSelectedEntityId(null);
       const presetV3 = LevelSerializer.serializeLevelV3({
         grid: nextGrid,
         wallTextures: nextWallTex,
@@ -1215,6 +1489,12 @@ export default function App() {
         computeNextEntityId(restoredEnts, state.nextEntityId)
       );
       setSpawn({ ...state.spawn });
+      const restoredVertical = state.vertical
+        ? cloneVerticalData(state.vertical)
+        : createDefaultVerticalData(state.grid.length);
+      setVertical(restoredVertical);
+      setActiveLayer(0);
+      setSelectedEntityId(null);
       setSkyboxTheme(state.skybox.theme);
       setSkyboxSeed(state.skybox.seed);
       setShowCeiling(state.skybox.showCeiling);
@@ -1241,6 +1521,7 @@ export default function App() {
         events: state.events || [],
         regions: state.regions || [],
         variables: state.variables,
+        vertical: restoredVertical,
       });
       setSimState(createInitialSimulationState(restoredV3, [0]));
       setResetSignal((n) => n + 1);
@@ -1277,6 +1558,7 @@ export default function App() {
         events: updated.events,
         regions: updated.regions,
         variables: updated.variables,
+        vertical,
       });
       setSimState(createInitialSimulationState(updatedV3, [0]));
       setResetSignal((n) => n + 1);
@@ -1299,6 +1581,7 @@ export default function App() {
       skyboxSeed,
       showCeiling,
       minimapEnabled,
+      vertical,
     ]
   );
 
@@ -1307,6 +1590,11 @@ export default function App() {
     for (const row of wallTextures) for (const id of row) usedTexIds.add(id);
     for (const row of floorTextures) for (const id of row) usedTexIds.add(id);
     for (const row of ceilingTextures) for (const id of row) usedTexIds.add(id);
+    for (const layer of vertical.layers) {
+      for (const m of [layer.wallTextures, layer.floorTextures, layer.ceilingTextures]) {
+        for (const row of m) for (const id of row) usedTexIds.add(id);
+      }
+    }
     const levelCustomTextures = customTextures.filter(
       (t) => !t.fromProject || usedTexIds.has(t.id)
     );
@@ -1330,8 +1618,11 @@ export default function App() {
         counters: simState.counters,
         timers: Object.keys(simState.timers),
       },
+      // Flat levels save exactly as before
+      vertical: isFlatVerticalData(vertical) ? undefined : vertical,
     });
   }, [
+    vertical,
     grid,
     wallTextures,
     floorTextures,
@@ -1382,6 +1673,8 @@ export default function App() {
     recordHistorySnapshot('Clear Grid');
     setGrid((prev) => prev.map((row) => row.map(() => CellType.EMPTY)));
     setEntities([]);
+    setVertical((v) => ({ ...createDefaultVerticalData(v.floorHeights.length), movement: v.movement }));
+    setActiveLayer(0);
     setResetSignal((n) => n + 1);
     setEngineLog('Editor: Cleared grid and removed all entities.');
   }, [recordHistorySnapshot]);
@@ -1404,6 +1697,7 @@ export default function App() {
         resizeSquareMatrix(prev, size, 'ceiling-coffer')
       );
       setEntities((prev) => entitiesFittingGrid(prev, size));
+      setVertical((v) => resizeVerticalData(v, size));
       setSpawn((prev) => ({
         ...prev,
         row: Math.min(prev.row, maxIdx),
@@ -1417,7 +1711,7 @@ export default function App() {
 
   const handleBorderWalls = useCallback(() => {
     recordHistorySnapshot('Build Perimeter Walls');
-    setGrid((prev) =>
+    setActiveGrid((prev) =>
       prev.map((row, rIdx) =>
         row.map((val, cIdx) => {
           const isEdge =
@@ -1430,7 +1724,7 @@ export default function App() {
       )
     );
     setEngineLog('Editor: Generated perimeter walls around map boundary.');
-  }, [recordHistorySnapshot]);
+  }, [recordHistorySnapshot, setActiveGrid]);
 
   const handleRotateSpawn = useCallback(() => {
     recordHistorySnapshot('Rotate Player Spawn Yaw');
@@ -1457,15 +1751,245 @@ export default function App() {
   const handleSetSpawnCell = useCallback(
     (row: number, col: number) => {
       recordHistorySnapshot(`Move Player Spawn to [X:${col}, Z:${row}]`);
-      setGrid((prev) => {
+      setActiveGrid((prev) => {
         const next = prev.map((r) => [...r]);
         next[row][col] = CellType.EMPTY;
         return next;
       });
       setSpawn((prev) => ({ ...prev, row, col }));
+      setVertical((v) => ({ ...v, spawnLayer: activeLayerRef.current }));
+    },
+    [recordHistorySnapshot, setActiveGrid]
+  );
+
+  // --------------------------------------------------------------------------
+  // LAYERS, VERTICAL SETTINGS & 3D EDITOR ACTIONS
+  // --------------------------------------------------------------------------
+  const handleAddLayer = useCallback(() => {
+    if (vertical.layers.length >= SIM_CONFIG.MAX_LAYERS - 1) {
+      setEngineLog(`Layers: A level can have at most ${SIM_CONFIG.MAX_LAYERS} layers.`);
+      return;
+    }
+    recordHistorySnapshot('Add Layer');
+    const newIndex = vertical.layers.length + 1;
+    setVertical((v) => ({
+      ...v,
+      layers: [
+        ...v.layers,
+        createSolidLayer(grid.length, {
+          wall: 'default-grid',
+          floor: 'floor-obsidian',
+          ceiling: 'ceiling-coffer',
+        }),
+      ],
+    }));
+    setActiveLayer(newIndex);
+    setEngineLog(
+      `Layers: Added layer ${newIndex} (solid; carve rooms into it, and use the Hole tool to open floors).`
+    );
+  }, [grid.length, recordHistorySnapshot, vertical.layers.length]);
+
+  const handleRemoveTopLayer = useCallback(() => {
+    const top = vertical.layers.length;
+    if (top === 0) return;
+    recordHistorySnapshot(`Remove Layer ${top}`);
+    setVertical((v) => ({
+      ...v,
+      layers: v.layers.slice(0, -1),
+      spawnLayer: Math.min(v.spawnLayer, top - 1),
+    }));
+    setEntities((prev) => prev.filter((e) => (e.layer ?? 0) < top));
+    setActiveLayer((l) => Math.min(l, top - 1));
+    setEngineLog(`Layers: Removed layer ${top} and the models on it.`);
+  }, [recordHistorySnapshot, vertical.layers.length]);
+
+  const handleUpdateMovement = useCallback(
+    (movement: MovementSettingsSpec) => {
+      recordHistorySnapshot('Edit Movement Settings');
+      setVertical((v) => ({ ...v, movement }));
     },
     [recordHistorySnapshot]
   );
+
+  /** Inspector: exact floor/ceiling height and slope of the selected tile */
+  const handleSetTileVertical = useCallback(
+    (
+      row: number,
+      col: number,
+      values: {
+        floor?: number;
+        ceiling?: number;
+        slope?: { dir: CardinalDirection; riseUnits: number } | null;
+        ceilingSlope?: { dir: CardinalDirection; riseUnits: number } | null;
+      }
+    ) => {
+      recordHistorySnapshot(`Edit heights at [X:${col}, Z:${row}]`);
+      updateLayerHeights(activeLayerRef.current, (cur) => {
+        const out: Partial<Pick<EditorLayerData, 'floorHeights' | 'ceilingHeights' | 'slopes'>> = {};
+        if (values.floor !== undefined) {
+          const floors = cur.floorHeights.map((r) => [...r]);
+          floors[row][col] = Math.trunc(values.floor);
+          out.floorHeights = floors;
+        }
+        if (values.ceiling !== undefined) {
+          const ceilings = cur.ceilingHeights.map((r) => [...r]);
+          ceilings[row][col] = Math.trunc(values.ceiling);
+          out.ceilingHeights = ceilings;
+        }
+        let slopes = cur.slopes;
+        const setSlope = (
+          surface: SlopeSurface,
+          value: { dir: CardinalDirection; riseUnits: number } | null
+        ) => {
+          const others = slopes.filter(
+            (sl) => !(sl.row === row && sl.col === col && (sl.surface ?? 'floor') === surface)
+          );
+          slopes = value
+            ? [...others, { row, col, ...value, ...(surface === 'ceiling' ? { surface } : {}) }]
+            : others;
+          out.slopes = slopes;
+        };
+        if (values.slope !== undefined) setSlope('floor', values.slope);
+        if (values.ceilingSlope !== undefined) setSlope('ceiling', values.ceilingSlope);
+        return out;
+      });
+    },
+    [recordHistorySnapshot, updateLayerHeights]
+  );
+
+  /** Sets one texture on any layer (3D drops can land on a layer other than the active one) */
+  const setLayerTexture = useCallback(
+    (layer: number, surface: SurfaceTarget, row: number, col: number, texId: string) => {
+      const key = surface === 'wall' ? 'wallTextures' : surface === 'floor' ? 'floorTextures' : 'ceilingTextures';
+      const edit = (prev: string[][]) => {
+        const next = prev.map((r) => [...r]);
+        next[row][col] = texId;
+        return next;
+      };
+      if (layer === 0) {
+        if (key === 'wallTextures') setWallTextures(edit);
+        else if (key === 'floorTextures') setFloorTextures(edit);
+        else setCeilingTextures(edit);
+        return;
+      }
+      setVertical((v) => {
+        const target = v.layers[layer - 1];
+        if (!target) return v;
+        const layers = [...v.layers];
+        layers[layer - 1] = { ...target, [key]: edit(target[key]) };
+        return { ...v, layers };
+      });
+    },
+    []
+  );
+
+  const handleDropModel3D = useCallback(
+    (modelAssetId: string, drop: SurfaceDrop) => {
+      const modelAsset = allModel3DAssets.find((m) => m.id === modelAssetId);
+      if (!modelAsset) return;
+      setSelectedModelAssetId(modelAsset.id);
+      recordHistorySnapshot(`Place '${modelAsset.name}' on ${drop.hit.surface}`);
+      if (placeEntityAtCell(drop.hit.row, drop.hit.col, modelAsset, undefined, drop)) {
+        setActiveLayer(drop.hit.layer);
+        setSelectedCell({ row: drop.hit.row, col: drop.hit.col });
+      }
+    },
+    [allModel3DAssets, recordHistorySnapshot, placeEntityAtCell]
+  );
+
+  const handleDropVariant3D = useCallback(
+    (sourceEntityId: string, drop: SurfaceDrop) => {
+      const source = currentDesignRef.current.entities.find((e) => e.id === sourceEntityId);
+      const asset = source
+        ? allModel3DAssets.find((m) => m.id === (source.modelAssetId ?? source.blueprintId))
+        : undefined;
+      if (!source || !asset) {
+        setEngineLog('Placement blocked: that variant or its model is no longer available.');
+        return;
+      }
+      recordHistorySnapshot(`Place '${source.name}' variant on ${drop.hit.surface}`);
+      placeEntityAtCell(
+        drop.hit.row,
+        drop.hit.col,
+        asset,
+        {
+          category: source.category,
+          collision: source.collision,
+          footprintW: source.footprintW,
+          footprintD: source.footprintD,
+          footprintOverride: source.footprintOverride,
+          scale: source.scale,
+          isEnemy: source.isEnemy,
+          maxHealth: source.maxHealth,
+          moveSpeed: source.moveSpeed,
+          attackDamage: source.attackDamage,
+        },
+        drop
+      );
+    },
+    [allModel3DAssets, recordHistorySnapshot, placeEntityAtCell]
+  );
+
+  const handleDropTexture3D = useCallback(
+    (texId: string, hit: SurfaceHit) => {
+      const gridSize = grid.length;
+      let row = hit.row;
+      let col = hit.col;
+      if (hit.surface === 'wall') {
+        // A wall face belongs to the solid tile behind it
+        row = Math.max(0, Math.min(gridSize - 1, row - Math.round(hit.normal.z)));
+        col = Math.max(0, Math.min(gridSize - 1, col - Math.round(hit.normal.x)));
+      }
+      recordHistorySnapshot(`Paint ${hit.surface} at [X:${col}, Z:${row}] (layer ${hit.layer})`);
+      setLayerTexture(hit.layer, hit.surface, row, col, texId);
+      if (hit.surface === 'ceiling') setShowCeiling(true);
+      setSelectedTextureId(texId);
+      setEngineLog(`3D Paint: Applied '${texId}' to the ${hit.surface} at [X:${col}, Z:${row}].`);
+    },
+    [grid.length, recordHistorySnapshot, setLayerTexture]
+  );
+
+  const handleCommitEntityTransform = useCallback(
+    (updated: PlacedEntity) => {
+      recordHistorySnapshot(`Move/Rotate '${updated.name}'`);
+      setEntities((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+      setSelectedCell({ row: updated.row, col: updated.col });
+    },
+    [recordHistorySnapshot]
+  );
+
+  const handleWalkSurfaceBaked = useCallback((entityId: string, surface: WalkSurfaceSpec) => {
+    setEntities((prev) =>
+      prev.map((e) => (e.id === entityId && e.walkable ? { ...e, walkSurface: surface } : e))
+    );
+  }, []);
+
+  // Measured by the 3D editor, not an edit of its own, so it adds no undo step
+  const handleModelBoundsMeasured = useCallback((entityId: string, bounds: ModelBounds) => {
+    setEntities((prev) =>
+      prev.map((e) =>
+        e.id === entityId
+          ? { ...e, modelBottomUnits: bounds.bottomUnits, modelTopUnits: bounds.topUnits }
+          : e
+      )
+    );
+  }, []);
+
+  const handleSelectCell3D = useCallback((row: number, col: number, layer: number) => {
+    setSelectedCell({ row, col });
+    setActiveLayer(layer);
+    setSelectedEntityId(null);
+  }, []);
+
+  const handleSelectEntity3D = useCallback((entityId: string | null) => {
+    setSelectedEntityId(entityId);
+    if (!entityId) return;
+    const ent = currentDesignRef.current.entities.find((e) => e.id === entityId);
+    if (ent) {
+      setSelectedCell({ row: ent.row, col: ent.col });
+      setActiveLayer(ent.layer ?? 0);
+    }
+  }, []);
 
   const setSelectedVariant = modelLibrary.setSelectedVariant;
   const handleSelectModelAsset = useCallback(
@@ -1542,6 +2066,56 @@ export default function App() {
     return count;
   }, [grid]);
 
+  const editorLevel = useMemo(
+    () => ({
+      grid,
+      wallTextures,
+      floorTextures,
+      ceilingTextures,
+      customTextures,
+      entities,
+      spawn,
+      skyboxTheme,
+      skyboxSeed,
+      showCeiling,
+      vertical,
+    }),
+    [
+      grid,
+      wallTextures,
+      floorTextures,
+      ceilingTextures,
+      customTextures,
+      entities,
+      spawn,
+      skyboxTheme,
+      skyboxSeed,
+      showCeiling,
+      vertical,
+    ]
+  );
+
+  const activeLayerEntities = useMemo(
+    () => entities.filter((e) => (e.layer ?? 0) === activeLayer),
+    [entities, activeLayer]
+  );
+  const mapLayerView = useMemo(
+    () => ({
+      layer: activeLayer,
+      floorHeights: activeLayerData.floorHeights,
+      ceilingHeights: activeLayerData.ceilingHeights,
+      slopes: activeLayerData.slopes,
+      belowGrid:
+        activeLayer === 0
+          ? null
+          : activeLayer === 1
+          ? grid
+          : vertical.layers[activeLayer - 2]?.grid ?? null,
+      showSpawn: vertical.spawnLayer === activeLayer,
+    }),
+    [activeLayer, activeLayerData, grid, vertical.layers, vertical.spawnLayer]
+  );
+
   const activeCoord = hoveredCell || selectedCell;
   const nextUndoLabel =
     pastHistory.length > 0
@@ -1600,14 +2174,30 @@ export default function App() {
           <>
             <div
               style={{ width: `${splitRatioPct}%` }}
-              className="h-full min-w-[220px] shrink-0 overflow-hidden"
+              className="h-full min-w-[220px] shrink-0 overflow-hidden flex flex-col"
             >
+              <LayerBar
+                activeLayer={activeLayer}
+                layerCount={vertical.layers.length + 1}
+                onSelectLayer={setActiveLayer}
+                onAddLayer={handleAddLayer}
+                onRemoveTopLayer={handleRemoveTopLayer}
+                toolMode={toolMode}
+                heightTarget={heightTarget}
+                onHeightTargetChange={setHeightTarget}
+                heightStep={heightStep}
+                onHeightStepChange={setHeightStep}
+                heightRaise={heightRaise}
+                onHeightRaiseChange={setHeightRaise}
+              />
+              <div className="flex-1 min-h-0">
               <MapEditor2D
-                grid={grid}
-                wallTextures={wallTextures}
-                floorTextures={floorTextures}
+                grid={activeLayerData.grid}
+                wallTextures={activeLayerData.wallTextures}
+                floorTextures={activeLayerData.floorTextures}
                 textures={allTextures}
-                entities={entities}
+                entities={activeLayerEntities}
+                layerView={mapLayerView}
                 toolMode={toolMode}
                 selectedCell={selectedCell}
                 onSelectCell={handleSelectCell}
@@ -1627,6 +2217,7 @@ export default function App() {
                 collectedKeys={collectedKeys}
                 openDoors={openDoors}
               />
+              </div>
             </div>
 
             {/* Draggable Vertical Splitter Bar */}
@@ -1642,9 +2233,61 @@ export default function App() {
           </>
         )}
 
-        {/* 3D First-Person Viewport & Combat Runtime */}
+        {/* Center pane: the 3D editor, or the game while test playing */}
         <div className="flex-1 h-full min-w-[260px] overflow-hidden">
+          {viewMode === 'edit' && !isPlayFullscreen ? (
+            <EditorViewport3D
+              level={editorLevel}
+              activeLayer={activeLayer}
+              selectedEntityId={selectedEntityId}
+              selectedCell={selectedCell}
+              onSelectEntity={handleSelectEntity3D}
+              onSelectCell={handleSelectCell3D}
+              onCommitEntityTransform={handleCommitEntityTransform}
+              onDeleteEntity={handleRemoveEntity}
+              onWalkSurfaceBaked={handleWalkSurfaceBaked}
+              onModelBoundsMeasured={handleModelBoundsMeasured}
+              onDropModel={handleDropModel3D}
+              onDropVariant={handleDropVariant3D}
+              onDropTexture={handleDropTexture3D}
+              onEnterPlay={() => {
+                // Start the game from the level as it is now, layers and heights included
+                const playV3 = LevelSerializer.serializeLevelV3({
+                  grid,
+                  wallTextures,
+                  floorTextures,
+                  ceilingTextures,
+                  customTextures,
+                  entities,
+                  nextEntityId,
+                  spawn,
+                  skyboxTheme,
+                  skyboxSeed,
+                  showCeiling,
+                  minimapEnabled,
+                  cellTags: simState.cellTags,
+                  events: simState.events,
+                  regions: simState.regions,
+                  variables: {
+                    flags: simState.flags,
+                    counters: simState.counters,
+                    timers: Object.keys(simState.timers),
+                  },
+                  vertical: isFlatVerticalData(vertical) ? undefined : vertical,
+                });
+                setSimState(createInitialSimulationState(playV3, [0]));
+                setViewMode('play');
+                setEngineLog('Test Play: Click the view to look around; press Edit to go back to building.');
+              }}
+            />
+          ) : (
           <Viewport3D
+            vertical={vertical}
+            onExitPlay={() => {
+              setViewMode('edit');
+              if (isPlayFullscreen) setIsPlayFullscreen(false);
+              setEngineLog('Edit mode: Fly with the right mouse button held and W/A/S/D/Q/E.');
+            }}
             grid={grid}
             wallTextures={wallTextures}
             floorTextures={floorTextures}
@@ -1667,6 +2310,7 @@ export default function App() {
             resetSignal={resetSignal}
             onEngineLog={setEngineLog}
           />
+          )}
         </div>
       </main>
 
@@ -1676,10 +2320,17 @@ export default function App() {
       {!isPlayFullscreen && (
         <PropertiesInspector
           selectedCell={selectedCell}
-          grid={grid}
-          wallTextures={wallTextures}
-          floorTextures={floorTextures}
-          ceilingTextures={ceilingTextures}
+          grid={activeLayerData.grid}
+          wallTextures={activeLayerData.wallTextures}
+          floorTextures={activeLayerData.floorTextures}
+          ceilingTextures={activeLayerData.ceilingTextures}
+          activeLayer={activeLayer}
+          layerData={activeLayerData}
+          onSetTileVertical={handleSetTileVertical}
+          movement={vertical.movement}
+          onUpdateMovement={handleUpdateMovement}
+          selectedEntityId={selectedEntityId}
+          layerCount={vertical.layers.length + 1}
           textures={allTextures}
           selectedTextureId={selectedTextureId}
           onSelectTexture={handleSelectTexture}
@@ -1692,7 +2343,7 @@ export default function App() {
           spawn={spawn}
           onSetSpawnCell={handleSetSpawnCell}
           onRotateSpawn={handleRotateSpawn}
-          entities={entities}
+          entities={activeLayerEntities}
           model3DAssets={allModel3DAssets}
           selectedModelAssetId={selectedModelAssetId}
           onSelectModelAsset={handleSelectModelAsset}

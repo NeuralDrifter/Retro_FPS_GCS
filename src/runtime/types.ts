@@ -8,11 +8,14 @@
 
 import type {
   EventDefinition,
+  FloorSlopeSpec,
   LevelDataV3,
+  MovementSettingsSpec,
   RegionDefinition,
   VariableRegistrySpec,
+  WalkSurfaceSpec,
 } from './sim/types';
-import { SIM_CONFIG } from './sim/types';
+import { DEFAULT_MOVEMENT_SETTINGS, SIM_CONFIG } from './sim/types';
 
 export type ModelCategoryId =
   | 'characters'
@@ -40,6 +43,7 @@ export enum CellType {
   WALL = 1,  // Solid extruded 3D wall block (collidable)
   DOOR = 2,  // Interactive bulkhead door (opens when player has key or presses E)
   KEY = 3,   // Collectible keycard pickup (unlocks doors; the player still opens them)
+  HOLE = 4,  // Open tile with no floor: you see and fall through to the layer below
 }
 
 /**
@@ -56,7 +60,8 @@ export type BuiltInTextureId =
   | 'dungeon-stone'    // Classic 90s shareware mossy stone masonry
   | 'labyrinth-check'  // Ken's Labyrinth high-contrast retro checkerboard
   | 'floor-obsidian'   // Default dark industrial floor grating
-  | 'ceiling-coffer';  // Default recessed acoustic coffer ceiling
+  | 'ceiling-coffer'   // Default recessed acoustic coffer ceiling
+  | 'grate-alpha';     // See-through catwalk grate (alpha texture)
 
 export type WallTexturePresetId = BuiltInTextureId | string;
 
@@ -74,6 +79,8 @@ export interface TextureAsset {
   fromProject?: boolean;
   /** Disk subfolder under `src/assets/textures/`, e.g. "Horror/Brick" */
   folderPath?: string;
+  /** Has see-through parts: drawn double-sided with fully transparent pixels cut out */
+  hasAlpha?: boolean;
 }
 
 /**
@@ -199,6 +206,141 @@ export interface PlacedEntity {
   footprintD?: number;
   /** True when the footprint was set by hand instead of measured */
   footprintOverride?: boolean;
+  /** Free 3D placement (absent on flat, grid-placed entities) */
+  layer?: number;
+  /** Offset of the model's origin from its grid anchor, in meters */
+  offsetX?: number;
+  offsetZ?: number;
+  /** Height of the model's origin above its layer's base in meters; absent = on the floor */
+  elevation?: number;
+  pitch?: number; // Radians
+  roll?: number; // Radians
+  /** Players and enemies can stand on the model's real shape (baked into `walkSurface`) */
+  walkable?: boolean;
+  walkSurface?: WalkSurfaceSpec;
+  /**
+   * The model's lowest and highest point relative to its origin, in sim units, measured
+   * by the 3D editor so a solid model blocks only its real height on vertical levels.
+   */
+  modelBottomUnits?: number;
+  modelTopUnits?: number;
+}
+
+/**
+ * One stacked layer above the ground floor, as the editor holds it. Heights are in sim
+ * units relative to the layer's base (layer k starts at k * 1000 units = k * 4 m).
+ */
+export interface EditorLayerData {
+  grid: number[][];
+  wallTextures: string[][];
+  floorTextures: string[][];
+  ceilingTextures: string[][];
+  floorHeights: number[][];
+  ceilingHeights: number[][];
+  slopes: FloorSlopeSpec[];
+}
+
+/**
+ * Everything vertical about a level. The ground layer's grid and textures stay in the
+ * level's top-level fields; its heights and slopes live here with the stacked layers.
+ */
+export interface VerticalLevelData {
+  floorHeights: number[][];
+  ceilingHeights: number[][];
+  slopes: FloorSlopeSpec[];
+  layers: EditorLayerData[];
+  movement: MovementSettingsSpec;
+  spawnLayer: number;
+}
+
+const constMatrix = (size: number, val: number): number[][] =>
+  Array.from({ length: size }, () => Array.from({ length: size }, () => val));
+
+/** Vertical data of a flat level: one layer, default heights, default movement */
+export function createDefaultVerticalData(gridSize: number): VerticalLevelData {
+  return {
+    floorHeights: constMatrix(gridSize, SIM_CONFIG.DEFAULT_FLOOR_HEIGHT_UNITS),
+    ceilingHeights: constMatrix(gridSize, SIM_CONFIG.DEFAULT_CEILING_HEIGHT_UNITS),
+    slopes: [],
+    layers: [],
+    movement: { ...DEFAULT_MOVEMENT_SETTINGS },
+    spawnLayer: 0,
+  };
+}
+
+/** A new layer: solid everywhere, so rooms are carved into it */
+export function createSolidLayer(
+  gridSize: number,
+  textures: { wall: string; floor: string; ceiling: string }
+): EditorLayerData {
+  const texMatrix = (id: string) =>
+    Array.from({ length: gridSize }, () => Array.from({ length: gridSize }, () => id));
+  return {
+    grid: constMatrix(gridSize, CellType.WALL),
+    wallTextures: texMatrix(textures.wall),
+    floorTextures: texMatrix(textures.floor),
+    ceilingTextures: texMatrix(textures.ceiling),
+    floorHeights: constMatrix(gridSize, 0),
+    ceilingHeights: constMatrix(gridSize, SIM_CONFIG.DEFAULT_CEILING_HEIGHT_UNITS),
+    slopes: [],
+  };
+}
+
+/** True when vertical data adds nothing to a flat level (so saves can leave it out) */
+export function isFlatVerticalData(v: VerticalLevelData): boolean {
+  const d = DEFAULT_MOVEMENT_SETTINGS;
+  const m = v.movement;
+  return (
+    v.layers.length === 0 &&
+    v.slopes.length === 0 &&
+    v.spawnLayer === 0 &&
+    v.floorHeights.every((row) => row.every((h) => h === SIM_CONFIG.DEFAULT_FLOOR_HEIGHT_UNITS)) &&
+    v.ceilingHeights.every((row) => row.every((h) => h === SIM_CONFIG.DEFAULT_CEILING_HEIGHT_UNITS)) &&
+    m.jump === d.jump &&
+    m.crouch === d.crouch &&
+    m.stepUnits === d.stepUnits &&
+    m.fallDamage === d.fallDamage &&
+    m.aim === d.aim
+  );
+}
+
+/** Vertical data for a map resized to `size` (new tiles get default heights; new upper tiles are solid) */
+export function resizeVerticalData(v: VerticalLevelData, size: number): VerticalLevelData {
+  const inside = (s: { row: number; col: number }) => s.row < size && s.col < size;
+  return {
+    ...v,
+    floorHeights: resizeSquareMatrix(v.floorHeights, size, SIM_CONFIG.DEFAULT_FLOOR_HEIGHT_UNITS),
+    ceilingHeights: resizeSquareMatrix(v.ceilingHeights, size, SIM_CONFIG.DEFAULT_CEILING_HEIGHT_UNITS),
+    slopes: v.slopes.filter(inside),
+    layers: v.layers.map((l) => ({
+      grid: resizeSquareMatrix(l.grid, size, CellType.WALL as number),
+      wallTextures: resizeSquareMatrix(l.wallTextures, size, 'default-grid'),
+      floorTextures: resizeSquareMatrix(l.floorTextures, size, 'floor-obsidian'),
+      ceilingTextures: resizeSquareMatrix(l.ceilingTextures, size, 'ceiling-coffer'),
+      floorHeights: resizeSquareMatrix(l.floorHeights, size, 0),
+      ceilingHeights: resizeSquareMatrix(l.ceilingHeights, size, SIM_CONFIG.DEFAULT_CEILING_HEIGHT_UNITS),
+      slopes: l.slopes.filter(inside),
+    })),
+  };
+}
+
+export function cloneVerticalData(v: VerticalLevelData): VerticalLevelData {
+  return {
+    floorHeights: v.floorHeights.map((r) => [...r]),
+    ceilingHeights: v.ceilingHeights.map((r) => [...r]),
+    slopes: v.slopes.map((s) => ({ ...s })),
+    layers: v.layers.map((l) => ({
+      grid: l.grid.map((r) => [...r]),
+      wallTextures: l.wallTextures.map((r) => [...r]),
+      floorTextures: l.floorTextures.map((r) => [...r]),
+      ceilingTextures: l.ceilingTextures.map((r) => [...r]),
+      floorHeights: l.floorHeights.map((r) => [...r]),
+      ceilingHeights: l.ceilingHeights.map((r) => [...r]),
+      slopes: l.slopes.map((s) => ({ ...s })),
+    })),
+    movement: { ...v.movement },
+    spawnLayer: v.spawnLayer,
+  };
 }
 
 /**
@@ -318,6 +460,8 @@ export interface LevelStateData {
   regions?: RegionDefinition[];
   variables?: VariableRegistrySpec;
   events?: EventDefinition[];
+  /** Stacked layers, tile heights, slopes and movement settings (absent on flat levels) */
+  vertical?: VerticalLevelData;
 }
 
 export const ENGINE_CONFIG = {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   CellType,
   Model3DAsset,
@@ -10,6 +10,10 @@ import {
 import { CellInspectorTab } from './inspector/CellInspectorTab';
 import { AssetLibraryTab } from './inspector/AssetLibraryTab';
 import { WorldSettingsTab } from './inspector/WorldSettingsTab';
+import { VerticalTileSection } from './inspector/VerticalTileSection';
+import { MovementSettingsSection } from './inspector/MovementSettingsSection';
+import { EditorLayerData } from '../runtime/types';
+import { CardinalDirection, MovementSettingsSpec } from '../runtime/sim';
 import type {
   ModelLibraryState,
   PlacementVariant,
@@ -77,6 +81,24 @@ export interface PropertiesInspectorProps {
     error?: string;
   };
   onSyncGitHubAssets: (repoInput: string, forceRefresh?: boolean) => void;
+  /** Vertical levels: the layer being edited and its heights */
+  activeLayer: number;
+  layerCount: number;
+  layerData: EditorLayerData;
+  onSetTileVertical: (
+    row: number,
+    col: number,
+    values: {
+      floor?: number;
+      ceiling?: number;
+      slope?: { dir: CardinalDirection; riseUnits: number } | null;
+      ceilingSlope?: { dir: CardinalDirection; riseUnits: number } | null;
+    }
+  ) => void;
+  movement: MovementSettingsSpec;
+  onUpdateMovement: (movement: MovementSettingsSpec) => void;
+  /** The model selected in the 3D editor */
+  selectedEntityId: string | null;
 }
 
 type InspectorTabId = 'inspector' | 'assets' | 'world';
@@ -99,6 +121,10 @@ export const PropertiesInspector: React.FC<PropertiesInspectorProps> = React.mem
   props
 ) => {
   const [activeTab, setActiveTab] = useState<InspectorTabId>('assets');
+  // Picking a model in the 3D editor opens its settings
+  useEffect(() => {
+    if (props.selectedEntityId) setActiveTab('inspector');
+  }, [props.selectedEntityId]);
 
   const activeModelAsset =
     props.model3DAssets.find((m) => m.id === props.selectedModelAssetId) ||
@@ -128,7 +154,18 @@ export const PropertiesInspector: React.FC<PropertiesInspectorProps> = React.mem
 
       <div className="flex-1 overflow-y-auto divide-y divide-[#333333]">
         {activeTab === 'inspector' && (
+          <VerticalTileSection
+            row={props.selectedCell.row}
+            col={props.selectedCell.col}
+            layer={props.activeLayer}
+            layerData={props.layerData}
+            onSetTileVertical={props.onSetTileVertical}
+          />
+        )}
+        {activeTab === 'inspector' && (
           <CellInspectorTab
+            preferredEntityId={props.selectedEntityId}
+            layerCount={props.layerCount}
             selectedCell={props.selectedCell}
             grid={props.grid}
             wallTextures={props.wallTextures}
@@ -192,6 +229,12 @@ export const PropertiesInspector: React.FC<PropertiesInspectorProps> = React.mem
             onClearGrid={props.onClearGrid}
             gridSize={props.grid.length}
             onResizeMap={props.onResizeMap}
+          />
+        )}
+        {activeTab === 'world' && (
+          <MovementSettingsSection
+            movement={props.movement}
+            onUpdateMovement={props.onUpdateMovement}
           />
         )}
       </div>

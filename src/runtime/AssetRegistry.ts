@@ -19,6 +19,7 @@ export const BUILTIN_TEXTURE_IDS: readonly string[] = [
   'labyrinth-check',
   'floor-obsidian',
   'ceiling-coffer',
+  'grate-alpha',
 ];
 
 export const BUILTIN_MODEL_IDS: readonly string[] = [

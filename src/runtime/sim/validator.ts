@@ -29,6 +29,12 @@ import {
   isStaticFootprintSource,
 } from './footprint';
 import {
+  ENTITY_VERTICAL_KEYS,
+  maxLayerIndex,
+  validateEntityVerticalFields,
+  validateVerticalLevelFields,
+} from './verticalValidator';
+import {
   BUILTIN_MODEL_IDS,
   BUILTIN_SOUND_IDS,
   BUILTIN_TEXTURE_IDS,
@@ -124,6 +130,9 @@ const LEVEL_V3_KEYS = [
   'cellTags',
   'floorHeights',
   'ceilingHeights',
+  'slopes',
+  'layers',
+  'movement',
   'entities',
   'regions',
   'variables',
@@ -593,7 +602,7 @@ export function validateLevelDataV3(
     for (let r = 0; r < gridSize; r++) {
       for (let c = 0; c < gridSize; c++) {
         const cell = grid[r][c];
-        if (!isSafeInt(cell) || cell < 0 || cell > 3) {
+        if (!isSafeInt(cell) || cell < 0 || cell > SimCellType.HOLE) {
           errors.push({
             path: `$.grid[${r}][${c}]`,
             code: 'INVALID_CELL_TYPE',
@@ -641,6 +650,8 @@ export function validateLevelDataV3(
   validateTexMatrix(input.wallTextures, 'wallTextures');
   validateTexMatrix(input.floorTextures, 'floorTextures');
   validateTexMatrix(input.ceilingTextures, 'ceilingTextures');
+  validateVerticalLevelFields(input, gridSize, validateTexMatrix, errors);
+  const maxLayer = maxLayerIndex(input);
 
   // Spawn validation
   if (!isPlainObject(input.spawn)) {
@@ -650,7 +661,17 @@ export function validateLevelDataV3(
       message: 'spawn must be an object with row, col, yawBam.',
     });
   } else {
-    checkAllowedKeys(input.spawn, ['row', 'col', 'yawBam'], '$.spawn', errors);
+    checkAllowedKeys(input.spawn, ['row', 'col', 'yawBam', 'layer'], '$.spawn', errors);
+    if (
+      input.spawn.layer !== undefined &&
+      (!isSafeInt(input.spawn.layer) || input.spawn.layer < 0 || input.spawn.layer > maxLayer)
+    ) {
+      errors.push({
+        path: '$.spawn.layer',
+        code: 'INVALID_LAYER',
+        message: `spawn.layer must be an integer from 0 to ${maxLayer}.`,
+      });
+    }
     if (
       !isSafeInt(input.spawn.row) ||
       input.spawn.row < 0 ||
@@ -782,10 +803,12 @@ export function validateLevelDataV3(
           'footprintW',
           'footprintD',
           'footprintOverride',
+          ...ENTITY_VERTICAL_KEYS,
         ],
         ePath,
         errors
       );
+      validateEntityVerticalFields(ent, ePath, maxLayer, errors);
       if (typeof ent.id !== 'string' || !SAFE_ID_REGEX.test(ent.id)) {
         errors.push({
           path: `${ePath}.id`,

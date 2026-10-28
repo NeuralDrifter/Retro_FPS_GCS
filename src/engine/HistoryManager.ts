@@ -9,6 +9,7 @@
  *  - `ceilingTextures[row][col]` : Per-cell Ceiling Texture Asset IDs
  *  - `entities[]`              : Placed 3D `.glb` Entities & Enemy AI stats
  *  - `spawn`                   : Player Spawn coordinates & yaw angle
+ *  - `vertical`                : Stacked layers, tile heights, slopes, movement settings
  *
  * Supports:
  *  - Discrete design actions (Inspector edits, Fill Surface, Place Entity, etc.)
@@ -18,6 +19,7 @@
  */
 
 import { PlacedEntity } from '../types/engine';
+import { VerticalLevelData, cloneVerticalData } from '../runtime/types';
 
 export interface DesignStateSnapshot {
   grid: number[][];
@@ -26,8 +28,25 @@ export interface DesignStateSnapshot {
   ceilingTextures: string[][];
   entities: PlacedEntity[];
   spawn: { row: number; col: number; yaw: number };
+  vertical?: VerticalLevelData;
   actionLabel: string;
 }
+
+/** An entity's free 3D placement, for comparing snapshots */
+const placementKey = (e: PlacedEntity) =>
+  JSON.stringify([
+    e.layer,
+    e.offsetX,
+    e.offsetZ,
+    e.elevation,
+    e.pitch,
+    e.roll,
+    e.walkable,
+    e.walkSurface,
+    e.collision,
+    e.footprintW,
+    e.footprintD,
+  ]);
 
 export const MAX_HISTORY_DEPTH = 60;
 
@@ -46,6 +65,7 @@ export class HistoryManager {
       ceilingTextures: snapshot.ceilingTextures.map((row) => [...row]),
       entities: snapshot.entities.map((ent) => ({ ...ent })),
       spawn: { ...snapshot.spawn },
+      ...(snapshot.vertical ? { vertical: cloneVerticalData(snapshot.vertical) } : {}),
       actionLabel: snapshot.actionLabel,
     };
   }
@@ -85,10 +105,15 @@ export class HistoryManager {
         ea.isEnemy !== eb.isEnemy ||
         ea.maxHealth !== eb.maxHealth ||
         ea.moveSpeed !== eb.moveSpeed ||
-        ea.attackDamage !== eb.attackDamage
+        ea.attackDamage !== eb.attackDamage ||
+        placementKey(ea) !== placementKey(eb)
       ) {
         return false;
       }
+    }
+
+    if (JSON.stringify(a.vertical) !== JSON.stringify(b.vertical)) {
+      return false;
     }
 
     // Maps of different sizes differ even when one is a prefix of the other
