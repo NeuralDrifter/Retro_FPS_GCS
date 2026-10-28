@@ -90,18 +90,30 @@ function entityUsesVertical(ent: SimPlacedEntityV3): boolean {
  * becomes vertical. Model measurements such as `modelTopUnits` must not count either.
  */
 export function isVerticalLevel(level: LevelDataV3): boolean {
+  return verticalFeaturesOf(level).length > 0;
+}
+
+/** The vertical features a level uses, in words a level maker knows (empty for flat levels) */
+export function verticalFeaturesOf(level: LevelDataV3): string[] {
   const movement = level.movement;
-  return (
-    (level.layers?.length ?? 0) > 0 ||
-    (level.slopes?.length ?? 0) > 0 ||
-    (level.spawn.layer ?? 0) > 0 ||
-    anyCell(level.grid, (v) => v === SimCellType.HOLE) ||
+  const features: string[] = [];
+  if ((level.layers?.length ?? 0) > 0 || (level.spawn.layer ?? 0) > 0) features.push('layers');
+  if (
     anyCell(level.floorHeights, (v) => v !== SIM_CONFIG.DEFAULT_FLOOR_HEIGHT_UNITS) ||
-    anyCell(level.ceilingHeights, (v) => v !== SIM_CONFIG.DEFAULT_CEILING_HEIGHT_UNITS) ||
+    anyCell(level.ceilingHeights, (v) => v !== SIM_CONFIG.DEFAULT_CEILING_HEIGHT_UNITS)
+  ) {
+    features.push('tile heights');
+  }
+  if ((level.slopes?.length ?? 0) > 0) features.push('slopes');
+  if (anyCell(level.grid, (v) => v === SimCellType.HOLE)) features.push('holes');
+  if (
     Boolean(movement?.jump || movement?.crouch || movement?.fallDamage) ||
-    (movement !== undefined && movement.stepUnits !== DEFAULT_MOVEMENT_SETTINGS.stepUnits) ||
-    level.entities.some(entityUsesVertical)
-  );
+    (movement !== undefined && movement.stepUnits !== DEFAULT_MOVEMENT_SETTINGS.stepUnits)
+  ) {
+    features.push('jump, crouch, step or fall settings');
+  }
+  if (level.entities.some(entityUsesVertical)) features.push('models placed in 3D');
+  return features;
 }
 
 const constMatrix = (size: number, val: number) =>

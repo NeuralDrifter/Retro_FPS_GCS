@@ -120,6 +120,7 @@ export class EditorScene {
   private activeLayer = 0;
   private hideAbove = false;
   private snap = true;
+  private classic = false;
   private flySpeed = 8;
 
   private flying = false;
@@ -327,6 +328,20 @@ export class EditorScene {
 
   setGizmoMode(mode: 'translate' | 'rotate'): void {
     this.transform.setMode(mode);
+    this.applyGizmoAxes();
+  }
+
+  /** Classic retro levels: models slide along the floor and turn only around the up axis */
+  setClassic(classic: boolean): void {
+    this.classic = classic;
+    this.applyGizmoAxes();
+  }
+
+  private applyGizmoAxes(): void {
+    const rotating = this.transform.getMode() === 'rotate';
+    this.transform.showX = !this.classic || !rotating;
+    this.transform.showY = !this.classic || rotating;
+    this.transform.showZ = !this.classic || !rotating;
   }
 
   setSnap(enabled: boolean): void {

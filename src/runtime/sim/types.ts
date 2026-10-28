@@ -715,6 +715,11 @@ export interface LevelDataV3 {
   /** Layers stacked above the ground floor (layer 1 first) */
   layers?: LevelLayerV3[];
   movement?: MovementSettingsSpec;
+  /**
+   * The maker chose classic retro movement: one floor, no jumping, solid blocks. The
+   * level may then use no vertical feature at all (the validator enforces it).
+   */
+  classicMovement?: boolean;
   entities: SimPlacedEntityV3[];
   regions: RegionDefinition[];
   variables: VariableRegistrySpec;

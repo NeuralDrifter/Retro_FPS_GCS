@@ -39,6 +39,8 @@ interface CellInspectorTabProps {
   /** The model selected in the 3D editor, shown first when it covers this cell */
   preferredEntityId?: string | null;
   layerCount?: number;
+  /** Classic retro levels have no free 3D placement */
+  classic?: boolean;
 }
 
 export const CellInspectorTab: React.FC<CellInspectorTabProps> = ({
@@ -61,6 +63,7 @@ export const CellInspectorTab: React.FC<CellInspectorTabProps> = ({
   getLibrarySettings,
   preferredEntityId,
   layerCount,
+  classic,
 }) => {
   const [pickedEntityId, setPickedEntityId] = useState<string | null>(null);
   useEffect(() => {
@@ -208,6 +211,7 @@ export const CellInspectorTab: React.FC<CellInspectorTabProps> = ({
                 onUpdate={onUpdateEntity}
                 onRemove={() => onRemoveEntity(entityOnCell.id)}
                 layerCount={layerCount}
+                classic={classic}
               />
             </>
           ) : (
