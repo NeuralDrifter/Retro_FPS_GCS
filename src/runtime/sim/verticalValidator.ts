@@ -216,6 +216,14 @@ export function validateVerticalLevelFields(
     }
   }
 
+  if (input.classicMovement !== undefined && typeof input.classicMovement !== 'boolean') {
+    errors.push({
+      path: '$.classicMovement',
+      code: 'INVALID_MOVEMENT',
+      message: 'classicMovement must be true or false.',
+    });
+  }
+
   if (input.movement !== undefined) {
     const m = input.movement;
     if (

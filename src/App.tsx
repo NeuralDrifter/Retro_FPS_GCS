@@ -68,6 +68,7 @@ import {
   resizeVerticalData,
 } from './runtime/types';
 import { LAYER_METERS, entityAnchorWorld } from './runtime/entityPlacement';
+import { editorVerticalFeatures } from './runtime/verticalLevelData';
 import {
   CardinalDirection,
   FloorSlopeSpec,
@@ -128,6 +129,10 @@ export default function App() {
   const [vertical, setVertical] = useState<VerticalLevelData>(() =>
     createDefaultVerticalData(initialPreset.grid.length)
   );
+  // Classic retro movement: one flat floor, so the vertical tools are switched off
+  const classic = Boolean(vertical.classic);
+  const classicRef = useRef(classic);
+  classicRef.current = classic;
   const [activeLayer, setActiveLayer] = useState<number>(0);
   const activeLayerRef = useRef(activeLayer);
   activeLayerRef.current = activeLayer;
@@ -933,10 +938,16 @@ export default function App() {
         const d = rect.row1 - rect.row0 + 1;
         newEntity.col = Math.max(0, Math.min(gridSize - w, hit.col - Math.floor((w - 1) / 2)));
         newEntity.row = Math.max(0, Math.min(gridSize - d, hit.row - Math.floor((d - 1) / 2)));
-        const anchor = entityAnchorWorld(newEntity, gridSize);
-        newEntity.offsetX = Math.round((point.x - anchor.x) * 1000) / 1000;
-        newEntity.offsetZ = Math.round((point.z - anchor.z) * 1000) / 1000;
-        newEntity.elevation = Math.round((point.y - hit.layer * LAYER_METERS) * 1000) / 1000;
+        if (classicRef.current) {
+          // Classic retro levels place models on their tile, standing on the one floor
+          delete newEntity.layer;
+          delete newEntity.roll;
+        } else {
+          const anchor = entityAnchorWorld(newEntity, gridSize);
+          newEntity.offsetX = Math.round((point.x - anchor.x) * 1000) / 1000;
+          newEntity.offsetZ = Math.round((point.z - anchor.z) * 1000) / 1000;
+          newEntity.elevation = Math.round((point.y - hit.layer * LAYER_METERS) * 1000) / 1000;
+        }
       } else {
         const layerSnapshot = getActiveLayerSnapshot();
         const currentEntities = currentDesignRef.current.entities.filter(onActiveLayer);
@@ -1236,6 +1247,10 @@ export default function App() {
         return;
       }
 
+      if (classicRef.current && (toolMode === 'height' || toolMode === 'slope' || toolMode === 'hole')) {
+        setEngineLog('Classic retro movement keeps one flat floor (World tab).');
+        return;
+      }
       if (toolMode === 'height') {
         adjustTileHeight(row, col);
         return;
@@ -1618,8 +1633,8 @@ export default function App() {
         counters: simState.counters,
         timers: Object.keys(simState.timers),
       },
-      // Flat levels save exactly as before
-      vertical: isFlatVerticalData(vertical) ? undefined : vertical,
+      // Flat levels save without vertical data (a classic retro level saves only its flag)
+      vertical: isFlatVerticalData(vertical) && !vertical.classic ? undefined : vertical,
     });
   }, [
     vertical,
@@ -1766,6 +1781,10 @@ export default function App() {
   // LAYERS, VERTICAL SETTINGS & 3D EDITOR ACTIONS
   // --------------------------------------------------------------------------
   const handleAddLayer = useCallback(() => {
+    if (classicRef.current) {
+      setEngineLog('Classic retro movement keeps one floor (World tab).');
+      return;
+    }
     if (vertical.layers.length >= SIM_CONFIG.MAX_LAYERS - 1) {
       setEngineLog(`Layers: A level can have at most ${SIM_CONFIG.MAX_LAYERS} layers.`);
       return;
@@ -1802,6 +1821,35 @@ export default function App() {
     setActiveLayer((l) => Math.min(l, top - 1));
     setEngineLog(`Layers: Removed layer ${top} and the models on it.`);
   }, [recordHistorySnapshot, vertical.layers.length]);
+
+  /** Vertical features in use; classic retro movement can only be switched on without them */
+  const verticalFeatures = useMemo(
+    () => editorVerticalFeatures(grid, vertical, entities),
+    [grid, vertical, entities]
+  );
+
+  const handleToggleClassic = useCallback(
+    (on: boolean) => {
+      if (on && verticalFeatures.length > 0) return;
+      recordHistorySnapshot(on ? 'Use Classic Retro Movement' : 'Use Full 3D Movement');
+      setVertical((v) => {
+        const next = { ...v };
+        if (on) next.classic = true;
+        else delete next.classic;
+        return next;
+      });
+      if (on) {
+        setActiveLayer(0);
+        setToolMode((mode) => (mode === 'height' || mode === 'slope' || mode === 'hole' ? 'toggle' : mode));
+      }
+      setEngineLog(
+        on
+          ? 'Movement: Classic retro (one flat floor; layer, height, slope and hole tools are off).'
+          : 'Movement: Full 3D (layers, heights, slopes, jumping and crouching are available).'
+      );
+    },
+    [recordHistorySnapshot, verticalFeatures.length]
+  );
 
   const handleUpdateMovement = useCallback(
     (movement: MovementSettingsSpec) => {
@@ -1950,7 +1998,13 @@ export default function App() {
   );
 
   const handleCommitEntityTransform = useCallback(
-    (updated: PlacedEntity) => {
+    (moved: PlacedEntity) => {
+      let updated = moved;
+      if (classicRef.current) {
+        // Classic retro levels keep models on their tile, on the floor, turned only flat
+        const { layer: _l, offsetX: _x, offsetZ: _z, elevation: _e, pitch: _p, roll: _r, ...flat } = moved;
+        updated = flat;
+      }
       recordHistorySnapshot(`Move/Rotate '${updated.name}'`);
       setEntities((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
       setSelectedCell({ row: updated.row, col: updated.col });
@@ -2163,6 +2217,7 @@ export default function App() {
           nextRedoLabel={nextRedoLabel}
           onUndo={handleUndo}
           onRedo={handleRedo}
+          disabledModes={classic ? ['height', 'slope', 'hole'] : []}
         />
       )}
 
@@ -2189,6 +2244,7 @@ export default function App() {
                 onHeightStepChange={setHeightStep}
                 heightRaise={heightRaise}
                 onHeightRaiseChange={setHeightRaise}
+                classic={classic}
               />
               <div className="flex-1 min-h-0">
               <MapEditor2D
@@ -2238,6 +2294,7 @@ export default function App() {
           {viewMode === 'edit' && !isPlayFullscreen ? (
             <EditorViewport3D
               level={editorLevel}
+              classic={classic}
               activeLayer={activeLayer}
               selectedEntityId={selectedEntityId}
               selectedCell={selectedCell}
@@ -2273,7 +2330,7 @@ export default function App() {
                     counters: simState.counters,
                     timers: Object.keys(simState.timers),
                   },
-                  vertical: isFlatVerticalData(vertical) ? undefined : vertical,
+                  vertical: isFlatVerticalData(vertical) && !vertical.classic ? undefined : vertical,
                 });
                 setSimState(createInitialSimulationState(playV3, [0]));
                 setViewMode('play');
@@ -2329,6 +2386,9 @@ export default function App() {
           onSetTileVertical={handleSetTileVertical}
           movement={vertical.movement}
           onUpdateMovement={handleUpdateMovement}
+          classic={classic}
+          onToggleClassic={handleToggleClassic}
+          verticalFeatures={verticalFeatures}
           selectedEntityId={selectedEntityId}
           layerCount={vertical.layers.length + 1}
           textures={allTextures}

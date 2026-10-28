@@ -25,6 +25,8 @@ interface LeftToolPaletteProps {
   nextRedoLabel: string | null;
   onUndo: () => void;
   onRedo: () => void;
+  /** Tools that are switched off (classic retro levels have no heights, slopes or holes) */
+  disabledModes?: EditorToolMode[];
 }
 
 const TOOL_ITEMS: {
@@ -98,6 +100,7 @@ export const LeftToolPalette: React.FC<LeftToolPaletteProps> = ({
   nextRedoLabel,
   onUndo,
   onRedo,
+  disabledModes = [],
 }) => {
   return (
     <nav className="ide-toolbar" aria-label="Editor Tool Palette">
@@ -106,9 +109,14 @@ export const LeftToolPalette: React.FC<LeftToolPaletteProps> = ({
           key={item.mode}
           type="button"
           onClick={() => onSelectTool(item.mode)}
-          title={item.label}
+          disabled={disabledModes.includes(item.mode)}
+          title={
+            disabledModes.includes(item.mode)
+              ? `${item.label} (off: the level uses classic retro movement)`
+              : item.label
+          }
           aria-label={item.label}
-          className={`ide-tool-btn ${
+          className={`ide-tool-btn disabled:opacity-30 disabled:cursor-not-allowed ${
             toolMode === item.mode ? 'ide-tool-btn--active' : ''
           }`}
         >

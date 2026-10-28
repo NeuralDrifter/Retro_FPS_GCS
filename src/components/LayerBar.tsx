@@ -29,6 +29,8 @@ interface LayerBarProps {
   onHeightStepChange: (step: number) => void;
   heightRaise: boolean;
   onHeightRaiseChange: (raise: boolean) => void;
+  /** Classic retro levels keep one floor, so no layers can be added */
+  classic?: boolean;
 }
 
 export const LayerBar: React.FC<LayerBarProps> = ({
@@ -44,6 +46,7 @@ export const LayerBar: React.FC<LayerBarProps> = ({
   onHeightStepChange,
   heightRaise,
   onHeightRaiseChange,
+  classic = false,
 }) => {
   const chip = (active: boolean) =>
     `px-1.5 py-0.5 text-[10px] rounded transition-colors ${
@@ -69,9 +72,14 @@ export const LayerBar: React.FC<LayerBarProps> = ({
         ))}
         <button
           type="button"
-          className="p-0.5 rounded text-[#9d9d9d] hover:text-white hover:bg-[#2d2d30]"
+          className="p-0.5 rounded text-[#9d9d9d] hover:text-white hover:bg-[#2d2d30] disabled:opacity-30"
           onClick={onAddLayer}
-          title="Add a layer on top (starts solid; carve rooms into it)"
+          disabled={classic}
+          title={
+            classic
+              ? 'Classic retro movement keeps one floor (World tab)'
+              : 'Add a layer on top (starts solid; carve rooms into it)'
+          }
           aria-label="Add layer"
         >
           <Plus className="w-3 h-3" />
@@ -86,6 +94,7 @@ export const LayerBar: React.FC<LayerBarProps> = ({
         >
           <Minus className="w-3 h-3" />
         </button>
+        {classic && <span className="ml-1 text-[#858585]">Classic retro: one floor</span>}
         {activeLayer > 0 && (
           <span className="ml-1 text-[#858585]">The layer below shows faintly through solid tiles</span>
         )}

@@ -39,6 +39,7 @@ import {
   getOpenDoorsSetFromSim,
   hashSimulationState,
   isBlockedVertical,
+  isVerticalLevel,
   lerpBamToRadians,
   radiansToBam,
   recordEntityKilledInSim,
@@ -308,7 +309,10 @@ export function startGame(
   let collisionEnabled: boolean = options.collisionEnabled ?? true;
   let minimapEnabled: boolean =
     options.minimapEnabled ?? currentLevelV3.minimapEnabled ?? true;
-  let vertical: VerticalLevelData | undefined = verticalFromLevelV3(currentLevelV3);
+  // Flat levels (classic retro ones included) draw with the flat world builder
+  let vertical: VerticalLevelData | undefined = isVerticalLevel(currentLevelV3)
+    ? verticalFromLevelV3(currentLevelV3)
+    : undefined;
   let updateLayeredHeights: ((floors: number[][], ceilings: number[][]) => void) | null = null;
 
   const inputReader = createInputReader(options.inputSource);

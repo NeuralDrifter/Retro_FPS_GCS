@@ -97,6 +97,9 @@ export interface PropertiesInspectorProps {
   ) => void;
   movement: MovementSettingsSpec;
   onUpdateMovement: (movement: MovementSettingsSpec) => void;
+  classic: boolean;
+  onToggleClassic: (classic: boolean) => void;
+  verticalFeatures: string[];
   /** The model selected in the 3D editor */
   selectedEntityId: string | null;
 }
@@ -153,7 +156,7 @@ export const PropertiesInspector: React.FC<PropertiesInspectorProps> = React.mem
       </div>
 
       <div className="flex-1 overflow-y-auto divide-y divide-[#333333]">
-        {activeTab === 'inspector' && (
+        {activeTab === 'inspector' && !props.classic && (
           <VerticalTileSection
             row={props.selectedCell.row}
             col={props.selectedCell.col}
@@ -166,6 +169,7 @@ export const PropertiesInspector: React.FC<PropertiesInspectorProps> = React.mem
           <CellInspectorTab
             preferredEntityId={props.selectedEntityId}
             layerCount={props.layerCount}
+            classic={props.classic}
             selectedCell={props.selectedCell}
             grid={props.grid}
             wallTextures={props.wallTextures}
@@ -235,6 +239,9 @@ export const PropertiesInspector: React.FC<PropertiesInspectorProps> = React.mem
           <MovementSettingsSection
             movement={props.movement}
             onUpdateMovement={props.onUpdateMovement}
+            classic={props.classic}
+            onToggleClassic={props.onToggleClassic}
+            verticalFeatures={props.verticalFeatures}
           />
         )}
       </div>

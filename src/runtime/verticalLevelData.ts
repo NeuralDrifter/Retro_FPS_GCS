@@ -23,6 +23,7 @@ import {
   SimPlacedEntityV3,
   bamToRadians,
   radiansToBam,
+  verticalFeaturesOf,
 } from './sim';
 
 /** 1 cell = 4 m = 1000 units */
@@ -148,7 +149,28 @@ export function verticalToLevelV3Fields(
   ) {
     out.movement = { ...m, stepUnits: Math.trunc(m.stepUnits) };
   }
+  if (vertical.classic) out.classicMovement = true;
   return out;
+}
+
+/**
+ * The vertical features an editor level uses (layers, heights, 3D-placed models, ...), in
+ * words for the maker; empty when the level is flat. Uses the game's own test.
+ */
+export function editorVerticalFeatures(
+  grid: number[][],
+  vertical: VerticalLevelData,
+  entities: PlacedEntity[]
+): string[] {
+  const size = grid.length;
+  return verticalFeaturesOf({
+    grid,
+    spawn: { row: 0, col: 0, yawBam: 0, ...(vertical.spawnLayer > 0 ? { layer: vertical.spawnLayer } : {}) },
+    ...verticalToLevelV3Fields(vertical, size),
+    entities: entities.map(
+      (e) => ({ id: e.id, row: e.row, col: e.col, ...verticalPlacementToV3(e) }) as SimPlacedEntityV3
+    ),
+  } as LevelDataV3);
 }
 
 /** The editor's vertical data for a level, or `undefined` when the level is flat */
@@ -159,6 +181,7 @@ export function verticalFromLevelV3(levelV3: LevelDataV3): VerticalLevelData | u
     levelV3.slopes ||
     levelV3.layers ||
     levelV3.movement ||
+    levelV3.classicMovement ||
     levelV3.spawn.layer !== undefined;
   if (!hasAny) return undefined;
   const size = levelV3.gridSize;
@@ -179,6 +202,7 @@ export function verticalFromLevelV3(levelV3: LevelDataV3): VerticalLevelData | u
     })),
     movement: { ...DEFAULT_MOVEMENT_SETTINGS, ...(levelV3.movement ?? {}) },
     spawnLayer: levelV3.spawn.layer ?? 0,
+    ...(levelV3.classicMovement ? { classic: true } : {}),
   };
 }
 
@@ -205,5 +229,6 @@ export function readEditorVerticalData(
         ? { ...DEFAULT_MOVEMENT_SETTINGS, ...v.movement }
         : { ...DEFAULT_MOVEMENT_SETTINGS },
     spawnLayer: typeof v.spawnLayer === 'number' ? Math.trunc(v.spawnLayer) : 0,
+    ...(v.classic === true ? { classic: true } : {}),
   };
 }

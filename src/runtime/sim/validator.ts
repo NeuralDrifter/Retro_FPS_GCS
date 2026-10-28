@@ -34,6 +34,7 @@ import {
   validateEntityVerticalFields,
   validateVerticalLevelFields,
 } from './verticalValidator';
+import { verticalFeaturesOf } from './vertical';
 import {
   BUILTIN_MODEL_IDS,
   BUILTIN_SOUND_IDS,
@@ -133,6 +134,7 @@ const LEVEL_V3_KEYS = [
   'slopes',
   'layers',
   'movement',
+  'classicMovement',
   'entities',
   'regions',
   'variables',
@@ -1318,6 +1320,18 @@ export function validateLevelDataV3(
     // Static cycle detection across `fire_event` / `trigger_event`
     if (!options.skipStaticCycleCheck && errors.length === 0) {
       detectStaticEventCycles(eventsList, errors);
+    }
+  }
+
+  // A classic retro level stays on one flat floor (checked once the rest is known good)
+  if (input.classicMovement === true && errors.length === 0) {
+    const used = verticalFeaturesOf(input as unknown as LevelDataV3);
+    if (used.length > 0) {
+      errors.push({
+        path: '$.classicMovement',
+        code: 'INVALID_MOVEMENT',
+        message: `Classic retro levels cannot use ${used.join(', ')}.`,
+      });
     }
   }
 

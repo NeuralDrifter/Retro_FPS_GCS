@@ -251,6 +251,8 @@ export interface VerticalLevelData {
   layers: EditorLayerData[];
   movement: MovementSettingsSpec;
   spawnLayer: number;
+  /** Classic retro movement: the level keeps one flat floor and the vertical tools are off */
+  classic?: boolean;
 }
 
 const constMatrix = (size: number, val: number): number[][] =>
@@ -344,6 +346,7 @@ export function cloneVerticalData(v: VerticalLevelData): VerticalLevelData {
     })),
     movement: { ...v.movement },
     spawnLayer: v.spawnLayer,
+    ...(v.classic ? { classic: true } : {}),
   };
 }
 

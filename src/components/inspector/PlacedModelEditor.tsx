@@ -26,6 +26,8 @@ interface PlacedModelEditorProps {
   onRemove: () => void;
   /** Number of layers in the level, for the 3D placement layer choice */
   layerCount?: number;
+  /** Classic retro levels have no free 3D placement */
+  classic?: boolean;
 }
 
 const clampCells = (v: number) =>
@@ -51,6 +53,7 @@ export const PlacedModelEditor: React.FC<PlacedModelEditorProps> = ({
   onUpdate: onUpdateRaw,
   onRemove,
   layerCount = 1,
+  classic = false,
 }) => {
   const category = resolveEntityCategory(entity);
   // Legacy copies have no stored category; writing it makes collision and footprint edits take effect
@@ -313,7 +316,7 @@ export const PlacedModelEditor: React.FC<PlacedModelEditorProps> = ({
         </div>
       </div>
 
-      <Placement3DFields entity={entity} layerCount={layerCount} onUpdate={onUpdate} />
+      {!classic && <Placement3DFields entity={entity} layerCount={layerCount} onUpdate={onUpdate} />}
 
       <button
         type="button"

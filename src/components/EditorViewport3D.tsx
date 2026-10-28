@@ -25,6 +25,8 @@ export interface SurfaceDrop {
 
 interface EditorViewport3DProps {
   level: EditorLevelInput;
+  /** Classic retro levels: models move along the floor and turn only flat */
+  classic?: boolean;
   activeLayer: number;
   selectedEntityId: string | null;
   selectedCell: { row: number; col: number };
@@ -42,6 +44,7 @@ interface EditorViewport3DProps {
 
 export const EditorViewport3D: React.FC<EditorViewport3DProps> = ({
   level,
+  classic = false,
   activeLayer,
   selectedEntityId,
   selectedCell,
@@ -121,6 +124,10 @@ export const EditorViewport3D: React.FC<EditorViewport3DProps> = ({
   useEffect(() => {
     sceneRef.current?.setGizmoMode(gizmoMode);
   }, [gizmoMode]);
+
+  useEffect(() => {
+    sceneRef.current?.setClassic(classic);
+  }, [classic]);
 
   useEffect(() => {
     sceneRef.current?.setSnap(snap);

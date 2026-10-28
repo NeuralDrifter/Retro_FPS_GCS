@@ -666,3 +666,59 @@ describe('Layered surfaces', () => {
     assert.ok(count(only42) < count(all));
   });
 });
+
+describe('Classic retro movement', () => {
+  it('runs a classic level on the flat movement code', () => {
+    const level = createBaseTestLevelV3();
+    level.classicMovement = true;
+    assert.deepEqual(validateLevelDataV3(level).errors, []);
+    const state = createInitialSimulationState(level, [0]);
+    assert.equal(state.vertical, undefined);
+  });
+
+  it('rejects a classic level that uses vertical features, naming them', () => {
+    const level = verticalLevel((l) => {
+      l.classicMovement = true;
+      l.layers = [upperLayer([[2, 2]])];
+      l.slopes = [{ row: 4, col: 2, dir: 'S', riseUnits: 200 }];
+    });
+    const error = validateLevelDataV3(level).errors.find((e) => e.path === '$.classicMovement');
+    assert.ok(error, 'classic level with layers is rejected');
+    assert.match(error!.message, /layers, slopes/);
+  });
+
+  it('saves and loads the switch, and lists what blocks it in the editor', async () => {
+    const { LevelSerializer } = await import('../LevelSerializer');
+    const { editorVerticalFeatures } = await import('../../runtime/verticalLevelData');
+    const { createDefaultVerticalData } = await import('../../runtime/types');
+    const base = createBaseTestLevelV3();
+    const vertical = { ...createDefaultVerticalData(SIZE), classic: true };
+    const params = {
+      grid: base.grid,
+      wallTextures: base.wallTextures,
+      floorTextures: base.floorTextures,
+      ceilingTextures: base.ceilingTextures,
+      customTextures: [],
+      entities: [],
+      spawn: { row: 2, col: 2, yaw: 0 },
+      skyboxTheme: 'retro-nebula' as const,
+      skyboxSeed: 1,
+      showCeiling: false,
+      minimapEnabled: true,
+      vertical,
+    };
+    const v3 = LevelSerializer.serializeLevelV3(params);
+    assert.equal(v3.classicMovement, true);
+    assert.equal('movement' in v3, false);
+    const loaded = LevelSerializer.parseLevelJson(JSON.stringify(LevelSerializer.serializeLevel(params)));
+    assert.equal(loaded.vertical?.classic, true);
+
+    assert.deepEqual(editorVerticalFeatures(base.grid, createDefaultVerticalData(SIZE), []), []);
+    const tall = createDefaultVerticalData(SIZE);
+    tall.floorHeights[3][3] = 100;
+    const placed = [
+      { id: 'ent-1', row: 3, col: 3, blueprintId: 'supply-crate' as const, name: 'Crate', yaw: 0, scale: 1, elevation: 1 },
+    ];
+    assert.deepEqual(editorVerticalFeatures(base.grid, tall, placed), ['tile heights', 'models placed in 3D']);
+  });
+});
