@@ -81,8 +81,9 @@ function entityUsesVertical(ent: SimPlacedEntityV3): boolean {
  *
  * IMPORTANT, KEEP FLAT LEVELS FLAT: a level that uses none of these features must give
  * `false` here, so it never gets `state.vertical` and keeps running the original flat
- * movement code. That is what keeps old levels playing exactly as before and keeps the
- * saved hashes in `src/engine/__tests__/determinismBaseline.json` matching. When you add
+ * movement code. That flat code is the classic retro mode (one floor, no jumping, solid
+ * blocks, like the early grid shooters) for makers who want it, and it keeps the saved
+ * hashes in `src/engine/__tests__/determinismBaseline.json` matching. When you add
  * a vertical feature, test it here only when its value differs from the flat default.
  * Never give every level a vertical field by default (an empty `layers` array, a
  * `movement` block of default settings, a `layer: 0` on entities, ...), or every level
