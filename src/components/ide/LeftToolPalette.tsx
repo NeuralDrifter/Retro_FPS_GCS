@@ -1,7 +1,9 @@
 import React from 'react';
 import { EditorToolMode } from '../../types/engine';
 import {
+  ArrowUpFromLine,
   Bot,
+  CircleDashed,
   DoorClosed,
   Eraser,
   KeyRound,
@@ -10,6 +12,7 @@ import {
   Paintbrush,
   Redo2,
   Square,
+  Triangle,
   Undo2,
 } from 'lucide-react';
 
@@ -68,6 +71,21 @@ const TOOL_ITEMS: {
     mode: 'spawn',
     label: 'Set First-Person Player Spawn Point',
     icon: <Navigation className="w-4 h-4" />,
+  },
+  {
+    mode: 'height',
+    label: 'Raise / Lower Floor or Ceiling (settings above the map)',
+    icon: <ArrowUpFromLine className="w-4 h-4" />,
+  },
+  {
+    mode: 'slope',
+    label: 'Slope a Floor or Ceiling (click to turn it N, E, S, W, flat)',
+    icon: <Triangle className="w-4 h-4" />,
+  },
+  {
+    mode: 'hole',
+    label: 'Cut a Hole in the Floor (open to the layer below)',
+    icon: <CircleDashed className="w-4 h-4" />,
   },
 ];
 

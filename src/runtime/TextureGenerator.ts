@@ -124,6 +124,11 @@ export class TextureGenerator {
         name: 'Acoustic Coffer Tile',
         recommendedSurface: 'ceiling',
       },
+      {
+        id: 'grate-alpha',
+        name: 'Catwalk Grate (see-through)',
+        recommendedSurface: 'any',
+      },
     ];
 
     return specs.map((spec) => ({
@@ -132,7 +137,20 @@ export class TextureGenerator {
       sourceType: 'procedural',
       previewUrl: this.getProceduralPreviewDataUrl(spec.id),
       recommendedSurface: spec.recommendedSurface,
+      ...(spec.id === 'grate-alpha' ? { hasAlpha: true } : {}),
     }));
+  }
+
+  /**
+   * True when a texture has see-through parts. PNG, GIF and WebP uploads may carry
+   * transparency, so they count too; fully opaque ones look the same either way.
+   */
+  public static isAlphaTexture(textureId: string, customAssets: TextureAsset[]): boolean {
+    if (textureId === 'grate-alpha') return true;
+    const custom = customAssets.find((a) => a.id === textureId);
+    if (!custom) return false;
+    if (custom.hasAlpha !== undefined) return custom.hasAlpha;
+    return /^data:image\/(png|gif|webp)|\.(png|gif|webp)(\?|#|$)/i.test(custom.previewUrl);
   }
 
   /**
@@ -340,6 +358,17 @@ export class TextureGenerator {
           );
         }
       }
+    } else if (preset === 'grate-alpha') {
+      // Steel bars on a fully transparent background: a see-through catwalk grate
+      ctx.clearRect(0, 0, 512, 512);
+      ctx.fillStyle = '#5B6573';
+      for (let i = 0; i < 8; i++) {
+        ctx.fillRect(i * 64, 0, 14, 512);
+        ctx.fillRect(0, i * 64 + 25, 512, 10);
+      }
+      ctx.strokeStyle = '#8B95A3';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(4, 4, 504, 504);
     } else if (preset === 'floor-obsidian') {
       ctx.fillStyle = '#0F141D';
       ctx.fillRect(0, 0, 512, 512);

@@ -26,6 +26,21 @@ import {
 } from './types';
 import { SpawnedEntityInstance } from './EntityLoader';
 import { CollisionSystem } from './CollisionSystem';
+import {
+  NO_FLOOR_UNITS,
+  SIM_CONFIG,
+  VerticalWorldView,
+  findActorSupportUnits,
+  isBlockedVertical,
+} from './sim';
+import { VerticalNavigator } from './verticalNav';
+
+const UNITS_PER_METER = SIM_CONFIG.CELL_UNITS / ENGINE_CONFIG.CELL_SIZE;
+/** Enemies are about player height and need the same head room */
+const ENEMY_BODY_UNITS = SIM_CONFIG.PLAYER_BODY_HEIGHT_UNITS;
+/** Height difference (meters) within which an enemy can strike or walk straight at the player */
+const SAME_LEVEL_METERS = 1.2;
+const GRAVITY_METERS_PER_SEC_SQ = 25;
 
 export interface RuntimeEnemyAgent {
   instance: SpawnedEntityInstance;
@@ -39,11 +54,16 @@ export interface RuntimeEnemyAgent {
   hasLineOfSight: boolean;
   deathTiltProgress: number; // 0..1 smooth fall-flat animation progress
   isCollidable: boolean;
+  /** Vertical levels: falling speed (m/s, negative is down) and route-finding state */
+  velY?: number;
+  waypoint?: { x: number; z: number } | null;
+  repathTimer?: number;
 }
 
 export interface RuntimeAmmoDrop {
   id: string;
   x: number;
+  y: number;
   z: number;
   amount: number;
   collected: boolean;
@@ -61,8 +81,110 @@ export class EnemyAISystem {
   private playerEyePos = new THREE.Vector3();
   private rayDir = new THREE.Vector3();
 
+  /** Vertical levels: the current world, and a route finder rebuilt as doors and lifts move */
+  private verticalView: VerticalWorldView | null = null;
+  private navigator: VerticalNavigator | null = null;
+  private navAgeSec = 0;
+
   constructor(lootContainer: THREE.Group) {
     this.lootContainer = lootContainer;
+  }
+
+  /**
+   * Gives the AI the current vertical world (the latest simulation state), or null on
+   * flat levels. Enemies then stand on floors, fall, climb steps, and find routes
+   * between layers.
+   */
+  public setVerticalWorld(view: VerticalWorldView | null): void {
+    this.verticalView = view && view.vertical ? view : null;
+    if (!this.verticalView) this.navigator = null;
+  }
+
+  private moveAgentVertical(rootPos: THREE.Vector3, stepX: number, stepZ: number): void {
+    const view = this.verticalView!;
+    const stepUnits = view.vertical!.movement.stepUnits;
+    const radius = Math.round(ENGINE_CONFIG.ENTITY_RADIUS * 0.8 * UNITS_PER_METER);
+    const feet = Math.round(rootPos.y * UNITS_PER_METER);
+    const canStand = (x: number, z: number) => {
+      const xu = Math.round(x * UNITS_PER_METER);
+      const zu = Math.round(z * UNITS_PER_METER);
+      if (isBlockedVertical(view, xu, zu, radius, feet, ENEMY_BODY_UNITS, stepUnits)) return false;
+      // Never walk into a bottomless pit
+      return findActorSupportUnits(view, xu, zu, radius, feet, stepUnits) !== NO_FLOOR_UNITS;
+    };
+    if (canStand(rootPos.x + stepX, rootPos.z)) rootPos.x += stepX;
+    if (canStand(rootPos.x, rootPos.z + stepZ)) rootPos.z += stepZ;
+  }
+
+  /** Keeps an enemy on the floor under it: steps up and down, and falls off ledges */
+  private applyAgentGravity(agent: RuntimeEnemyAgent, dt: number): void {
+    const view = this.verticalView!;
+    const pos = agent.instance.rootGroup.position;
+    const stepUnits = view.vertical!.movement.stepUnits;
+    const radius = Math.round(ENGINE_CONFIG.ENTITY_RADIUS * 0.8 * UNITS_PER_METER);
+    const support = findActorSupportUnits(
+      view,
+      Math.round(pos.x * UNITS_PER_METER),
+      Math.round(pos.z * UNITS_PER_METER),
+      radius,
+      Math.round(pos.y * UNITS_PER_METER),
+      stepUnits
+    );
+    if (support === NO_FLOOR_UNITS) return;
+    const floorY = support / UNITS_PER_METER;
+    const stepMeters = stepUnits / UNITS_PER_METER;
+    if (pos.y - floorY > stepMeters || (agent.velY ?? 0) < 0) {
+      agent.velY = (agent.velY ?? 0) - GRAVITY_METERS_PER_SEC_SQ * dt;
+      pos.y = Math.max(floorY, pos.y + agent.velY * dt);
+      if (pos.y === floorY) agent.velY = 0;
+    } else {
+      pos.y = floorY;
+      agent.velY = 0;
+    }
+  }
+
+  /** Direction (normalized, XZ) a chasing enemy should walk on a vertical level */
+  private chaseDirectionVertical(
+    agent: RuntimeEnemyAgent,
+    playerPos: THREE.Vector3,
+    playerFeetY: number,
+    dt: number
+  ): { x: number; z: number } | null {
+    const pos = agent.instance.rootGroup.position;
+    const sameLevel = Math.abs(playerFeetY - pos.y) < SAME_LEVEL_METERS;
+    let tx = playerPos.x;
+    let tz = playerPos.z;
+    if (!(sameLevel && agent.hasLineOfSight) && this.navigator) {
+      agent.repathTimer = (agent.repathTimer ?? 0) - dt;
+      if (agent.repathTimer <= 0 || agent.waypoint === undefined) {
+        agent.repathTimer = 0.4;
+        const from = this.navigator.nodeAt(
+          Math.round(pos.x * UNITS_PER_METER),
+          Math.round(pos.z * UNITS_PER_METER),
+          Math.round(pos.y * UNITS_PER_METER)
+        );
+        const to = this.navigator.nodeAt(
+          Math.round(playerPos.x * UNITS_PER_METER),
+          Math.round(playerPos.z * UNITS_PER_METER),
+          Math.round(playerFeetY * UNITS_PER_METER)
+        );
+        const next = from && to ? this.navigator.nextWaypoint(from, to) : null;
+        agent.waypoint = next
+          ? { x: next.xUnits / UNITS_PER_METER, z: next.zUnits / UNITS_PER_METER }
+          : null;
+      }
+      if (agent.waypoint) {
+        tx = agent.waypoint.x;
+        tz = agent.waypoint.z;
+      } else if (!sameLevel) {
+        return null; // No route to the player's level: hold position
+      }
+    }
+    const dx = tx - pos.x;
+    const dz = tz - pos.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 0.05) return null;
+    return { x: dx / len, z: dz / len };
   }
 
   /**
@@ -172,6 +294,7 @@ export class EnemyAISystem {
       this.spawnAmmoDrop(
         `ammo-${entityId}-${Date.now()}`,
         pos.x,
+        pos.y,
         pos.z,
         ENGINE_CONFIG.AMMO_DROP_AMOUNT
       );
@@ -207,11 +330,21 @@ export class EnemyAISystem {
     },
     solidFootprint?: number[][]
   ): void {
+    const vertical = this.verticalView;
+    // The camera is at the player's eye; their feet are one eye height lower
+    const playerFeetY = playerPos.y - ENGINE_CONFIG.PLAYER_EYE_HEIGHT;
     this.playerEyePos.set(
       playerPos.x,
-      ENGINE_CONFIG.PLAYER_EYE_HEIGHT * 0.85,
+      vertical ? playerPos.y - 0.25 : ENGINE_CONFIG.PLAYER_EYE_HEIGHT * 0.85,
       playerPos.z
     );
+    if (vertical) {
+      this.navAgeSec += dt;
+      if (!this.navigator || this.navAgeSec > 1) {
+        this.navigator = new VerticalNavigator(vertical);
+        this.navAgeSec = 0;
+      }
+    }
 
     // ------------------------------------------------------------------------
     // 1. UPDATE EACH ENEMY AGENT'S STATE MACHINE & HIT-FLASH TIMERS
@@ -268,6 +401,8 @@ export class EnemyAISystem {
         );
       }
 
+      if (vertical && instance.isEnemy) this.applyAgentGravity(agent, dt);
+
       // Static non-enemy objects (like Supply Crates) stay in Idle unless broken
       if (!instance.isEnemy || isPlayerDead) {
         return;
@@ -277,6 +412,7 @@ export class EnemyAISystem {
       const dxToPlayer = playerPos.x - rootPos.x;
       const dzToPlayer = playerPos.z - rootPos.z;
       const distToPlayer = Math.hypot(dxToPlayer, dzToPlayer);
+      const sameLevel = !vertical || Math.abs(playerFeetY - rootPos.y) < SAME_LEVEL_METERS;
 
       // Line-of-Sight (LOS) Raycaster check from Enemy Eye to Player Eye (throttled to ~10 Hz per agent)
       if (distToPlayer > ENGINE_CONFIG.ENEMY_LOS_RANGE) {
@@ -285,14 +421,14 @@ export class EnemyAISystem {
         agent.losCheckTimer -= dt;
         if (agent.losCheckTimer <= 0) {
           agent.losCheckTimer = 0.1;
-          this.enemyEyePos.set(rootPos.x, 1.5, rootPos.z);
-          this.rayDir
-            .subVectors(this.playerEyePos, this.enemyEyePos)
-            .normalize();
+          this.enemyEyePos.set(rootPos.x, (vertical ? rootPos.y : 0) + 1.5, rootPos.z);
+          this.rayDir.subVectors(this.playerEyePos, this.enemyEyePos);
+          const sightDistance = this.rayDir.length();
+          this.rayDir.normalize();
 
           this.losRaycaster.set(this.enemyEyePos, this.rayDir);
           this.losRaycaster.near = 0.2;
-          this.losRaycaster.far = distToPlayer;
+          this.losRaycaster.far = vertical ? sightDistance : distToPlayer;
 
           const wallHits = this.losRaycaster.intersectObjects(
             occluderMeshes,
@@ -312,7 +448,7 @@ export class EnemyAISystem {
       // ----------------------------------------------------------------------
       // FINITE STATE MACHINE TRANSITIONS (Idle <-> Chase <-> Attack)
       // ----------------------------------------------------------------------
-      if (distToPlayer <= ENGINE_CONFIG.ENEMY_ATTACK_RANGE && hasLineOfSight) {
+      if (distToPlayer <= ENGINE_CONFIG.ENEMY_ATTACK_RANGE && hasLineOfSight && sameLevel) {
         agent.state = 'Attack';
       } else if (hasLineOfSight || agent.memoryTimer > 0) {
         agent.state = 'Chase';
@@ -352,9 +488,15 @@ export class EnemyAISystem {
         );
 
         // Move toward player tied to delta time (dt) with wall-sliding collision
-        if (distToPlayer > ENGINE_CONFIG.ENEMY_ATTACK_RANGE * 0.88) {
-          const dirX = dxToPlayer / Math.max(distToPlayer, 0.001);
-          const dirZ = dzToPlayer / Math.max(distToPlayer, 0.001);
+        const routeDir = vertical
+          ? this.chaseDirectionVertical(agent, playerPos, playerFeetY, dt)
+          : null;
+        if (
+          (distToPlayer > ENGINE_CONFIG.ENEMY_ATTACK_RANGE * 0.88 || !sameLevel) &&
+          (!vertical || routeDir)
+        ) {
+          const dirX = routeDir ? routeDir.x : dxToPlayer / Math.max(distToPlayer, 0.001);
+          const dirZ = routeDir ? routeDir.z : dzToPlayer / Math.max(distToPlayer, 0.001);
 
           // Apply soft repulsion from other living enemies so they don't overlap
           let sepX = 0;
@@ -373,20 +515,24 @@ export class EnemyAISystem {
           const stepX = (dirX * instance.moveSpeed + sepX) * dt;
           const stepZ = (dirZ * instance.moveSpeed + sepZ) * dt;
 
-          const resolved = CollisionSystem.resolveMovement(
-            rootPos.x,
-            rootPos.z,
-            stepX,
-            stepZ,
-            grid,
-            openDoors,
-            true,
-            solidFootprint,
-            ENGINE_CONFIG.ENTITY_RADIUS * 0.8
-          );
+          if (vertical) {
+            this.moveAgentVertical(rootPos, stepX, stepZ);
+          } else {
+            const resolved = CollisionSystem.resolveMovement(
+              rootPos.x,
+              rootPos.z,
+              stepX,
+              stepZ,
+              grid,
+              openDoors,
+              true,
+              solidFootprint,
+              ENGINE_CONFIG.ENTITY_RADIUS * 0.8
+            );
 
-          rootPos.x = resolved.x;
-          rootPos.z = resolved.z;
+            rootPos.x = resolved.x;
+            rootPos.z = resolved.z;
+          }
         }
 
         instance.modelGroup.position.z = THREE.MathUtils.damp(
@@ -434,13 +580,14 @@ export class EnemyAISystem {
 
       // Bob and spin the 3D Ammo crate
       drop.meshGroup.rotation.y = elapsed * 2.6;
-      drop.meshGroup.position.y = 0.32 + Math.sin(elapsed * 4.2 + i) * 0.1;
+      drop.meshGroup.position.y = drop.y + 0.32 + Math.sin(elapsed * 4.2 + i) * 0.1;
 
       const distToPlayer = Math.hypot(
         playerPos.x - drop.x,
         playerPos.z - drop.z
       );
-      if (distToPlayer <= ENGINE_CONFIG.AMMO_PICKUP_RADIUS) {
+      const reachable = !vertical || Math.abs(playerFeetY - drop.y) < SAME_LEVEL_METERS;
+      if (distToPlayer <= ENGINE_CONFIG.AMMO_PICKUP_RADIUS && reachable) {
         drop.collected = true;
         drop.meshGroup.visible = false;
         callbacks.onAmmoCollected(drop.amount);
@@ -459,7 +606,8 @@ export class EnemyAISystem {
     collisionEnabled: boolean,
     grid?: number[][],
     openDoors?: Set<string>,
-    solidFootprint?: number[][]
+    solidFootprint?: number[][],
+    playerFeetY?: number
   ): { x: number; z: number } {
     if (!collisionEnabled) return { x: playerX, z: playerZ };
 
@@ -467,8 +615,16 @@ export class EnemyAISystem {
     let rz = playerZ;
     const minDist = ENGINE_CONFIG.PLAYER_RADIUS + ENGINE_CONFIG.ENTITY_RADIUS * 0.55;
 
+    const vertical = this.verticalView;
     this.agents.forEach((agent) => {
       if (!agent.isCollidable || agent.state === 'Dead') return;
+      if (
+        vertical &&
+        playerFeetY !== undefined &&
+        Math.abs(agent.instance.rootGroup.position.y - playerFeetY) > SAME_LEVEL_METERS
+      ) {
+        return;
+      }
       const ex = agent.instance.rootGroup.position.x;
       const ez = agent.instance.rootGroup.position.z;
       const dx = rx - ex;
@@ -479,7 +635,7 @@ export class EnemyAISystem {
         const nx = dx / dist;
         const nz = dz / dist;
 
-        if (agent.instance.isEnemy && agent.instance.moveSpeed > 0 && grid && openDoors) {
+        if (agent.instance.isEnemy && agent.instance.moveSpeed > 0 && grid && openDoors && !vertical) {
           // Split push between player and mobile enemy so an enemy cannot pin the player in a 1-cell hallway
           const playerPush = push * 0.5;
           const enemyPush = push * 0.5;
@@ -514,12 +670,13 @@ export class EnemyAISystem {
   private spawnAmmoDrop(
     id: string,
     x: number,
+    y: number,
     z: number,
     amount: number
   ): void {
     const group = new THREE.Group();
     group.name = `AmmoPickup_${id}`;
-    group.position.set(x, 0.32, z);
+    group.position.set(x, y + 0.32, z);
 
     // Emerald/Cyan Plasma Cell Ammo Pack Mesh
     const packBody = new THREE.Mesh(
@@ -558,6 +715,7 @@ export class EnemyAISystem {
     this.ammoDrops.push({
       id,
       x,
+      y,
       z,
       amount,
       collected: false,

@@ -25,6 +25,7 @@ import {
   ENGINE_CONFIG,
   PlacedEntity,
   TextureAsset,
+  VerticalLevelData,
 } from './types';
 import { CollisionSystem } from './CollisionSystem';
 import { TextureGenerator } from './TextureGenerator';
@@ -33,6 +34,9 @@ import { EnemyAISystem } from './EnemyAISystem';
 import { isStaticModel } from './categories';
 import { getFootprintRect } from './sim/footprint';
 import { radiansToBam } from './sim/trigTable';
+import { layerCellKey } from './sim/raycast';
+import { SurfaceBatch, buildLayeredSurfaces } from './LayeredSurfaces';
+import { applyVerticalPlacement, entityAnchorWorld, tileFloorMeters } from './entityPlacement';
 
 /** Cells per side of one batched chunk; chunks keep frustum culling and raycasts local */
 const CHUNK_CELLS = 16;
@@ -163,6 +167,12 @@ export interface WorldBuildResult {
   wallCount: number;
   /** Root groups of solid static models (also appended to `wallMeshes` as they load) */
   staticSolidMeshes: THREE.Object3D[];
+  /**
+   * Vertical levels only: redraws floors, ceilings and wall faces for new ground-layer
+   * heights (lifts and moving floors change them during play). Call it every frame with
+   * the in-between heights; only the moving tiles and their neighbours are redrawn.
+   */
+  updateLayeredHeights?: (floorHeights: number[][], ceilingHeights: number[][]) => void;
 }
 
 export class WorldBuilder {
@@ -186,6 +196,10 @@ export class WorldBuilder {
       collectedKeys: Set<string>;
       openDoors: Set<string>;
       onAsyncAssetReady?: () => void;
+      /** Stacked layers, heights, slopes and holes; absent for flat levels */
+      vertical?: VerticalLevelData;
+      /** Build only the level geometry; the caller places the models itself */
+      skipEntities?: boolean;
     }
   ): WorldBuildResult {
     const worldGroup = new THREE.Group();
@@ -240,6 +254,7 @@ export class WorldBuilder {
             roughness: 0.52,
             metalness: 0.18,
             wireframe: options.showWireframe,
+            ...alphaMaterialOptions(id),
           })
         );
       }
@@ -262,6 +277,7 @@ export class WorldBuilder {
             roughness: 0.78,
             metalness: 0.14,
             wireframe: options.showWireframe,
+            ...alphaMaterialOptions(id),
           })
         );
       }
@@ -284,13 +300,21 @@ export class WorldBuilder {
             roughness: 0.84,
             metalness: 0.15,
             wireframe: options.showWireframe,
+            ...alphaMaterialOptions(id),
           })
         );
       }
       return ceilingMatCache.get(id)!;
     };
 
+    // See-through textures cut out their transparent pixels and show both sides
+    const alphaMaterialOptions = (texId: string): THREE.MeshStandardMaterialParameters =>
+      TextureGenerator.isAlphaTexture(texId, customTextures)
+        ? { alphaTest: 0.5, side: THREE.DoubleSide }
+        : {};
+
     let wallCount = 0;
+    const vertical = options.vertical;
 
     const floorLayer = new InstancedCellLayer(tileGeo, -Math.PI / 2, 0, [0], {
       cast: false,
@@ -318,6 +342,89 @@ export class WorldBuilder {
     );
     const wallTexByCell = new Map<string, string>();
 
+    // Doors and keycards of any layer; `cellKey` is "row,col" on the ground, "L<layer>:row,col" above
+    const addDoor = (row: number, col: number, layer: number, cellKey: string) => {
+      const { x, z } = CollisionSystem.gridToWorld(row, col, gridSize);
+      // D. Interactive Bulkhead Door
+      const doorGroup = new THREE.Group();
+      doorGroup.position.set(x, tileFloorMeters(vertical, layer, row, col), z);
+      const isOpen = options.openDoors.has(cellKey);
+
+      const doorLeafGeo = new THREE.BoxGeometry(
+        cellSize * 0.92,
+        wallHeight * 0.96,
+        cellSize * 0.35
+      );
+      const doorLeafMat = new THREE.MeshStandardMaterial({
+        map: doorTexture,
+        roughness: 0.4,
+        metalness: 0.5,
+        wireframe: options.showWireframe,
+      });
+      const doorLeaf = new THREE.Mesh(doorLeafGeo, doorLeafMat);
+      doorLeaf.name = 'doorLeaf';
+      doorLeaf.position.y = isOpen
+        ? wallHeight * 1.38
+        : (wallHeight * 0.96) / 2;
+      doorGroup.add(doorLeaf);
+
+      const thresholdGeo = new THREE.BoxGeometry(cellSize, 0.06, 0.6);
+      const thresholdMesh = new THREE.Mesh(thresholdGeo, trimMat);
+      thresholdMesh.position.y = 0.03;
+      doorGroup.add(thresholdMesh);
+
+      worldGroup.add(doorGroup);
+      doorMeshes.set(cellKey, doorGroup);
+    };
+    const addKey = (row: number, col: number, layer: number, cellKey: string) => {
+      if (options.collectedKeys.has(cellKey)) return;
+      const { x, z } = CollisionSystem.gridToWorld(row, col, gridSize);
+      // E. Collectible Security Keycard
+      const keyGroup = new THREE.Group();
+      keyGroup.position.set(x, tileFloorMeters(vertical, layer, row, col), z);
+
+      const pedGeo = new THREE.CylinderGeometry(0.45, 0.58, 0.24, 16);
+      const pedMat = new THREE.MeshStandardMaterial({
+        color: 0x1e293b,
+        roughness: 0.3,
+        metalness: 0.7,
+      });
+      const pedMesh = new THREE.Mesh(pedGeo, pedMat);
+      pedMesh.position.y = 0.12;
+      keyGroup.add(pedMesh);
+
+      const cardHolder = new THREE.Group();
+      cardHolder.name = 'floatingKeycard';
+      cardHolder.position.y = 1.25;
+
+      const cardBodyGeo = new THREE.BoxGeometry(0.75, 0.48, 0.08);
+      const cardBodyMat = new THREE.MeshStandardMaterial({
+        color: 0xf59e0b,
+        emissive: 0xd97706,
+        emissiveIntensity: 0.45,
+        roughness: 0.2,
+        metalness: 0.8,
+      });
+      const cardBody = new THREE.Mesh(cardBodyGeo, cardBodyMat);
+      cardHolder.add(cardBody);
+
+      const stripeGeo = new THREE.BoxGeometry(0.77, 0.12, 0.09);
+      const stripeMat = new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        emissive: 0x0284c7,
+        emissiveIntensity: 0.6,
+        roughness: 0.2,
+        metalness: 0.5,
+      });
+      const stripeMesh = new THREE.Mesh(stripeGeo, stripeMat);
+      stripeMesh.position.y = 0.1;
+      cardHolder.add(stripeMesh);
+
+      keyGroup.add(cardHolder);
+      worldGroup.add(keyGroup);
+      keyMeshes.set(cellKey, keyGroup);
+    };
+
     // ------------------------------------------------------------------------
     // 1. PARSE GRID FOR PER-CELL FLOORS, CEILINGS, WALLS, DOORS & KEYS
     // ------------------------------------------------------------------------
@@ -327,12 +434,12 @@ export class WorldBuilder {
         const { x, z } = CollisionSystem.gridToWorld(row, col, gridSize);
         const cellKey = `${row},${col}`;
 
-        // A. Per-Cell Floor Tile
+        // A. Per-Cell Floor Tile (vertical levels draw floors and ceilings as layered surfaces)
         const floorTexId = floorTextures[row]?.[col] || 'floor-obsidian';
-        floorLayer.add(row, col, x, z, getFloorMaterial(floorTexId));
+        if (!vertical) floorLayer.add(row, col, x, z, getFloorMaterial(floorTexId));
 
         // B. Optional Per-Cell Ceiling Tile
-        if (ceilingLayer) {
+        if (ceilingLayer && !vertical) {
           const ceilingTexId =
             ceilingTextures[row]?.[col] || 'ceiling-coffer';
           ceilingLayer.add(row, col, x, z, getCeilingMaterial(ceilingTexId));
@@ -348,94 +455,126 @@ export class WorldBuilder {
           continue;
         }
 
-        if (cellType === CellType.DOOR) {
-          // D. Interactive Bulkhead Door
-          const doorGroup = new THREE.Group();
-          doorGroup.position.set(x, 0, z);
-          const isOpen = options.openDoors.has(cellKey);
-
-          const doorLeafGeo = new THREE.BoxGeometry(
-            cellSize * 0.92,
-            wallHeight * 0.96,
-            cellSize * 0.35
-          );
-          const doorLeafMat = new THREE.MeshStandardMaterial({
-            map: doorTexture,
-            roughness: 0.4,
-            metalness: 0.5,
-            wireframe: options.showWireframe,
-          });
-          const doorLeaf = new THREE.Mesh(doorLeafGeo, doorLeafMat);
-          doorLeaf.name = 'doorLeaf';
-          doorLeaf.position.y = isOpen
-            ? wallHeight * 1.38
-            : (wallHeight * 0.96) / 2;
-          doorGroup.add(doorLeaf);
-
-          const thresholdGeo = new THREE.BoxGeometry(cellSize, 0.06, 0.6);
-          const thresholdMesh = new THREE.Mesh(thresholdGeo, trimMat);
-          thresholdMesh.position.y = 0.03;
-          doorGroup.add(thresholdMesh);
-
-          worldGroup.add(doorGroup);
-          doorMeshes.set(cellKey, doorGroup);
-        } else if (
-          cellType === CellType.KEY &&
-          !options.collectedKeys.has(cellKey)
-        ) {
-          // E. Collectible Security Keycard
-          const keyGroup = new THREE.Group();
-          keyGroup.position.set(x, 0, z);
-
-          const pedGeo = new THREE.CylinderGeometry(0.45, 0.58, 0.24, 16);
-          const pedMat = new THREE.MeshStandardMaterial({
-            color: 0x1e293b,
-            roughness: 0.3,
-            metalness: 0.7,
-          });
-          const pedMesh = new THREE.Mesh(pedGeo, pedMat);
-          pedMesh.position.y = 0.12;
-          keyGroup.add(pedMesh);
-
-          const cardHolder = new THREE.Group();
-          cardHolder.name = 'floatingKeycard';
-          cardHolder.position.y = 1.25;
-
-          const cardBodyGeo = new THREE.BoxGeometry(0.75, 0.48, 0.08);
-          const cardBodyMat = new THREE.MeshStandardMaterial({
-            color: 0xf59e0b,
-            emissive: 0xd97706,
-            emissiveIntensity: 0.45,
-            roughness: 0.2,
-            metalness: 0.8,
-          });
-          const cardBody = new THREE.Mesh(cardBodyGeo, cardBodyMat);
-          cardHolder.add(cardBody);
-
-          const stripeGeo = new THREE.BoxGeometry(0.77, 0.12, 0.09);
-          const stripeMat = new THREE.MeshStandardMaterial({
-            color: 0x38bdf8,
-            emissive: 0x0284c7,
-            emissiveIntensity: 0.6,
-            roughness: 0.2,
-            metalness: 0.5,
-          });
-          const stripeMesh = new THREE.Mesh(stripeGeo, stripeMat);
-          stripeMesh.position.y = 0.1;
-          cardHolder.add(stripeMesh);
-
-          keyGroup.add(cardHolder);
-          worldGroup.add(keyGroup);
-          keyMeshes.set(cellKey, keyGroup);
-        }
+        if (cellType === CellType.DOOR) addDoor(row, col, 0, cellKey);
+        else if (cellType === CellType.KEY) addKey(row, col, 0, cellKey);
       }
     }
+
+    // Doors and keycards on stacked layers
+    vertical?.layers.forEach((layerData, i) => {
+      const layer = i + 1;
+      for (let row = 0; row < gridSize; row++) {
+        for (let col = 0; col < gridSize; col++) {
+          const cellType = layerData.grid[row]?.[col];
+          const cellKey = layerCellKey(row, col, layer);
+          if (cellType === CellType.DOOR) addDoor(row, col, layer, cellKey);
+          else if (cellType === CellType.KEY) addKey(row, col, layer, cellKey);
+        }
+      }
+    });
 
     floorLayer.build(worldGroup, wallHeight);
     ceilingLayer?.build(worldGroup, wallHeight);
     wallCubeLayer.build(worldGroup, 0);
     wallTrimLayer.build(worldGroup, 0);
     wallMeshes.push(...wallCubeLayer.meshes);
+
+    // Layered floors, ceilings and wall faces of a vertical level
+    let updateLayeredHeights: WorldBuildResult['updateLayeredHeights'];
+    if (vertical) {
+      const layeredGroup = new THREE.Group();
+      layeredGroup.name = 'ForgeCore_LayeredSurfaces';
+      worldGroup.add(layeredGroup);
+      const materialFor = (batch: SurfaceBatch) =>
+        batch.kind === 'wall'
+          ? getWallMaterial(batch.textureId)
+          : batch.kind === 'floor'
+          ? getFloorMaterial(batch.textureId)
+          : getCeilingMaterial(batch.textureId);
+      /** Replaces a set of surface meshes with freshly built ones */
+      const rebuild = (
+        old: THREE.Mesh[],
+        floorHeights: number[][],
+        ceilingHeights: number[][],
+        includeTile: (row: number, col: number) => boolean
+      ): THREE.Mesh[] => {
+        for (const mesh of old) {
+          layeredGroup.remove(mesh);
+          mesh.geometry.dispose();
+          const idx = wallMeshes.indexOf(mesh);
+          if (idx >= 0) wallMeshes.splice(idx, 1);
+        }
+        const meshes = buildLayeredSurfaces({
+          grid,
+          wallTextures,
+          floorTextures,
+          ceilingTextures,
+          vertical,
+          floorHeights,
+          ceilingHeights,
+          showCeiling: options.showCeiling,
+          includeTile,
+        }).map((batch) => {
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute('position', new THREE.Float32BufferAttribute(batch.positions, 3));
+          geo.setAttribute('normal', new THREE.Float32BufferAttribute(batch.normals, 3));
+          geo.setAttribute('uv', new THREE.Float32BufferAttribute(batch.uvs, 2));
+          geo.computeBoundingSphere();
+          const mesh = new THREE.Mesh(geo, materialFor(batch));
+          mesh.name = `Layered_${batch.kind}_${batch.textureId}`;
+          mesh.receiveShadow = true;
+          mesh.castShadow = batch.kind === 'wall';
+          layeredGroup.add(mesh);
+          return mesh;
+        });
+        // Floors and ceilings stop shots and sight lines between layers, like walls
+        wallMeshes.push(...meshes);
+        return meshes;
+      };
+
+      // Tiles whose heights have moved, plus their neighbours (whose edge walls change
+      // with them), are drawn apart from the rest so a lift can be redrawn every frame
+      const builtFloors = vertical.floorHeights;
+      const builtCeilings = vertical.ceilingHeights;
+      const moving = new Set<string>();
+      const dynamic = new Set<string>();
+      const isDynamic = (r: number, c: number) => dynamic.has(`${r},${c}`);
+      let staticMeshes = rebuild([], builtFloors, builtCeilings, () => true);
+      let dynamicMeshes: THREE.Mesh[] = [];
+      let dynamicKey = '';
+      updateLayeredHeights = (floorHeights, ceilingHeights) => {
+        let grew = false;
+        for (let r = 0; r < gridSize; r++) {
+          for (let c = 0; c < gridSize; c++) {
+            if (
+              (floorHeights[r]?.[c] ?? 0) === (builtFloors[r]?.[c] ?? 0) &&
+              (ceilingHeights[r]?.[c] ?? 0) === (builtCeilings[r]?.[c] ?? 0)
+            ) {
+              continue;
+            }
+            const key = `${r},${c}`;
+            if (moving.has(key)) continue;
+            moving.add(key);
+            for (const [dr, dc] of [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]]) {
+              dynamic.add(`${r + dr},${c + dc}`);
+            }
+            grew = true;
+          }
+        }
+        if (grew) {
+          staticMeshes = rebuild(staticMeshes, builtFloors, builtCeilings, (r, c) => !isDynamic(r, c));
+        }
+        if (moving.size === 0) return;
+        let key = '';
+        for (const tile of moving) {
+          const [r, c] = tile.split(',').map(Number);
+          key += `${floorHeights[r][c]}/${ceilingHeights[r][c]};`;
+        }
+        if (!grew && key === dynamicKey) return;
+        dynamicKey = key;
+        dynamicMeshes = rebuild(dynamicMeshes, floorHeights, ceilingHeights, isDynamic);
+      };
+    }
 
     const detachedWallBlocks = new Map<string, THREE.Group>();
     const getWallBlockGroup = (cellKey: string): THREE.Group | undefined => {
@@ -481,32 +620,21 @@ export class WorldBuilder {
 
     const staticSolidMeshes: THREE.Object3D[] = [];
 
-    // Free loaded models this world no longer places
-    EntityLoader.releaseModelsNotUsedBy(entities);
+    // Free loaded models this world no longer places (the 3D editor loads models itself)
+    if (!options.skipEntities) EntityLoader.releaseModelsNotUsedBy(entities);
 
-    entities.forEach((entity) => {
+    (options.skipEntities ? [] : entities).forEach((entity) => {
       const isStatic = isStaticModel(entity);
       if (!isStatic && grid[entity.row]?.[entity.col] === CellType.WALL) return;
 
       // Static models sit centered on their whole footprint rectangle
-      const rect = getFootprintRect({
-        ...entity,
-        yawBam: radiansToBam(entity.yaw || 0),
-      });
-      const anchorWorld = CollisionSystem.gridToWorld(
-        rect.row0,
-        rect.col0,
-        gridSize
-      );
-      const worldPos = {
-        x: anchorWorld.x + ((rect.col1 - rect.col0) * cellSize) / 2,
-        z: anchorWorld.z + ((rect.row1 - rect.row0) * cellSize) / 2,
-      };
+      const worldPos = entityAnchorWorld(entity, gridSize);
       EntityLoader.loadEntityInstance(
         entity,
         worldPos,
         options.showWireframe
       ).then((spawned) => {
+        if (vertical) applyVerticalPlacement(spawned.rootGroup, entity, worldPos, vertical);
         entitiesContainer.add(spawned.rootGroup);
         if (!isStatic) {
           enemyAI.registerEntity(spawned);
@@ -527,7 +655,11 @@ export class WorldBuilder {
       gridSize
     );
     const spawnPadGroup = new THREE.Group();
-    spawnPadGroup.position.set(spawnPos.x, 0.025, spawnPos.z);
+    spawnPadGroup.position.set(
+      spawnPos.x,
+      tileFloorMeters(vertical, vertical?.spawnLayer ?? 0, options.spawn.row, options.spawn.col) + 0.025,
+      spawnPos.z
+    );
 
     const ringGeo = new THREE.RingGeometry(0.7, 0.95, 24);
     const ringMat = new THREE.MeshBasicMaterial({
@@ -551,6 +683,7 @@ export class WorldBuilder {
       enemyAI,
       wallCount,
       staticSolidMeshes,
+      ...(updateLayeredHeights ? { updateLayeredHeights } : {}),
     };
   }
 

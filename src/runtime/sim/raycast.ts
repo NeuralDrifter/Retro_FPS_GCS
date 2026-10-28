@@ -70,14 +70,23 @@ export function worldUnitsToGrid(
 }
 
 /**
- * Returns true if the door at `(row, col)` is passable (progress >= 8000 basis points).
+ * Key of a door or keycard cell: `"row,col"` on the ground layer, `"L<layer>:row,col"`
+ * on a stacked layer. Door movers are named `door:` plus this key.
+ */
+export function layerCellKey(row: number, col: number, layer = 0): string {
+  return layer > 0 ? `L${layer}:${row},${col}` : `${row},${col}`;
+}
+
+/**
+ * Returns true if the door at `(row, col)` of `layer` is passable (progress >= 8000 basis points).
  */
 export function isDoorPassable(
   row: number,
   col: number,
-  movers: Record<string, MoverSimState>
+  movers: Record<string, MoverSimState>,
+  layer = 0
 ): boolean {
-  const mover = movers[`door:${row},${col}`];
+  const mover = movers[`door:${layerCellKey(row, col, layer)}`];
   if (!mover) return false;
   return mover.state === 'open' || mover.progress >= 8000;
 }

@@ -43,6 +43,25 @@ export const SIM_CONFIG = {
   COUNTER_MAX: 1_000_000,
   MAX_MESSAGE_LENGTH: 120,
   MAX_MESSAGES_PER_SECOND: 2,
+
+  // Vertical levels: stacked layers, per-tile heights, slopes, jumping and falling
+  LAYER_HEIGHT_UNITS: 1000, // One layer is one wall height (4.0m); layer k starts at k * 1000
+  MAX_LAYERS: 8,
+  MIN_FLOOR_HEIGHT_UNITS: -1000, // Layer 0 only: pits below the ground floor
+  MAX_SLOPE_RISE_UNITS: 1000, // A slope rises at most one layer across one tile (45 degrees)
+  PLAYER_BODY_HEIGHT_UNITS: 500, // Head clearance needed to stand
+  PLAYER_CROUCH_HEIGHT_UNITS: 280,
+  PLAYER_CROUCH_EYE_HEIGHT_UNITS: 220,
+  DEFAULT_STEP_UNITS: 125, // About knee height
+  MAX_STEP_UNITS: 500,
+  GRAVITY_UNITS_PER_TICK_SQ: 4,
+  JUMP_VELOCITY_UNITS_PER_TICK: 48, // Peaks about 290 units (1.15m) above the take-off floor
+  MAX_FALL_SPEED_UNITS_PER_TICK: 120,
+  FALL_DAMAGE_SAFE_SPEED: 77, // Landing speed after a ~3m fall
+  FALL_DAMAGE_PER_SPEED_UNIT: 2,
+  KILL_PLANE_UNITS: -4000, // Falling below this (out of a bottomless pit) kills the player
+  WALK_SURFACE_MAX_SAMPLES: 4096, // Per walkable model
+  WALK_SURFACE_MAX_GRADIENT_PCT: 120, // Steeper model surfaces (rise per run, percent) slide you off
 } as const;
 
 export enum SimCellType {
@@ -50,6 +69,8 @@ export enum SimCellType {
   WALL = 1,
   DOOR = 2,
   KEY = 3,
+  /** Open tile with no floor: you see and fall through to the layer below */
+  HOLE = 4,
 }
 
 export type GameModeFilter = 'single' | 'coop' | 'deathmatch';
@@ -564,7 +585,97 @@ export interface SimPlacedEntityV3 {
   footprintW?: number;
   footprintD?: number;
   footprintOverride?: boolean;
+  /** Free 3D placement (all absent on flat, grid-placed entities) */
+  layer?: number;
+  /**
+   * Offset of the model's origin from its grid anchor, in units. Unlike other level
+   * numbers these may have up to three decimals, so a model sits exactly where it was
+   * placed; the simulation rounds them to whole units.
+   */
+  offsetXUnits?: number;
+  offsetZUnits?: number;
+  /** Height of the model's origin above its layer's base (up to three decimals); absent = standing on the floor */
+  elevationUnits?: number;
+  pitchBam?: number; // Tilt forward/back, integer BAM [0..65535]
+  rollBam?: number; // Tilt sideways, integer BAM [0..65535]
+  /** Players and enemies can stand on the model's real top surface (needs `walkSurface`) */
+  walkable?: boolean;
+  walkSurface?: WalkSurfaceSpec;
+  /**
+   * Lowest and highest point of the model relative to its origin, in whole units, baked
+   * by the editor. A solid model blocks only this stretch, so you can walk under a
+   * hanging model or step and jump onto a low one. Absent = one layer tall.
+   */
+  modelBottomUnits?: number;
+  modelTopUnits?: number;
 }
+
+/**
+ * A walkable model's shape baked by the editor into whole numbers, so the simulation
+ * never reads floating-point mesh data. Samples form a `cols` x `rows` grid starting at
+ * the origin corner and spaced `spacingUnits` apart; each sample stores the model's top
+ * and bottom height there in absolute world units, or `WALK_SURFACE_EMPTY` for both when
+ * the model does not cover that point.
+ */
+export interface WalkSurfaceSpec {
+  originXUnits: number;
+  originZUnits: number;
+  spacingUnits: number;
+  cols: number;
+  rows: number;
+  top: number[];
+  bottom: number[];
+}
+
+export const WALK_SURFACE_EMPTY = -1_000_000;
+
+export type SlopeSurface = 'floor' | 'ceiling';
+
+/**
+ * A floor (or, with `surface: 'ceiling'`, a ceiling) that rises toward `dir` by
+ * `riseUnits` across the tile. A tile can have one floor slope and one ceiling slope.
+ */
+export interface FloorSlopeSpec {
+  row: number;
+  col: number;
+  dir: CardinalDirection;
+  riseUnits: number;
+  /** Absent means the floor */
+  surface?: SlopeSurface;
+}
+
+/**
+ * One stacked layer above the ground floor. Heights are relative to the layer's base
+ * (layer k starts at k * LAYER_HEIGHT_UNITS); defaults are floor 0 and ceiling 1000.
+ */
+export interface LevelLayerV3 {
+  grid: number[][];
+  wallTextures: string[][];
+  floorTextures: string[][];
+  ceilingTextures: string[][];
+  floorHeights?: number[][];
+  ceilingHeights?: number[][];
+  slopes?: FloorSlopeSpec[];
+}
+
+export type AimMode = 'free' | 'auto';
+
+/** Per-game movement rules for vertical levels */
+export interface MovementSettingsSpec {
+  jump: boolean;
+  crouch: boolean;
+  stepUnits: number;
+  fallDamage: boolean;
+  aim: AimMode;
+}
+
+export const DEFAULT_MOVEMENT_SETTINGS: MovementSettingsSpec = {
+  jump: false,
+  crouch: false,
+  stepUnits: 125,
+  fallDamage: false,
+  aim: 'free',
+};
 
 export interface LevelMetadataSpec {
   title?: string;
@@ -584,6 +695,7 @@ export interface LevelDataV3 {
     row: number;
     col: number;
     yawBam: number; // Integer 16-bit BAM [0..65535]
+    layer?: number;
   };
   minimapEnabled: boolean;
   skybox: {
@@ -598,6 +710,11 @@ export interface LevelDataV3 {
   cellTags?: number[][];
   floorHeights?: number[][];
   ceilingHeights?: number[][];
+  /** Sloped floor tiles on the ground layer */
+  slopes?: FloorSlopeSpec[];
+  /** Layers stacked above the ground floor (layer 1 first) */
+  layers?: LevelLayerV3[];
+  movement?: MovementSettingsSpec;
   entities: SimPlacedEntityV3[];
   regions: RegionDefinition[];
   variables: VariableRegistrySpec;
@@ -636,16 +753,23 @@ export interface PlayerSimState {
   isDead: boolean;
   items: string[]; // Sorted or canonical list of collected item/key IDs
   controlsLockedTicks: number;
+  /** Vertical levels only: absolute feet height, vertical speed, and stance */
+  feetUnits?: number;
+  velYUnits?: number;
+  onGround?: boolean;
+  crouching?: boolean;
 }
 
 /**
  * Mover Runtime Simulation State (Doors, Push Walls, Lifts, Floors, Crushers - Strict Integer-Only)
  */
 export interface MoverSimState {
-  id: string; // e.g. "door:4,5", "pushwall:2,3", "lift:tag:2"
+  id: string; // e.g. "door:4,5", "door:L1:4,5" (a door on layer 1), "pushwall:2,3", "lift:tag:2"
   kind: 'door' | 'pushwall' | 'lift' | 'floor' | 'ceiling' | 'crusher' | 'track';
   row: number;
   col: number;
+  /** Doors on a stacked layer only (absent on the ground layer) */
+  layer?: number;
   tag: number;
   state: 'closed' | 'opening' | 'open' | 'closing' | 'active' | 'done';
   progress: number; // 0..10000 basis points
@@ -788,6 +912,42 @@ export interface SimulationState {
     }
   >;
   regionDwellTicks?: Record<string, Record<number, number>>;
+  /**
+   * Present only on levels that use vertical features. Flat levels never get it, so they
+   * keep running the original flat movement code unchanged. Never mutated after the
+   * level starts, so ticks share it instead of copying it.
+   */
+  vertical?: VerticalSimState;
+}
+
+/** A layer above the ground floor with every optional height filled in */
+export interface SimLayerState {
+  grid: number[][];
+  wallTextures: string[][];
+  floorTextures: string[][];
+  ceilingTextures: string[][];
+  floorHeights: number[][];
+  ceilingHeights: number[][];
+  slopes: FloorSlopeSpec[];
+}
+
+/** A solid model that is not walkable: blocks its footprint cells between two heights */
+export interface SolidModelBox {
+  row0: number;
+  col0: number;
+  row1: number; // Inclusive
+  col1: number; // Inclusive
+  bottomUnits: number;
+  topUnits: number;
+}
+
+export interface VerticalSimState {
+  /** Sloped tiles of the ground layer (its heights stay in `floorHeights`/`ceilingHeights`) */
+  slopes: FloorSlopeSpec[];
+  layers: SimLayerState[];
+  movement: MovementSettingsSpec;
+  walkSurfaces: WalkSurfaceSpec[];
+  solidBoxes: SolidModelBox[];
 }
 
 /**
@@ -804,4 +964,7 @@ export interface PlayerTickInput {
   use: boolean;
   shoot: boolean;
   noclip?: boolean;
+  /** Vertical levels with jumping or crouching turned on */
+  jump?: boolean;
+  crouch?: boolean;
 }

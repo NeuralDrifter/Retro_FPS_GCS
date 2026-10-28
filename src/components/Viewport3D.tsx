@@ -15,6 +15,7 @@ import {
   TextureAsset,
 } from '../types/engine';
 import { SimulationState } from '../runtime/sim';
+import { VerticalLevelData, isFlatVerticalData } from '../runtime/types';
 import { LevelSerializer } from '../engine/LevelSerializer';
 import { GameRuntimeHandle, startGame } from '../runtime/startGame';
 import {
@@ -26,6 +27,7 @@ import {
   Map as MapIcon,
   Maximize2,
   Minimize2,
+  Pencil,
 } from 'lucide-react';
 
 interface Viewport3DProps {
@@ -50,6 +52,10 @@ interface Viewport3DProps {
   onSimStateChange: (nextState: SimulationState) => void;
   resetSignal: number;
   onEngineLog: (message: string) => void;
+  /** Stacked layers, heights and movement settings (flat levels may leave it out) */
+  vertical?: VerticalLevelData;
+  /** Shows an Edit button that returns the center pane to the 3D editor */
+  onExitPlay?: () => void;
 }
 
 export const Viewport3D: React.FC<Viewport3DProps> = ({
@@ -73,7 +79,11 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   onSimStateChange,
   resetSignal,
   onEngineLog,
+  vertical,
+  onExitPlay,
 }) => {
+  // Flat levels keep the exact original level data
+  const levelVertical = vertical && !isFlatVerticalData(vertical) ? vertical : undefined;
   const canvasMountRef = useRef<HTMLDivElement | null>(null);
   const hudRootRef = useRef<HTMLDivElement | null>(null);
   const runtimeRef = useRef<GameRuntimeHandle | null>(null);
@@ -118,6 +128,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         counters: simState.counters,
         timers: Object.keys(simState.timers),
       },
+      vertical: levelVertical,
     });
 
     const handle = startGame(initialLevelV3, container, {
@@ -181,8 +192,10 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       skyboxSeed,
       showCeiling,
       minimapEnabled,
+      vertical: levelVertical,
     });
   }, [
+    levelVertical,
     grid,
     wallTextures,
     floorTextures,
@@ -214,7 +227,17 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       {/* Compact 24px Desktop IDE Viewport Header Bar */}
       <div className="ide-panel-header">
         <div className="flex items-center gap-2">
-          <span>3D Perspective Viewport</span>
+          {onExitPlay && (
+            <button
+              type="button"
+              onClick={onExitPlay}
+              className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded bg-[#478cbf] hover:bg-[#5a9bd0] text-white"
+              title="Stop playing and go back to the 3D editor"
+            >
+              <Pencil className="w-3 h-3" /> Edit
+            </button>
+          )}
+          <span>Test Play</span>
           <span className="font-mono text-[#858585]">
             {isPointerLocked ? '[Mouse Locked - ESC]' : '[WASD + LMB/F Fire]'}
           </span>

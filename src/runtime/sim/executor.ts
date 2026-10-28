@@ -42,6 +42,7 @@ import {
   castGridRayDDA,
   gridToWorldUnits,
   isDoorPassable,
+  layerCellKey,
   worldUnitsToGrid,
 } from './raycast';
 import { normalizeEventsToIntegerTicks } from './validator';
@@ -50,6 +51,14 @@ import {
   getFootprintCenter,
   isStaticFootprintSource,
 } from './footprint';
+import {
+  actorLayer,
+  buildVerticalSimState,
+  cellOnLayer,
+  entitySpawnPointUnits,
+  spawnFeetUnits,
+} from './vertical';
+import { moveSimEntityVertical, stepVerticalPlayer } from './verticalMovement';
 
 interface QueuedTriggerEvent {
   type: EventDefinition['trigger']['type'];
@@ -184,6 +193,8 @@ export function cloneSimulationState(state: SimulationState): SimulationState {
     messages: state.messages.map((m) => ({ ...m })),
     soundsPlayed: state.soundsPlayed.map((s) => ({ ...s })),
     logs: state.logs.map((l) => ({ ...l })),
+    // Never mutated after the level starts, so ticks share it
+    ...(state.vertical ? { vertical: state.vertical } : {}),
   };
 }
 
@@ -234,6 +245,22 @@ export function createInitialSimulationState(
   const spawnWorld = gridToWorldUnits(level.spawn.row, level.spawn.col, gridSize);
   const spawnYawBam = normalizeBam(level.spawn.yawBam);
 
+  const vertical = buildVerticalSimState(level);
+  // Read-only view of the starting world for placing the player and enemies on their floors
+  const startView = vertical
+    ? {
+        gridSize,
+        grid: level.grid,
+        floorHeights,
+        ceilingHeights,
+        movers: {},
+        vertical,
+      }
+    : null;
+  const spawnFeet = startView
+    ? spawnFeetUnits(startView, level.spawn.row, level.spawn.col, level.spawn.layer ?? 0)
+    : 0;
+
   const players: Record<number, PlayerSimState> = {};
   const sortedPids = [...playerIds].map((id) => Math.trunc(id)).sort((a, b) => a - b);
   for (const pid of sortedPids) {
@@ -254,6 +281,15 @@ export function createInitialSimulationState(
       isDead: false,
       items: [],
       controlsLockedTicks: 0,
+      ...(startView
+        ? {
+            yUnits: spawnFeet + SIM_CONFIG.PLAYER_EYE_HEIGHT_UNITS,
+            feetUnits: spawnFeet,
+            velYUnits: 0,
+            onGround: true,
+            crouching: false,
+          }
+        : {}),
     };
   }
 
@@ -281,6 +317,32 @@ export function createInitialSimulationState(
     }
   }
 
+  // Doors on stacked layers (vertical levels only)
+  vertical?.layers.forEach((layerState, i) => {
+    const layer = i + 1;
+    for (let r = 0; r < gridSize; r++) {
+      for (let c = 0; c < gridSize; c++) {
+        if (layerState.grid[r]?.[c] !== SimCellType.DOOR) continue;
+        const id = `door:${layerCellKey(r, c, layer)}`;
+        movers[id] = {
+          id,
+          kind: 'door',
+          row: r,
+          col: c,
+          layer,
+          tag: cellTags[r]?.[c] ?? 0,
+          state: 'closed',
+          progress: 0,
+          speedPerTick: SIM_CONFIG.DEFAULT_DOOR_SPEED_PER_TICK,
+          waitTicks: 0,
+          configuredWaitTicks: 0,
+          locked: false,
+          blockedBehavior: 'wait',
+        };
+      }
+    }
+  });
+
   const timers: Record<string, number> = {};
   for (const tName of level.variables.timers) {
     timers[tName] = 0;
@@ -290,7 +352,10 @@ export function createInitialSimulationState(
     (a, b) => a.id.localeCompare(b.id)
   );
 
-  const solidFootprint = buildSolidFootprintGrid(level.entities ?? [], gridSize);
+  // Vertical levels block with per-layer solid boxes instead of a whole-column footprint
+  const solidFootprint = vertical
+    ? undefined
+    : buildSolidFootprintGrid(level.entities ?? [], gridSize);
 
   const entities: Record<string, SimEntityState> = {};
   if (level.entities && level.entities.length > 0) {
@@ -299,6 +364,7 @@ export function createInitialSimulationState(
       if (isStaticFootprintSource(ent)) continue;
       // Characters wider than one cell stand at their footprint's center
       const center = getFootprintCenter(ent, gridSize);
+      const point = startView ? entitySpawnPointUnits(ent, startView) : null;
       entities[ent.id] = {
         id: ent.id,
         blueprintId: ent.blueprintId,
@@ -312,9 +378,9 @@ export function createInitialSimulationState(
             : 'Supply Crate'),
         row: center.row,
         col: center.col,
-        xUnits: center.xUnits,
-        zUnits: center.zUnits,
-        yUnits: floorHeights[center.row]?.[center.col] ?? 0,
+        xUnits: point ? point.xUnits : center.xUnits,
+        zUnits: point ? point.zUnits : center.zUnits,
+        yUnits: point ? point.yUnits : floorHeights[center.row]?.[center.col] ?? 0,
         yawBam: normalizeBam(ent.yawBam || 0),
         health: Math.max(1, Math.trunc(ent.maxHealth ?? 75)),
         maxHealth: Math.max(1, Math.trunc(ent.maxHealth ?? 75)),
@@ -374,6 +440,7 @@ export function createInitialSimulationState(
     messages: [],
     soundsPlayed: [],
     logs: [],
+    ...(vertical ? { vertical } : {}),
   };
 
   // Fire any `level_start` triggers at tick 0
@@ -649,7 +716,10 @@ export function step(
     const moveF = Math.max(-1, Math.min(1, Math.trunc(input.moveForward || 0)));
     const moveR = Math.max(-1, Math.min(1, Math.trunc(input.moveRight || 0)));
 
-    if ((moveF !== 0 || moveR !== 0) && player.controlsLockedTicks === 0) {
+    if (state.vertical) {
+      // Vertical levels: walking, stepping, slopes, jumping, crouching and falling
+      stepVerticalPlayer(state, state.vertical, player, input, moveF, moveR);
+    } else if ((moveF !== 0 || moveR !== 0) && player.controlsLockedTicks === 0) {
       const targetSpeed = input.sprint
         ? SIM_CONFIG.SPRINT_SPEED_UNITS_PER_TICK
         : SIM_CONFIG.WALK_SPEED_UNITS_PER_TICK;
@@ -810,10 +880,11 @@ export function step(
       }
     }
 
-    // Keycard pickup check on current cell
-    const cellKey = `${player.gridRow},${player.gridCol}`;
+    // Keycard pickup check on current cell (of the layer the player stands on)
+    const keyLayer = state.vertical ? actorLayer(state, player.feetUnits ?? 0) : 0;
+    const cellKey = layerCellKey(player.gridRow, player.gridCol, keyLayer);
     if (
-      state.grid[player.gridRow]?.[player.gridCol] === SimCellType.KEY &&
+      cellOnLayer(state, keyLayer, player.gridRow, player.gridCol) === SimCellType.KEY &&
       !state.collectedKeys.includes(cellKey)
     ) {
       state.collectedKeys.push(cellKey);
@@ -1091,6 +1162,8 @@ function handlePlayerUseCommand(
     }
   }
 
+  // On vertical levels you reach the doors of the layer you stand on
+  const useLayer = state.vertical ? actorLayer(state, player.feetUnits ?? 0) : 0;
   for (const cell of interactedCells) {
     const tag = state.cellTags[cell.row]?.[cell.col] ?? 0;
     budget.queuedTriggers.push({
@@ -1102,7 +1175,7 @@ function handlePlayerUseCommand(
     });
 
     // Direct bulkhead door interaction (unless locked without key)
-    if (state.grid[cell.row]?.[cell.col] === SimCellType.DOOR) {
+    if (cellOnLayer(state, useLayer, cell.row, cell.col) === SimCellType.DOOR) {
       const hasCustomUseEvent = state.events.some(
         (ev) =>
           ev.enabled &&
@@ -1114,7 +1187,7 @@ function handlePlayerUseCommand(
       );
 
       if (!hasCustomUseEvent) {
-        toggleDoorMoverAtCell(state, cell.row, cell.col, undefined, player);
+        toggleDoorMoverAtCell(state, cell.row, cell.col, undefined, player, useLayer);
       }
     }
   }
@@ -1157,7 +1230,11 @@ function updateMoversForTick(
         }
       } else if (mover.state === 'closing') {
         const playerOccupying = Object.values(state.players).some(
-          (p) => !p.isDead && p.gridRow === mover.row && p.gridCol === mover.col
+          (p) =>
+            !p.isDead &&
+            p.gridRow === mover.row &&
+            p.gridCol === mover.col &&
+            (!state.vertical || actorLayer(state, p.feetUnits ?? 0) === (mover.layer ?? 0))
         );
         if (playerOccupying && mover.blockedBehavior !== 'ignore') {
           if (mover.blockedBehavior === 'reverse') {
@@ -1928,17 +2005,19 @@ function getTargetDoors(
   state: SimulationState,
   row?: number,
   col?: number,
-  tag?: number
+  tag?: number,
+  layer = 0
 ): MoverSimState[] {
   const results: MoverSimState[] = [];
   if (row !== undefined && col !== undefined) {
-    const key = `door:${row},${col}`;
-    if (!state.movers[key] && state.grid[row]?.[col] === SimCellType.DOOR) {
+    const key = `door:${layerCellKey(row, col, layer)}`;
+    if (!state.movers[key] && cellOnLayer(state, layer, row, col) === SimCellType.DOOR) {
       state.movers[key] = {
         id: key,
         kind: 'door',
         row,
         col,
+        ...(layer > 0 ? { layer } : {}),
         tag: state.cellTags[row]?.[col] ?? 0,
         state: 'closed',
         progress: 0,
@@ -1969,9 +2048,10 @@ export function openDoorMoverAtCell(
   row: number,
   col: number,
   speedPerTick?: number,
-  waitTicks?: number
+  waitTicks?: number,
+  layer = 0
 ): void {
-  const doors = getTargetDoors(state, row, col, undefined);
+  const doors = getTargetDoors(state, row, col, undefined, layer);
   for (const door of doors) {
     door.locked = false;
     if (speedPerTick !== undefined && speedPerTick > 0) {
@@ -1998,9 +2078,10 @@ export function closeDoorMoverAtCell(
   state: SimulationState,
   row: number,
   col: number,
-  speedPerTick?: number
+  speedPerTick?: number,
+  layer = 0
 ): void {
-  const doors = getTargetDoors(state, row, col, undefined);
+  const doors = getTargetDoors(state, row, col, undefined, layer);
   for (const door of doors) {
     if (speedPerTick !== undefined && speedPerTick > 0) {
       door.speedPerTick = Math.trunc(speedPerTick);
@@ -2014,9 +2095,10 @@ export function toggleDoorMoverAtCell(
   row: number,
   col: number,
   speedPerTick?: number,
-  activatorPlayer?: PlayerSimState
+  activatorPlayer?: PlayerSimState,
+  layer = 0
 ): void {
-  const doors = getTargetDoors(state, row, col, undefined);
+  const doors = getTargetDoors(state, row, col, undefined, layer);
   for (const door of doors) {
     if (door.locked) {
       const reqKey = door.requiredKey || 'keycard';
@@ -2546,7 +2628,11 @@ function updateEntitiesForTick(
       const turnStep = Math.max(-maxTurn, Math.min(maxTurn, deltaYaw));
       ent.yawBam = normalizeBam(ent.yawBam + turnStep);
 
-      if (distSq <= 600 * 600) {
+      // On vertical levels the attack also needs the player at about the same height
+      const sameHeight =
+        !state.vertical ||
+        Math.abs((player.feetUnits ?? 0) - ent.yUnits) <= SIM_CONFIG.LAYER_HEIGHT_UNITS / 2;
+      if (distSq <= 600 * 600 && sameHeight) {
         ent.state = 'attack';
         if (ent.attackCooldownTicks === 0) {
           ent.attackCooldownTicks = 20;
@@ -2575,6 +2661,11 @@ function updateEntitiesForTick(
         const nextX = ent.xUnits + stepX;
         const nextZ = ent.zUnits + stepZ;
         const nextCell = worldUnitsToGrid(nextX, nextZ, state.gridSize);
+
+        if (state.vertical) {
+          moveSimEntityVertical(state, state.vertical, ent, nextX, nextZ);
+          continue;
+        }
 
         const isWall =
           state.grid[nextCell.row]?.[nextCell.col] === SimCellType.WALL ||
@@ -2634,7 +2725,8 @@ function executeSingleAction(
           door.row,
           door.col,
           act.speed_per_tick,
-          act.wait_ticks
+          act.wait_ticks,
+          door.layer
         );
       }
       break;
@@ -2643,7 +2735,7 @@ function executeSingleAction(
     case 'close_door': {
       const doors = getTargetDoors(state, act.row, act.col, act.tag);
       for (const door of doors) {
-        closeDoorMoverAtCell(state, door.row, door.col, act.speed_per_tick);
+        closeDoorMoverAtCell(state, door.row, door.col, act.speed_per_tick, door.layer);
       }
       break;
     }
@@ -2657,7 +2749,8 @@ function executeSingleAction(
           door.row,
           door.col,
           act.speed_per_tick,
-          actPlayer
+          actPlayer,
+          door.layer
         );
       }
       break;
@@ -3302,7 +3395,7 @@ export function getOpenDoorsSetFromSim(state: SimulationState): Set<string> {
         mover.state === 'opening' ||
         mover.progress >= 5000)
     ) {
-      openSet.add(`${mover.row},${mover.col}`);
+      openSet.add(layerCellKey(mover.row, mover.col, mover.layer ?? 0));
     }
   }
   return openSet;

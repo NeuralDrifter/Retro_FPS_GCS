@@ -82,6 +82,9 @@ export type {
  * - 'spawn'   : Relocate First-Person Player Spawn & Facing Angle
  * - 'door'    : Place Interactive Bulkhead Door
  * - 'key'     : Place Collectible Keycard
+ * - 'height'  : Raise or lower a tile's floor or ceiling
+ * - 'slope'   : Turn a floor tile into a slope (N, E, S, W, flat)
+ * - 'hole'    : Cut an opening to the layer below
  */
 export type EditorToolMode =
   | 'toggle'
@@ -91,7 +94,10 @@ export type EditorToolMode =
   | 'empty'
   | 'spawn'
   | 'door'
-  | 'key';
+  | 'key'
+  | 'height'
+  | 'slope'
+  | 'hole';
 
 export interface MapPreset {
   id: string;

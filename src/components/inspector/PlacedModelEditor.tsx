@@ -16,6 +16,7 @@ import {
 } from '../../engine/modelLibrary/categories';
 import { measuredFootprintAtScale } from '../../engine/modelLibrary/libraryState';
 import { RotateCcw, Trash2 } from 'lucide-react';
+import { Placement3DFields } from './Placement3DFields';
 
 interface PlacedModelEditorProps {
   entity: PlacedEntity;
@@ -23,6 +24,8 @@ interface PlacedModelEditorProps {
   librarySettings: ResolvedModelSettings | null;
   onUpdate: (updated: PlacedEntity) => void;
   onRemove: () => void;
+  /** Number of layers in the level, for the 3D placement layer choice */
+  layerCount?: number;
 }
 
 const clampCells = (v: number) =>
@@ -47,6 +50,7 @@ export const PlacedModelEditor: React.FC<PlacedModelEditorProps> = ({
   librarySettings,
   onUpdate: onUpdateRaw,
   onRemove,
+  layerCount = 1,
 }) => {
   const category = resolveEntityCategory(entity);
   // Legacy copies have no stored category; writing it makes collision and footprint edits take effect
@@ -308,6 +312,8 @@ export const PlacedModelEditor: React.FC<PlacedModelEditorProps> = ({
           </button>
         </div>
       </div>
+
+      <Placement3DFields entity={entity} layerCount={layerCount} onUpdate={onUpdate} />
 
       <button
         type="button"

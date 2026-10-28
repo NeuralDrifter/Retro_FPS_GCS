@@ -15,12 +15,22 @@ import {
   GameManifestMeta,
   LevelStateData,
   PlacedEntity,
+  CellType,
   SkyboxThemeId,
   TextureAsset,
+  VerticalLevelData,
   createUniformTextureMatrix,
   resizeSquareMatrix,
 } from './types';
 import { createGameManifest } from './manifest';
+import {
+  pickEditorVerticalPlacement,
+  readEditorVerticalData,
+  verticalFromLevelV3,
+  verticalPlacementFromV3,
+  verticalPlacementToV3,
+  verticalToLevelV3Fields,
+} from './verticalLevelData';
 import {
   EventDefinition,
   LevelDataV3,
@@ -29,6 +39,7 @@ import {
   SimPlacedEntityV3,
   VariableRegistrySpec,
   bamToRadians,
+  isVerticalLevel,
   radiansToBam,
   validateLevelDataV3,
 } from './sim';
@@ -128,6 +139,7 @@ export function placedEntitiesFromLevelV3(levelV3: LevelDataV3): PlacedEntity[] 
     patrol: e.patrol,
     ambush: e.ambush,
     ...pickPlacementFields(e),
+    ...verticalPlacementFromV3(e),
   }));
 }
 
@@ -158,6 +170,7 @@ export class RuntimeLevelSerializer {
     variables?: VariableRegistrySpec;
     exportedAt?: string;
     title?: string;
+    vertical?: VerticalLevelData;
   }): LevelDataV3 {
     if (params.customTextures) {
       for (const tex of params.customTextures) {
@@ -208,12 +221,13 @@ export class RuntimeLevelSerializer {
         ...(ent.patrol !== undefined ? { patrol: Boolean(ent.patrol) } : {}),
         ...(ent.ambush !== undefined ? { ambush: Boolean(ent.ambush) } : {}),
         ...pickPlacementFields(ent),
+        ...verticalPlacementToV3(ent),
       };
     });
 
     const nextEntityId = computeNextEntityId(v3Entities, params.nextEntityId);
 
-    return {
+    const level: LevelDataV3 = {
       formatVersion: 3,
       gridSize,
       rngSeed:
@@ -223,6 +237,9 @@ export class RuntimeLevelSerializer {
         row: Math.max(0, Math.min(maxIdx, Math.trunc(params.spawn.row))),
         col: Math.max(0, Math.min(maxIdx, Math.trunc(params.spawn.col))),
         yawBam: radiansToBam(params.spawn.yaw || 0),
+        ...(params.vertical && params.vertical.spawnLayer > 0
+          ? { layer: Math.trunc(params.vertical.spawnLayer) }
+          : {}),
       },
       minimapEnabled: Boolean(params.minimapEnabled),
       skybox: {
@@ -259,6 +276,8 @@ export class RuntimeLevelSerializer {
             ).map((row) => row.map((h) => Math.trunc(h))),
           }
         : {}),
+      // Vertical data overrides the explicit height matrices above when both are given
+      ...verticalToLevelV3Fields(params.vertical, gridSize),
       entities: v3Entities,
       regions: params.regions ? params.regions.map((r) => ({ ...r })) : [],
       variables: params.variables
@@ -278,6 +297,14 @@ export class RuntimeLevelSerializer {
           }
         : {}),
     };
+    // Measured model heights only matter on vertical levels; flat levels save as before
+    if (!isVerticalLevel(level)) {
+      for (const e of level.entities) {
+        delete e.modelBottomUnits;
+        delete e.modelTopUnits;
+      }
+    }
+    return level;
   }
 
   /**
@@ -300,10 +327,18 @@ export class RuntimeLevelSerializer {
       const extraTexIds = new Set<string>();
       const extraModelIds = new Set<string>();
       const extraSoundIds = new Set<string>();
+      const layerMatrices = Array.isArray(candidate.layers)
+        ? candidate.layers.flatMap((layer) =>
+            layer && typeof layer === 'object'
+              ? [layer.wallTextures, layer.floorTextures, layer.ceilingTextures]
+              : []
+          )
+        : [];
       for (const mat of [
         candidate.wallTextures,
         candidate.floorTextures,
         candidate.ceilingTextures,
+        ...layerMatrices,
       ]) {
         if (Array.isArray(mat)) {
           for (const row of mat) {
@@ -421,12 +456,12 @@ export class RuntimeLevelSerializer {
               typeof cell === 'number' &&
               Number.isInteger(cell) &&
               cell >= 0 &&
-              cell <= 3
+              cell <= CellType.HOLE
           )
       )
     ) {
       throw new Error(
-        `Invalid level JSON: 'grid' must be a square 2D integer array (values 0..3) from ${ENGINE_CONFIG.MIN_GRID_SIZE}x${ENGINE_CONFIG.MIN_GRID_SIZE} to ${ENGINE_CONFIG.MAX_GRID_SIZE}x${ENGINE_CONFIG.MAX_GRID_SIZE}.`
+        `Invalid level JSON: 'grid' must be a square 2D integer array (values 0..4) from ${ENGINE_CONFIG.MIN_GRID_SIZE}x${ENGINE_CONFIG.MIN_GRID_SIZE} to ${ENGINE_CONFIG.MAX_GRID_SIZE}x${ENGINE_CONFIG.MAX_GRID_SIZE}.`
       );
     }
 
@@ -485,6 +520,14 @@ export class RuntimeLevelSerializer {
     remapMatrix(floorTextures);
     remapMatrix(ceilingTextures);
 
+    // Stacked layers of an editor save use the same texture ids
+    const editorVertical = readEditorVerticalData(obj?.vertical, gridSize);
+    for (const layer of editorVertical?.layers ?? []) {
+      for (const mat of [layer.wallTextures, layer.floorTextures, layer.ceilingTextures]) {
+        if (isValidStringMatrix(mat)) remapMatrix(mat);
+      }
+    }
+
     const rawEntities = Array.isArray(obj?.entities) ? obj.entities : [];
     const migratedEntities: PlacedEntity[] = rawEntities.map(
       (rawEnt: unknown, idx: number) => {
@@ -521,6 +564,7 @@ export class RuntimeLevelSerializer {
           ...(typeof e.patrol === 'boolean' ? { patrol: e.patrol } : {}),
           ...(typeof e.ambush === 'boolean' ? { ambush: e.ambush } : {}),
           ...pickPlacementFields(e),
+          ...pickEditorVerticalPlacement(e),
         };
       }
     );
@@ -578,6 +622,7 @@ export class RuntimeLevelSerializer {
           : undefined,
       exportedAt:
         typeof obj?.timestamp === 'string' ? obj.timestamp : undefined,
+      vertical: editorVertical,
     });
 
     const allowlist = AssetRegistry.createAllowlist({
@@ -622,6 +667,7 @@ export class RuntimeLevelSerializer {
     events?: EventDefinition[];
     regions?: RegionDefinition[];
     variables?: VariableRegistrySpec;
+    vertical?: VerticalLevelData;
   }): LevelStateData {
     const nextEntityId = computeNextEntityId(
       params.entities,
@@ -652,6 +698,7 @@ export class RuntimeLevelSerializer {
         ? { regions: params.regions.map((r) => ({ ...r })) }
         : {}),
       ...(params.variables ? { variables: { ...params.variables } } : {}),
+      ...(params.vertical ? { vertical: params.vertical } : {}),
     };
   }
 
@@ -680,6 +727,7 @@ export class RuntimeLevelSerializer {
     variables?: VariableRegistrySpec;
     meta?: Partial<GameManifestMeta>;
     assets?: Partial<GameManifestAssets>;
+    vertical?: VerticalLevelData;
   }): GameManifest {
     const levelV3 = this.serializeLevelV3(params);
     return createGameManifest(levelV3, params.meta, params.assets);
@@ -708,6 +756,7 @@ export class RuntimeLevelSerializer {
     );
 
     const entities = placedEntitiesFromLevelV3(levelV3);
+    const vertical = verticalFromLevelV3(levelV3);
 
     return {
       engine: 'GridForge 3D Game Creation System',
@@ -744,6 +793,7 @@ export class RuntimeLevelSerializer {
       events: levelV3.events,
       regions: levelV3.regions,
       variables: levelV3.variables,
+      ...(vertical ? { vertical } : {}),
     };
   }
 }
