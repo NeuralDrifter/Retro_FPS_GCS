@@ -286,7 +286,11 @@ export function createSolidLayer(
   };
 }
 
-/** True when vertical data adds nothing to a flat level (so saves can leave it out) */
+/**
+ * True when vertical data adds nothing to a flat level, so saves leave it out and the
+ * level stays flat (see `isVerticalLevel` in `sim/vertical.ts`). Keep it in step with
+ * `isVerticalLevel` when adding a vertical setting: compare against the flat default.
+ */
 export function isFlatVerticalData(v: VerticalLevelData): boolean {
   const d = DEFAULT_MOVEMENT_SETTINGS;
   const m = v.movement;
