@@ -108,7 +108,11 @@ export function pickEditorVerticalPlacement(e: Partial<PlacedEntity>): Partial<P
 
 const isUniform = (m: number[][], v: number) => m.every((row) => row.every((x) => x === v));
 
-/** The level fields for a level's vertical data (only the parts a flat level lacks) */
+/**
+ * The level fields for a level's vertical data. Only parts that differ from a flat level
+ * are written, so a flat level saves exactly as before and stays flat when loaded
+ * (see `isVerticalLevel` in `sim/vertical.ts`).
+ */
 export function verticalToLevelV3Fields(
   vertical: VerticalLevelData | undefined,
   gridSize: number

@@ -245,6 +245,7 @@ export function createInitialSimulationState(
   const spawnWorld = gridToWorldUnits(level.spawn.row, level.spawn.col, gridSize);
   const spawnYawBam = normalizeBam(level.spawn.yawBam);
 
+  // Undefined on flat levels, which must stay on the flat code below (see `isVerticalLevel`)
   const vertical = buildVerticalSimState(level);
   // Read-only view of the starting world for placing the player and enemies on their floors
   const startView = vertical

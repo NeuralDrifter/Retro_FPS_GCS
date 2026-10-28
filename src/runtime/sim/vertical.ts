@@ -76,7 +76,18 @@ function entityUsesVertical(ent: SimPlacedEntityV3): boolean {
   );
 }
 
-/** True when a level uses any vertical feature, so it needs the vertical movement code */
+/**
+ * True when a level uses any vertical feature, so it needs the vertical movement code.
+ *
+ * IMPORTANT, KEEP FLAT LEVELS FLAT: a level that uses none of these features must give
+ * `false` here, so it never gets `state.vertical` and keeps running the original flat
+ * movement code. That is what keeps old levels playing exactly as before and keeps the
+ * saved hashes in `src/engine/__tests__/determinismBaseline.json` matching. When you add
+ * a vertical feature, test it here only when its value differs from the flat default.
+ * Never give every level a vertical field by default (an empty `layers` array, a
+ * `movement` block of default settings, a `layer: 0` on entities, ...), or every level
+ * becomes vertical. Model measurements such as `modelTopUnits` must not count either.
+ */
 export function isVerticalLevel(level: LevelDataV3): boolean {
   const movement = level.movement;
   return (
@@ -108,7 +119,8 @@ export function entityBaseUnits(
 
 /**
  * Builds the vertical state for a level, or `undefined` for flat levels so they keep the
- * original movement code and their state (and hashes) stay exactly as before.
+ * original movement code and their state (and hashes) stay exactly as before. Keep it
+ * `undefined` for flat levels; see `isVerticalLevel`.
  */
 export function buildVerticalSimState(level: LevelDataV3): VerticalSimState | undefined {
   if (!isVerticalLevel(level)) return undefined;
