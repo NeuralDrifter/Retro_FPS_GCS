@@ -414,8 +414,25 @@ export class RuntimeLevelSerializer {
         modelIds: extraModelIds,
         soundIds: extraSoundIds,
       });
+      let targetV3: unknown = parsed;
+      if (
+        !rawJsonString &&
+        parsed &&
+        typeof parsed === 'object' &&
+        ('levels' in (parsed as Record<string, unknown>) ||
+          'campaign' in (parsed as Record<string, unknown>) ||
+          'activeLevelIndex' in (parsed as Record<string, unknown>))
+      ) {
+        const {
+          levels: _l,
+          campaign: _c,
+          activeLevelIndex: _a,
+          ...rest
+        } = parsed as Record<string, unknown>;
+        targetV3 = rest;
+      }
       const validation = validateLevelDataV3(
-        parsed,
+        targetV3,
         {
           allowedTextureIds: allowlist.textureIds,
           allowedModelIds: allowlist.modelIds,
@@ -431,7 +448,7 @@ export class RuntimeLevelSerializer {
         );
       }
       return {
-        levelV3: parsed as LevelDataV3,
+        levelV3: targetV3 as LevelDataV3,
         customTextures: [],
       };
     }
@@ -622,6 +639,13 @@ export class RuntimeLevelSerializer {
           : undefined,
       exportedAt:
         typeof obj?.timestamp === 'string' ? obj.timestamp : undefined,
+      title:
+        typeof obj?.title === 'string' && obj.title.trim().length > 0
+          ? obj.title.trim()
+          : typeof (obj?.metadata as Record<string, unknown> | undefined)?.title ===
+              'string'
+          ? String((obj?.metadata as Record<string, unknown>).title)
+          : undefined,
       vertical: editorVertical,
     });
 
@@ -652,6 +676,7 @@ export class RuntimeLevelSerializer {
    * Packages the current state into a `LevelStateData` object.
    */
   public static serializeLevel(params: {
+    title?: string;
     grid: number[][];
     wallTextures: string[][];
     floorTextures: string[][];
@@ -668,6 +693,9 @@ export class RuntimeLevelSerializer {
     regions?: RegionDefinition[];
     variables?: VariableRegistrySpec;
     vertical?: VerticalLevelData;
+    levels?: LevelStateData[];
+    activeLevelIndex?: number;
+    campaign?: { carryOverHealth: boolean; carryOverAmmo: boolean };
   }): LevelStateData {
     const nextEntityId = computeNextEntityId(
       params.entities,
@@ -678,6 +706,7 @@ export class RuntimeLevelSerializer {
       version: '2.0',
       formatVersion: 3,
       timestamp: new Date().toISOString(),
+      ...(params.title ? { title: params.title } : {}),
       gridSize: params.grid.length,
       nextEntityId,
       spawn: { ...params.spawn },
@@ -699,6 +728,13 @@ export class RuntimeLevelSerializer {
         : {}),
       ...(params.variables ? { variables: { ...params.variables } } : {}),
       ...(params.vertical ? { vertical: params.vertical } : {}),
+      ...(params.levels && params.levels.length > 0
+        ? { levels: params.levels }
+        : {}),
+      ...(typeof params.activeLevelIndex === 'number'
+        ? { activeLevelIndex: params.activeLevelIndex }
+        : {}),
+      ...(params.campaign ? { campaign: { ...params.campaign } } : {}),
     };
   }
 
@@ -733,13 +769,14 @@ export class RuntimeLevelSerializer {
     return createGameManifest(levelV3, params.meta, params.assets);
   }
 
-  /**
-   * Parses, migrates to v3, and validates an uploaded JSON string into a normalized
-   * `LevelStateData` structure.
-   */
-  public static parseLevelJson(rawJson: string): LevelStateData {
-    const parsed = JSON.parse(rawJson);
-    const { levelV3, customTextures } = this.migrateToV3(parsed, rawJson);
+  private static parseSingleLevelObject(
+    parsedObj: unknown,
+    rawJsonString?: string
+  ): LevelStateData {
+    const { levelV3, customTextures } = this.migrateToV3(
+      parsedObj,
+      rawJsonString
+    );
 
     const knownModels = AssetRegistry.createAllowlist().modelIds;
     const missingNames = new Map<string, string[]>();
@@ -757,12 +794,21 @@ export class RuntimeLevelSerializer {
 
     const entities = placedEntitiesFromLevelV3(levelV3);
     const vertical = verticalFromLevelV3(levelV3);
+    const rawTitle =
+      levelV3.metadata?.title ||
+      (parsedObj &&
+      typeof parsedObj === 'object' &&
+      !Array.isArray(parsedObj) &&
+      typeof (parsedObj as Record<string, unknown>).title === 'string'
+        ? String((parsedObj as Record<string, unknown>).title)
+        : undefined);
 
     return {
       engine: 'GridForge 3D Game Creation System',
       version: '2.0',
       formatVersion: 3,
       timestamp: levelV3.metadata?.exportedAt || new Date().toISOString(),
+      ...(rawTitle ? { title: rawTitle } : {}),
       gridSize: levelV3.gridSize,
       nextEntityId: levelV3.nextEntityId,
       rngSeed: levelV3.rngSeed,
@@ -770,11 +816,11 @@ export class RuntimeLevelSerializer {
         row: levelV3.spawn.row,
         col: levelV3.spawn.col,
         yaw:
-          parsed &&
-          typeof parsed === 'object' &&
-          !Array.isArray(parsed) &&
-          typeof parsed.spawn?.yaw === 'number'
-            ? parsed.spawn.yaw
+          parsedObj &&
+          typeof parsedObj === 'object' &&
+          !Array.isArray(parsedObj) &&
+          typeof (parsedObj as any).spawn?.yaw === 'number'
+            ? (parsedObj as any).spawn.yaw
             : bamToRadians(levelV3.spawn.yawBam),
       },
       minimapEnabled: levelV3.minimapEnabled,
@@ -795,5 +841,43 @@ export class RuntimeLevelSerializer {
       variables: levelV3.variables,
       ...(vertical ? { vertical } : {}),
     };
+  }
+
+  /**
+   * Parses, migrates to v3, and validates an uploaded JSON string into a normalized
+   * `LevelStateData` structure (including multi-level campaign data if present).
+   */
+  public static parseLevelJson(rawJson: string): LevelStateData {
+    const parsed = JSON.parse(rawJson);
+    const rootState = this.parseSingleLevelObject(parsed, rawJson);
+
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const rec = parsed as Record<string, unknown>;
+      if (Array.isArray(rec.levels) && rec.levels.length > 0) {
+        const parsedLevels = rec.levels.map((lvl, idx) => {
+          const single = this.parseSingleLevelObject(lvl);
+          if (!single.title) {
+            single.title = `Level ${idx + 1}`;
+          }
+          return single;
+        });
+        rootState.levels = parsedLevels;
+        if (typeof rec.activeLevelIndex === 'number') {
+          rootState.activeLevelIndex = Math.max(
+            0,
+            Math.min(parsedLevels.length - 1, Math.trunc(rec.activeLevelIndex))
+          );
+        }
+      }
+      if (rec.campaign && typeof rec.campaign === 'object') {
+        const camp = rec.campaign as Record<string, unknown>;
+        rootState.campaign = {
+          carryOverHealth: camp.carryOverHealth !== false,
+          carryOverAmmo: camp.carryOverAmmo !== false,
+        };
+      }
+    }
+
+    return rootState;
   }
 }

@@ -281,14 +281,36 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           <div className="bg-[#252526] p-3.5 border border-[#3e3e42] rounded space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wider text-[#94a3b8]">
-                Asset & Offline Summary
+                Campaign &amp; Asset Summary
               </span>
               <span className="text-[11px] font-mono text-[#38bdf8]">
                 Est. ~{assetStats.estimatedKb} KB
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="bg-[#1e1e1e] p-2 border border-[#333336] rounded">
+                <span className="text-[#858585] text-[10px] block uppercase">
+                  Gameplay Levels
+                </span>
+                <span className="font-semibold text-white">
+                  {levelState.levels && levelState.levels.length > 0
+                    ? levelState.levels.length
+                    : 1}{' '}
+                  {(levelState.levels?.length ?? 1) === 1 ? 'Level' : 'Levels'}
+                </span>
+                <span className="text-[#858585] text-[10px] block mt-0.5">
+                  HP:{' '}
+                  {levelState.campaign?.carryOverHealth !== false
+                    ? 'Carry'
+                    : 'Reset'}{' '}
+                  · Ammo:{' '}
+                  {levelState.campaign?.carryOverAmmo !== false
+                    ? 'Carry'
+                    : 'Reset'}
+                </span>
+              </div>
+
               <div className="bg-[#1e1e1e] p-2 border border-[#333336] rounded">
                 <span className="text-[#858585] text-[10px] block uppercase">
                   Textures
@@ -296,7 +318,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 <span className="font-semibold text-white">
                   {assetStats.customTexCount} Custom
                 </span>
-                <span className="text-[#858585] text-[10px] ml-1">
+                <span className="text-[#858585] text-[10px] block mt-0.5">
                   ({assetStats.builtInTexCount} procedural)
                 </span>
               </div>
@@ -308,7 +330,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 <span className="font-semibold text-white">
                   {assetStats.customMdlCount} Custom .glb
                 </span>
-                <span className="text-[#858585] text-[10px] ml-1">
+                <span className="text-[#858585] text-[10px] block mt-0.5">
                   ({assetStats.builtInMdlCount} archetypes)
                 </span>
               </div>
@@ -317,7 +339,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <div className="flex items-center justify-between pt-1 text-[11px] text-[#858585]">
               <div className="flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#10b981]" />
-                <span>Zero Telemetry & Automated Secret Scanner Active</span>
+                <span>Zero Telemetry &amp; Automated Secret Scanner Active</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-[#38bdf8]" />

@@ -429,6 +429,19 @@ export interface PlayerTransform {
 }
 
 /**
+ * Multi-level campaign progression settings (configured in World Settings)
+ */
+export interface CampaignSettings {
+  carryOverHealth: boolean;
+  carryOverAmmo: boolean;
+}
+
+export const DEFAULT_CAMPAIGN_SETTINGS: CampaignSettings = {
+  carryOverHealth: true,
+  carryOverAmmo: true,
+};
+
+/**
  * Complete Serializable Level State (Save/Load Format)
  */
 export interface LevelStateData {
@@ -436,6 +449,8 @@ export interface LevelStateData {
   version: '2.0';
   formatVersion?: 3;
   timestamp: string;
+  /** Optional display title for this gameplay level */
+  title?: string;
   gridSize: number;
   nextEntityId?: number;
   rngSeed?: number;
@@ -469,6 +484,12 @@ export interface LevelStateData {
   events?: EventDefinition[];
   /** Stacked layers, tile heights, slopes and movement settings (absent on flat levels) */
   vertical?: VerticalLevelData;
+  /** Optional ordered list of gameplay levels in a multi-level campaign */
+  levels?: LevelStateData[];
+  /** Optional index of the active level when editing a multi-level campaign */
+  activeLevelIndex?: number;
+  /** Optional between-level carry-over settings for health and ammo */
+  campaign?: CampaignSettings;
 }
 
 export const ENGINE_CONFIG = {
@@ -565,6 +586,11 @@ export interface GameManifest {
   schemaVersion: 1;
   meta: GameManifestMeta;
   level: LevelDataV3;
+  /** Ordered list of gameplay levels when exporting a multi-level campaign */
+  levels?: LevelDataV3[];
+  /** Campaign progression settings (health & ammo carry-over between levels) */
+  campaign?: CampaignSettings;
   assets: GameManifestAssets;
 }
+
 
