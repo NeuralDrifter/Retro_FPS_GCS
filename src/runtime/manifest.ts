@@ -8,12 +8,14 @@
  */
 
 import {
+  CampaignSettings,
   GameManifest,
   GameManifestAssets,
   GameManifestMeta,
   LevelStateData,
   ManifestModelAsset,
   ManifestTextureAsset,
+  TextureAsset,
 } from './types';
 import { LevelDataV3, validateLevelDataV3 } from './sim';
 import { RuntimeLevelSerializer } from './LevelSerializer';
@@ -23,18 +25,62 @@ export const CURRENT_MANIFEST_SCHEMA_VERSION = 1;
 export const DEFAULT_ENGINE_VERSION = '2.0.0';
 
 /**
- * Creates a compliant GameManifest wrapping a LevelDataV3 or LevelStateData.
+ * Creates a compliant GameManifest wrapping a LevelDataV3 or LevelStateData
+ * (and optional multi-level campaign levels + carry-over settings).
  */
 export function createGameManifest(
   levelInput: LevelDataV3 | LevelStateData,
   meta?: Partial<GameManifestMeta>,
-  assets?: Partial<GameManifestAssets>
+  assets?: Partial<GameManifestAssets>,
+  campaignOptions?: {
+    levels?: (LevelDataV3 | LevelStateData)[];
+    campaign?: CampaignSettings;
+  }
 ): GameManifest {
   const { levelV3, customTextures } = RuntimeLevelSerializer.migrateToV3(levelInput);
+
+  const rawLevelsList =
+    campaignOptions?.levels ??
+    ('levels' in levelInput && Array.isArray(levelInput.levels)
+      ? levelInput.levels
+      : undefined);
+
+  let migratedLevels: LevelDataV3[] | undefined;
+  const allCustomTexturesMap = new Map<string, TextureAsset>();
+  for (const t of customTextures) {
+    allCustomTexturesMap.set(t.id, t);
+  }
+
+  if (rawLevelsList && rawLevelsList.length > 0) {
+    migratedLevels = rawLevelsList.map((lvl) => {
+      const migrated = RuntimeLevelSerializer.migrateToV3(lvl);
+      for (const t of migrated.customTextures) {
+        allCustomTexturesMap.set(t.id, t);
+      }
+      return migrated.levelV3;
+    });
+  }
+
+  const primaryLevelV3 =
+    migratedLevels && migratedLevels.length > 0 ? migratedLevels[0] : levelV3;
+
+  const rawCampaign =
+    campaignOptions?.campaign ??
+    ('campaign' in levelInput && levelInput.campaign
+      ? levelInput.campaign
+      : undefined);
+
+  const finalCampaign: CampaignSettings | undefined = rawCampaign
+    ? {
+        carryOverHealth: rawCampaign.carryOverHealth !== false,
+        carryOverAmmo: rawCampaign.carryOverAmmo !== false,
+      }
+    : undefined;
 
   const finalMeta: GameManifestMeta = {
     title:
       meta?.title ||
+      primaryLevelV3.metadata?.title ||
       levelV3.metadata?.title ||
       ('engine' in levelInput && typeof (levelInput as any).title === 'string'
         ? (levelInput as any).title
@@ -43,6 +89,7 @@ export function createGameManifest(
     description: meta?.description || '',
     createdAt:
       meta?.createdAt ||
+      primaryLevelV3.metadata?.exportedAt ||
       levelV3.metadata?.exportedAt ||
       ('timestamp' in levelInput && typeof (levelInput as any).timestamp === 'string'
         ? (levelInput as any).timestamp
@@ -51,8 +98,8 @@ export function createGameManifest(
   };
 
   let textures: ManifestTextureAsset[] = assets?.textures ? [...assets.textures] : [];
-  if (textures.length === 0 && customTextures && customTextures.length > 0) {
-    textures = customTextures.map((t) => ({
+  if (textures.length === 0 && allCustomTexturesMap.size > 0) {
+    textures = [...allCustomTexturesMap.values()].map((t) => ({
       id: t.id,
       path: t.previewUrl || '',
       mimeType: 'image/png',
@@ -67,7 +114,11 @@ export function createGameManifest(
   return {
     schemaVersion: CURRENT_MANIFEST_SCHEMA_VERSION,
     meta: finalMeta,
-    level: levelV3,
+    level: primaryLevelV3,
+    ...(migratedLevels && migratedLevels.length > 0
+      ? { levels: migratedLevels }
+      : {}),
+    ...(finalCampaign ? { campaign: finalCampaign } : {}),
     assets: finalAssets,
   };
 }
@@ -116,6 +167,25 @@ export function migrateGameManifest(raw: unknown): GameManifest {
   const { levelV3 } = RuntimeLevelSerializer.migrateToV3(
     record.level as LevelDataV3 | LevelStateData
   );
+
+  let migratedLevels: LevelDataV3[] | undefined;
+  if (Array.isArray(record.levels) && record.levels.length > 0) {
+    migratedLevels = record.levels.map(
+      (lvl) =>
+        RuntimeLevelSerializer.migrateToV3(
+          lvl as LevelDataV3 | LevelStateData
+        ).levelV3
+    );
+  }
+
+  let campaign: CampaignSettings | undefined;
+  if (record.campaign && typeof record.campaign === 'object' && !Array.isArray(record.campaign)) {
+    const rawCamp = record.campaign as Record<string, unknown>;
+    campaign = {
+      carryOverHealth: rawCamp.carryOverHealth !== false,
+      carryOverAmmo: rawCamp.carryOverAmmo !== false,
+    };
+  }
 
   const rawMeta =
     typeof record.meta === 'object' && record.meta && !Array.isArray(record.meta)
@@ -173,6 +243,10 @@ export function migrateGameManifest(raw: unknown): GameManifest {
     schemaVersion: 1,
     meta,
     level: levelV3,
+    ...(migratedLevels && migratedLevels.length > 0
+      ? { levels: migratedLevels }
+      : {}),
+    ...(campaign ? { campaign } : {}),
     assets: {
       textures,
       models,
@@ -210,29 +284,88 @@ export function validateGameManifest(manifest: unknown): {
     if (typeof meta.engineVersion !== 'string') errors.push('meta.engineVersion must be a string');
   }
 
-  if (!rec.level || typeof rec.level !== 'object') {
-    errors.push('level must be an object');
-  } else {
-    const levelObj = rec.level as LevelDataV3;
-    const texturesList = Array.isArray((rec.assets as any)?.textures)
-      ? ((rec.assets as any).textures as ManifestTextureAsset[])
-      : [];
-    const modelsList = Array.isArray((rec.assets as any)?.models)
-      ? ((rec.assets as any).models as ManifestModelAsset[])
-      : [];
+  const texturesList = Array.isArray((rec.assets as any)?.textures)
+    ? ((rec.assets as any).textures as ManifestTextureAsset[])
+    : [];
+  const modelsList = Array.isArray((rec.assets as any)?.models)
+    ? ((rec.assets as any).models as ManifestModelAsset[])
+    : [];
+
+  const validateSingleLevel = (levelObj: LevelDataV3, label: string) => {
+    const extraTexIds = new Set<string>([
+      ...(Array.isArray(levelObj.wallTextures) ? levelObj.wallTextures.flat() : []),
+      ...(Array.isArray(levelObj.floorTextures) ? levelObj.floorTextures.flat() : []),
+      ...(Array.isArray(levelObj.ceilingTextures) ? levelObj.ceilingTextures.flat() : []),
+      ...texturesList.map((t) => t.id),
+    ]);
+    const extraModelIds = new Set<string>([
+      ...(Array.isArray(levelObj.entities)
+        ? levelObj.entities.map((e) => (e.modelAssetId || e.blueprintId || '') as string)
+        : []),
+      ...modelsList.map((m) => m.id),
+    ]);
+    const extraSoundIds = new Set<string>();
+
+    if (Array.isArray(levelObj.layers)) {
+      for (const layer of levelObj.layers) {
+        if (!layer || typeof layer !== 'object') continue;
+        for (const mat of [layer.wallTextures, layer.floorTextures, layer.ceilingTextures]) {
+          if (Array.isArray(mat)) {
+            for (const id of mat.flat()) {
+              if (typeof id === 'string' && id) extraTexIds.add(id);
+            }
+          }
+        }
+      }
+    }
+
+    const collectEventAssets = (actions: unknown) => {
+      if (!Array.isArray(actions)) return;
+      for (const act of actions) {
+        if (!act || typeof act !== 'object') continue;
+        const a = act as Record<string, unknown>;
+        if (
+          (a.type === 'set_wall_texture' ||
+            a.type === 'set_floor_texture' ||
+            a.type === 'set_ceiling_texture') &&
+          typeof a.texture_id === 'string' &&
+          a.texture_id
+        ) {
+          extraTexIds.add(a.texture_id);
+        } else if (a.type === 'spawn_entity') {
+          if (typeof a.blueprintId === 'string' && a.blueprintId) {
+            extraModelIds.add(a.blueprintId);
+          }
+          if (typeof a.modelAssetId === 'string' && a.modelAssetId) {
+            extraModelIds.add(a.modelAssetId);
+          }
+        } else if (a.type === 'play_sound' && typeof a.sound_id === 'string' && a.sound_id) {
+          extraSoundIds.add(a.sound_id);
+        } else if (a.type === 'if_then_else') {
+          collectEventAssets(a.then_actions);
+          collectEventAssets(a.else_actions);
+        } else if (a.type === 'random_branch' && Array.isArray(a.branches)) {
+          for (const br of a.branches) {
+            if (br && typeof br === 'object') {
+              collectEventAssets((br as Record<string, unknown>).actions);
+            }
+          }
+        }
+      }
+    };
+
+    if (Array.isArray(levelObj.events)) {
+      for (const ev of levelObj.events) {
+        if (ev && typeof ev === 'object') {
+          collectEventAssets(ev.actions);
+        }
+      }
+    }
+
     const allowlist = AssetRegistry.createAllowlist({
-      textureIds: [
-        ...(Array.isArray(levelObj.wallTextures) ? levelObj.wallTextures.flat() : []),
-        ...(Array.isArray(levelObj.floorTextures) ? levelObj.floorTextures.flat() : []),
-        ...(Array.isArray(levelObj.ceilingTextures) ? levelObj.ceilingTextures.flat() : []),
-        ...texturesList.map((t) => t.id),
-      ],
-      modelIds: [
-        ...(Array.isArray(levelObj.entities)
-          ? levelObj.entities.map((e) => (e.modelAssetId || e.blueprintId || '') as string)
-          : []),
-        ...modelsList.map((m) => m.id),
-      ],
+      textureIds: extraTexIds,
+      modelIds: extraModelIds,
+      soundIds: extraSoundIds,
     });
     const levelVal = validateLevelDataV3(levelObj, {
       allowedTextureIds: allowlist.textureIds,
@@ -241,8 +374,42 @@ export function validateGameManifest(manifest: unknown): {
     });
     if (!levelVal.valid) {
       errors.push(
-        ...levelVal.errors.map((e) => `level: ${e.path}: ${e.message} (${e.code})`)
+        ...levelVal.errors.map((e) => `${label}: ${e.path}: ${e.message} (${e.code})`)
       );
+    }
+  };
+
+  if (!rec.level || typeof rec.level !== 'object') {
+    errors.push('level must be an object');
+  } else {
+    validateSingleLevel(rec.level as LevelDataV3, 'level');
+  }
+
+  if (rec.levels !== undefined) {
+    if (!Array.isArray(rec.levels) || rec.levels.length === 0) {
+      errors.push('levels must be a non-empty array when provided');
+    } else {
+      rec.levels.forEach((lvl, idx) => {
+        if (!lvl || typeof lvl !== 'object') {
+          errors.push(`levels[${idx}] must be an object`);
+        } else {
+          validateSingleLevel(lvl as LevelDataV3, `levels[${idx}]`);
+        }
+      });
+    }
+  }
+
+  if (rec.campaign !== undefined) {
+    if (!rec.campaign || typeof rec.campaign !== 'object' || Array.isArray(rec.campaign)) {
+      errors.push('campaign must be an object when provided');
+    } else {
+      const camp = rec.campaign as Record<string, unknown>;
+      if (typeof camp.carryOverHealth !== 'boolean') {
+        errors.push('campaign.carryOverHealth must be a boolean');
+      }
+      if (typeof camp.carryOverAmmo !== 'boolean') {
+        errors.push('campaign.carryOverAmmo must be a boolean');
+      }
     }
   }
 
@@ -263,3 +430,4 @@ export function validateGameManifest(manifest: unknown): {
     errors,
   };
 }
+

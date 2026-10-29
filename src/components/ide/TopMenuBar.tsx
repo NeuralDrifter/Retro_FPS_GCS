@@ -7,6 +7,7 @@ import {
   FolderOpen,
   PackageCheck,
   Play,
+  Plus,
   Redo2,
   RotateCcw,
   Sliders,
@@ -21,6 +22,10 @@ interface TopMenuBarProps {
   onUndo: () => void;
   onRedo: () => void;
   onLoadPreset: (presetId: string) => void;
+  campaignLevels: { title: string }[];
+  activeLevelIndex: number;
+  onSelectCampaignLevel: (index: number) => void;
+  onAddCampaignLevel: () => void;
   onSaveMap: () => void;
   onLoadMapFile: (file: File) => void;
   onOpenArchModal: () => void;
@@ -39,6 +44,10 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
   onUndo,
   onRedo,
   onLoadPreset,
+  campaignLevels,
+  activeLevelIndex,
+  onSelectCampaignLevel,
+  onAddCampaignLevel,
   onSaveMap,
   onLoadMapFile,
   onOpenArchModal,
@@ -103,8 +112,34 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
           </button>
         </div>
 
+        <div className="flex items-center gap-1 pr-2 border-r border-[#3e3e42]">
+          <span className="ide-label text-[#38bdf8]">Level:</span>
+          <select
+            aria-label="Select Gameplay Level"
+            value={activeLevelIndex}
+            onChange={(e) => onSelectCampaignLevel(Number(e.target.value))}
+            className="ide-select !h-[20px] max-w-[160px]"
+            title="Switch active gameplay level in the campaign"
+          >
+            {campaignLevels.map((lvl, idx) => (
+              <option key={idx} value={idx}>
+                {idx + 1}/{campaignLevels.length}: {lvl.title || `Level ${idx + 1}`}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={onAddCampaignLevel}
+            className="ide-btn !h-[20px] !px-1.5 text-[#38bdf8]"
+            title="Add a new gameplay level to the campaign (configure carry-over in World tab)"
+          >
+            <Plus className="w-3 h-3" />
+            <span>Level</span>
+          </button>
+        </div>
+
         <div className="flex items-center gap-1">
-          <span className="ide-label">Scene:</span>
+          <span className="ide-label">Preset:</span>
           <select
             aria-label="Load Level Preset"
             onChange={(e) => onLoadPreset(e.target.value)}
@@ -123,7 +158,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
           type="button"
           onClick={onSaveMap}
           className="ide-btn !h-[20px]"
-          title="Export Level State (Grid, Textures, Entities) to JSON"
+          title="Export Level / Campaign State (Grid, Textures, Entities, All Levels) to JSON"
         >
           <Download className="w-3 h-3 text-[#478cbf]" />
           <span>Save JSON</span>

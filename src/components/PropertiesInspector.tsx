@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  CampaignSettings,
   CellType,
   Model3DAsset,
   PlacedEntity,
@@ -9,7 +10,10 @@ import {
 } from '../types/engine';
 import { CellInspectorTab } from './inspector/CellInspectorTab';
 import { AssetLibraryTab } from './inspector/AssetLibraryTab';
-import { WorldSettingsTab } from './inspector/WorldSettingsTab';
+import {
+  CampaignLevelSummary,
+  WorldSettingsTab,
+} from './inspector/WorldSettingsTab';
 import { VerticalTileSection } from './inspector/VerticalTileSection';
 import { MovementSettingsSection } from './inspector/MovementSettingsSection';
 import { EditorLayerData } from '../runtime/types';
@@ -64,6 +68,18 @@ export interface PropertiesInspectorProps {
   onBorderWalls: () => void;
   onClearGrid: () => void;
   onResizeMap: (size: number) => void;
+  campaignLevels: CampaignLevelSummary[];
+  activeLevelIndex: number;
+  levelTitle: string;
+  onSelectCampaignLevel: (index: number) => void;
+  onRenameCampaignLevel: (title: string) => void;
+  onAddCampaignLevel: () => void;
+  onDuplicateCampaignLevel: () => void;
+  onDeleteCampaignLevel: (index: number) => void;
+  onMoveCampaignLevel: (index: number, direction: -1 | 1) => void;
+  campaignSettings: CampaignSettings;
+  onUpdateCampaignSettings: (settings: CampaignSettings) => void;
+  onPlaceExitOnSelectedCell: () => void;
   libraryState: ModelLibraryState;
   onLibraryChange: React.Dispatch<React.SetStateAction<ModelLibraryState>>;
   selectedVariantKey: string | null;
@@ -233,6 +249,19 @@ export const PropertiesInspector: React.FC<PropertiesInspectorProps> = React.mem
             onClearGrid={props.onClearGrid}
             gridSize={props.grid.length}
             onResizeMap={props.onResizeMap}
+            campaignLevels={props.campaignLevels}
+            activeLevelIndex={props.activeLevelIndex}
+            levelTitle={props.levelTitle}
+            onSelectCampaignLevel={props.onSelectCampaignLevel}
+            onRenameCampaignLevel={props.onRenameCampaignLevel}
+            onAddCampaignLevel={props.onAddCampaignLevel}
+            onDuplicateCampaignLevel={props.onDuplicateCampaignLevel}
+            onDeleteCampaignLevel={props.onDeleteCampaignLevel}
+            onMoveCampaignLevel={props.onMoveCampaignLevel}
+            campaignSettings={props.campaignSettings}
+            onUpdateCampaignSettings={props.onUpdateCampaignSettings}
+            selectedCell={props.selectedCell}
+            onPlaceExitOnSelectedCell={props.onPlaceExitOnSelectedCell}
           />
         )}
         {activeTab === 'world' && (

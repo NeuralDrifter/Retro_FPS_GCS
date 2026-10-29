@@ -12,6 +12,8 @@ import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockCont
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import {
   AmmoLootSnapshot,
+  CampaignSettings,
+  DEFAULT_CAMPAIGN_SETTINGS,
   ENGINE_CONFIG,
   EnemyTelemetrySnapshot,
   GameManifest,
@@ -77,6 +79,8 @@ export type InputSourceOption =
 export interface RuntimeManifestLike {
   schemaVersion?: number;
   level: LevelDataV3;
+  levels?: LevelDataV3[];
+  campaign?: CampaignSettings;
   customTextures?: TextureAsset[];
 }
 
@@ -95,6 +99,15 @@ export interface StartGameOptions {
   recordInputs?: boolean;
   deterministicSimOnly?: boolean;
   onTickHash?: (tick: number, hash: string, state: SimulationState) => void;
+  // Multi-level campaign options
+  levels?: LevelDataV3[];
+  currentLevelIndex?: number;
+  campaign?: CampaignSettings;
+  onLevelChange?: (
+    levelIndex: number,
+    carryOver: { health: number; ammo: number },
+    simState: SimulationState
+  ) => void;
   // Editor integration hooks (all optional; unused in standalone exports)
   initialSimState?: SimulationState;
   showCeiling?: boolean;
@@ -122,6 +135,9 @@ export interface EditorLevelSyncPayload {
   showCeiling: boolean;
   minimapEnabled: boolean;
   vertical?: VerticalLevelData;
+  levels?: LevelDataV3[];
+  currentLevelIndex?: number;
+  campaign?: CampaignSettings;
 }
 
 export interface GameRuntimeHandle {
@@ -132,6 +148,15 @@ export interface GameRuntimeHandle {
   stepTicks: (count: number) => string[];
   getTickHashes: () => string[];
   getRecordedInputs: () => PlayerTickInput[];
+  // Campaign progression methods
+  getCurrentLevelIndex: () => number;
+  getTotalLevels: () => number;
+  goToLevel: (
+    index: number,
+    carryOver?: { health?: number; ammo?: number }
+  ) => void;
+  advanceToNextLevel: () => void;
+  setCampaignSettings: (campaign: CampaignSettings) => void;
   // Editor control methods
   setShowCeiling: (show: boolean) => void;
   setShowWireframe: (wireframe: boolean) => void;
@@ -248,7 +273,36 @@ export function startGame(
 
   const normalized = normalizeManifestToLevelV3(manifest);
   const activeManifest: GameManifest = normalized.manifest;
-  const currentLevelV3: LevelDataV3 = normalized.levelV3;
+
+  let campaignLevels: LevelDataV3[] =
+    options.levels && options.levels.length > 0
+      ? options.levels.map((l) => JSON.parse(JSON.stringify(l)))
+      : activeManifest.levels && activeManifest.levels.length > 0
+      ? activeManifest.levels.map((l) => JSON.parse(JSON.stringify(l)))
+      : [normalized.levelV3];
+
+  let currentLevelIndex: number = Math.max(
+    0,
+    Math.min(
+      campaignLevels.length - 1,
+      options.currentLevelIndex ??
+        (manifest &&
+        typeof manifest === 'object' &&
+        'activeLevelIndex' in manifest &&
+        typeof (manifest as any).activeLevelIndex === 'number'
+          ? Math.trunc((manifest as any).activeLevelIndex)
+          : 0)
+    )
+  );
+
+  let campaignSettings: CampaignSettings = {
+    ...(options.campaign ??
+      activeManifest.campaign ??
+      DEFAULT_CAMPAIGN_SETTINGS),
+  };
+
+  let currentLevelV3: LevelDataV3 =
+    campaignLevels[currentLevelIndex] ?? normalized.levelV3;
 
   if (activeManifest.assets?.textures) {
     for (const tex of activeManifest.assets.textures) {
@@ -348,10 +402,16 @@ export function startGame(
     return { kills: snapshot.kills, totalEnemies: snapshot.totalEnemies };
   }
 
+  let levelEntryState: { health: number; ammo: number } = {
+    health:
+      initialSim.players[0]?.health ?? ENGINE_CONFIG.PLAYER_MAX_HEALTH,
+    ammo: initialSim.players[0]?.ammo ?? ENGINE_CONFIG.PLAYER_START_AMMO,
+  };
+
   let combatState: PlayerCombatState = {
-    health: ENGINE_CONFIG.PLAYER_MAX_HEALTH,
+    health: levelEntryState.health,
     maxHealth: ENGINE_CONFIG.PLAYER_MAX_HEALTH,
-    ammo: ENGINE_CONFIG.PLAYER_START_AMMO,
+    ammo: levelEntryState.ammo,
     maxAmmo: ENGINE_CONFIG.PLAYER_MAX_AMMO,
     kills: 0,
     totalEnemies: countLevelEnemies(),
@@ -419,12 +479,25 @@ export function startGame(
 
   function syncHud(): void {
     if (combatHud) {
+      const currentTitle =
+        campaignLevels[currentLevelIndex]?.metadata?.title ||
+        `Level ${currentLevelIndex + 1}`;
+      const nextTitle =
+        currentLevelIndex + 1 < campaignLevels.length
+          ? campaignLevels[currentLevelIndex + 1]?.metadata?.title ||
+            `Level ${currentLevelIndex + 2}`
+          : undefined;
       combatHud.update({
         combatState,
         simState: currSimState,
         isMuzzleFlashing,
         isHitMarkerActive,
         isPlayerHurtFlashing,
+        currentLevelIndex,
+        totalLevels: campaignLevels.length,
+        currentLevelTitle: currentTitle,
+        nextLevelTitle: nextTitle,
+        campaign: campaignSettings,
       });
     }
     if (minimapHud) {
@@ -700,6 +773,164 @@ export function startGame(
     );
   }
 
+  function loadCampaignLevel(
+    targetIdx: number,
+    entryStats?: { health?: number; ammo?: number }
+  ): void {
+    if (campaignLevels.length === 0) return;
+    const clampedIdx = Math.max(
+      0,
+      Math.min(campaignLevels.length - 1, Math.trunc(targetIdx))
+    );
+    currentLevelIndex = clampedIdx;
+    currentLevelV3 = campaignLevels[clampedIdx];
+
+    grid = currentLevelV3.grid.map((r) => [...r]);
+    wallTextures = currentLevelV3.wallTextures.map((r) => [...r]);
+    floorTextures = currentLevelV3.floorTextures.map((r) => [...r]);
+    ceilingTextures = currentLevelV3.ceilingTextures.map((r) => [...r]);
+    entities = placedEntitiesFromLevelV3(currentLevelV3);
+    spawn = {
+      row: currentLevelV3.spawn.row,
+      col: currentLevelV3.spawn.col,
+      yaw: bamToRadians(currentLevelV3.spawn.yawBam),
+    };
+    skyboxTheme = currentLevelV3.skybox.theme;
+    skyboxSeed = currentLevelV3.skybox.seed;
+    showCeiling = currentLevelV3.skybox.showCeiling ?? showCeiling;
+    minimapEnabled = currentLevelV3.minimapEnabled ?? minimapEnabled;
+    vertical = isVerticalLevel(currentLevelV3)
+      ? verticalFromLevelV3(currentLevelV3)
+      : undefined;
+
+    const startHealth =
+      entryStats?.health !== undefined
+        ? Math.max(
+            1,
+            Math.min(ENGINE_CONFIG.PLAYER_MAX_HEALTH, Math.round(entryStats.health))
+          )
+        : ENGINE_CONFIG.PLAYER_MAX_HEALTH;
+    const startAmmo =
+      entryStats?.ammo !== undefined
+        ? Math.max(
+            0,
+            Math.min(ENGINE_CONFIG.PLAYER_MAX_AMMO, Math.round(entryStats.ammo))
+          )
+        : ENGINE_CONFIG.PLAYER_START_AMMO;
+
+    levelEntryState = { health: startHealth, ammo: startAmmo };
+
+    const freshSim = createInitialSimulationState(currentLevelV3, [0]);
+    if (freshSim.players[0]) {
+      freshSim.players[0].health = startHealth;
+      freshSim.players[0].ammo = startAmmo;
+    }
+
+    prevSimState = freshSim;
+    currSimState = freshSim;
+    lastLogCount = freshSim.logs.length;
+    lastSoundCount = freshSim.soundsPlayed.length;
+
+    enemySnapshots = [];
+    ammoDrops = [];
+    combatState = {
+      health: startHealth,
+      maxHealth: ENGINE_CONFIG.PLAYER_MAX_HEALTH,
+      ammo: startAmmo,
+      maxAmmo: ENGINE_CONFIG.PLAYER_MAX_AMMO,
+      kills: 0,
+      totalEnemies: countLevelEnemies(),
+      isDead: false,
+      lastHitEnemyName: null,
+      lastHitEnemyHealth: null,
+      lastHitEnemyMaxHealth: null,
+    };
+
+    const spawnEyeY = freshSim.vertical
+      ? (freshSim.players[0]?.yUnits ?? 0) * UNITS_TO_METERS
+      : ENGINE_CONFIG.PLAYER_EYE_HEIGHT;
+    const { x, z } = CollisionSystem.gridToWorld(
+      spawn.row,
+      spawn.col,
+      grid.length
+    );
+    if (camera) {
+      camera.position.set(x, spawnEyeY, z);
+      euler.set(0, spawn.yaw, 0, 'YXZ');
+      camera.quaternion.setFromEuler(euler);
+    }
+
+    playerTransform = {
+      x,
+      y: spawnEyeY,
+      z,
+      yaw: spawn.yaw,
+      pitch: 0,
+      gridRow: spawn.row,
+      gridCol: spawn.col,
+      speed: 0,
+    };
+    options.onPlayerMove?.(playerTransform);
+
+    updateSkybox();
+    rebuild3DWorld();
+
+    if (!inputReader && currSimState.tick === 0) {
+      runSingleSimTick(0);
+    }
+
+    options.onSimStateChange?.(currSimState);
+    options.onLevelChange?.(
+      currentLevelIndex,
+      { health: startHealth, ammo: startAmmo },
+      currSimState
+    );
+    syncHud();
+  }
+
+  function handleAdvanceToNextLevel(): void {
+    if (currentLevelIndex + 1 >= campaignLevels.length) {
+      return;
+    }
+    const rawHealth =
+      combatState.health !== levelEntryState.health
+        ? combatState.health
+        : currSimState.players[0]?.health ?? combatState.health;
+    const rawAmmo =
+      combatState.ammo !== levelEntryState.ammo
+        ? combatState.ammo
+        : currSimState.players[0]?.ammo ?? combatState.ammo;
+
+    const nextHealth = campaignSettings.carryOverHealth
+      ? Math.max(1, Math.min(combatState.maxHealth, Math.round(rawHealth)))
+      : ENGINE_CONFIG.PLAYER_MAX_HEALTH;
+    const nextAmmo = campaignSettings.carryOverAmmo
+      ? Math.max(0, Math.min(combatState.maxAmmo, Math.round(rawAmmo)))
+      : ENGINE_CONFIG.PLAYER_START_AMMO;
+
+    const nextIdx = currentLevelIndex + 1;
+    const nextTitle =
+      campaignLevels[nextIdx]?.metadata?.title || `Level ${nextIdx + 1}`;
+    loadCampaignLevel(nextIdx, { health: nextHealth, ammo: nextAmmo });
+    emitLog(
+      `Campaign: Advanced to Level ${nextIdx + 1}/${campaignLevels.length} ('${nextTitle}') — Health: ${nextHealth} HP (${
+        campaignSettings.carryOverHealth ? 'Carried Over' : 'Reset'
+      }), Ammo: ${nextAmmo} (${
+        campaignSettings.carryOverAmmo ? 'Carried Over' : 'Reset'
+      }).`
+    );
+  }
+
+  function handleRestartCampaign(): void {
+    loadCampaignLevel(0, {
+      health: ENGINE_CONFIG.PLAYER_MAX_HEALTH,
+      ammo: ENGINE_CONFIG.PLAYER_START_AMMO,
+    });
+    emitLog(
+      `Campaign: Restarted campaign at Level 1/${campaignLevels.length} with full Health & Ammo.`
+    );
+  }
+
   function runSingleSimTick(tickIdxInFrame: number): boolean {
     prevSimState = currSimState;
 
@@ -940,6 +1171,8 @@ export function startGame(
         pendingUse = true;
       },
       onRespawnPlayer: handleFullRespawn,
+      onNextLevel: handleAdvanceToNextLevel,
+      onRestartCampaign: handleRestartCampaign,
     });
     minimapHud = new MinimapHUDController(resolvedHudRoot, () => {
       if (options.onMinimapToggleRequest) {
@@ -1757,6 +1990,19 @@ export function startGame(
     },
     getTickHashes: () => [...tickHashes],
     getRecordedInputs: () => [...recordedInputs],
+    getCurrentLevelIndex: () => currentLevelIndex,
+    getTotalLevels: () => campaignLevels.length,
+    goToLevel: (
+      index: number,
+      carryOver?: { health?: number; ammo?: number }
+    ) => {
+      loadCampaignLevel(index, carryOver);
+    },
+    advanceToNextLevel: handleAdvanceToNextLevel,
+    setCampaignSettings: (nextCampaign: CampaignSettings) => {
+      campaignSettings = { ...nextCampaign };
+      syncHud();
+    },
     setShowCeiling: (show: boolean) => {
       if (showCeiling === show) return;
       showCeiling = show;
@@ -1781,6 +2027,24 @@ export function startGame(
       updateSkybox();
     },
     syncEditorLevel: (payload: EditorLevelSyncPayload) => {
+      if (payload.campaign) {
+        campaignSettings = { ...payload.campaign };
+      }
+      if (payload.levels && payload.levels.length > 0) {
+        campaignLevels = payload.levels.map((l) =>
+          JSON.parse(JSON.stringify(l))
+        );
+      }
+      if (
+        typeof payload.currentLevelIndex === 'number' &&
+        payload.currentLevelIndex !== currentLevelIndex
+      ) {
+        currentLevelIndex = Math.max(
+          0,
+          Math.min(campaignLevels.length - 1, payload.currentLevelIndex)
+        );
+      }
+
       customTextures = payload.customTextures;
       wallTextures = payload.wallTextures.map((r) => [...r]);
       floorTextures = payload.floorTextures.map((r) => [...r]);

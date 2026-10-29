@@ -16,7 +16,9 @@
 
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
+  CampaignSettings,
   CellType,
+  DEFAULT_CAMPAIGN_SETTINGS,
   DEFAULT_ENTITY_BLUEPRINTS,
   ENGINE_CONFIG,
   EditorToolMode,
@@ -463,6 +465,48 @@ export default function App() {
   const [engineLog, setEngineLog] = useState<string>(
     'Ready — Click 2D grid to sculpt level (Ctrl+Z Undo / Ctrl+Y Redo) or click 3D viewport to fire.'
   );
+
+  // --------------------------------------------------------------------------
+  // 4B. MULTI-LEVEL CAMPAIGN STATE & CARRY-OVER SETTINGS
+  // --------------------------------------------------------------------------
+  const [levelTitle, setLevelTitle] = useState<string>(
+    () => initialPreset.name || 'Level 1'
+  );
+  const [campaignSettings, setCampaignSettings] = useState<CampaignSettings>(
+    () => ({ ...DEFAULT_CAMPAIGN_SETTINGS })
+  );
+  const [activeLevelIndex, setActiveLevelIndex] = useState<number>(0);
+  const [campaignLevels, setCampaignLevels] = useState<LevelStateData[]>(() => [
+    LevelSerializer.serializeLevel({
+      title: initialPreset.name || 'Level 1',
+      grid: initialPreset.grid.map((r) => [...r]),
+      wallTextures: createUniformTextureMatrix(
+        initialPreset.defaultWallTex || 'default-grid',
+        initialPreset.grid.length
+      ),
+      floorTextures: createUniformTextureMatrix(
+        'floor-obsidian',
+        initialPreset.grid.length
+      ),
+      ceilingTextures: createUniformTextureMatrix(
+        'ceiling-coffer',
+        initialPreset.grid.length
+      ),
+      customTextures: [],
+      entities: initialPreset.entities
+        ? initialPreset.entities.map((e) => ({ ...e }))
+        : [],
+      nextEntityId: computeNextEntityId(initialPreset.entities || []),
+      spawn: { ...initialPreset.spawn },
+      skyboxTheme: 'retro-nebula',
+      skyboxSeed: 1,
+      showCeiling: false,
+      minimapEnabled: true,
+      events: initialPreset.events || [],
+      regions: initialPreset.regions || [],
+      variables: initialPreset.variables,
+    }),
+  ]);
 
   // Global model library (folders, tags, per-model settings) shared by every level
   const handleRestoredUploads = useCallback((restored: Model3DAsset[]) => {
@@ -1423,6 +1467,440 @@ export default function App() {
     [recordHistorySnapshot]
   );
 
+  /** Builds a single-level snapshot of the currently active editor state (without nested `levels`). */
+  const buildActiveSingleLevelState = useCallback(
+    (titleOverride?: string): LevelStateData => {
+      const usedTexIds = new Set<string>();
+      for (const row of wallTextures) for (const id of row) usedTexIds.add(id);
+      for (const row of floorTextures) for (const id of row) usedTexIds.add(id);
+      for (const row of ceilingTextures) for (const id of row) usedTexIds.add(id);
+      for (const layer of vertical.layers) {
+        for (const m of [
+          layer.wallTextures,
+          layer.floorTextures,
+          layer.ceilingTextures,
+        ]) {
+          for (const row of m) for (const id of row) usedTexIds.add(id);
+        }
+      }
+      const levelCustomTextures = customTextures.filter(
+        (t) => !t.fromProject || usedTexIds.has(t.id)
+      );
+      return LevelSerializer.serializeLevel({
+        title: titleOverride ?? levelTitle,
+        grid,
+        wallTextures,
+        floorTextures,
+        ceilingTextures,
+        customTextures: levelCustomTextures,
+        entities,
+        nextEntityId,
+        spawn,
+        skyboxTheme,
+        skyboxSeed,
+        showCeiling,
+        minimapEnabled,
+        events: simState.events,
+        regions: simState.regions,
+        variables: {
+          flags: simState.flags,
+          counters: simState.counters,
+          timers: Object.keys(simState.timers),
+        },
+        vertical:
+          isFlatVerticalData(vertical) && !vertical.classic
+            ? undefined
+            : vertical,
+      });
+    },
+    [
+      levelTitle,
+      vertical,
+      grid,
+      wallTextures,
+      floorTextures,
+      ceilingTextures,
+      customTextures,
+      entities,
+      nextEntityId,
+      spawn,
+      skyboxTheme,
+      skyboxSeed,
+      showCeiling,
+      minimapEnabled,
+      simState.events,
+      simState.regions,
+      simState.flags,
+      simState.counters,
+      simState.timers,
+    ]
+  );
+
+  /** Returns the full `campaignLevels` array with `activeLevelIndex` synced to the live editor state. */
+  const getSyncedCampaignLevels = useCallback(
+    (titleOverride?: string): LevelStateData[] => {
+      const activeSnap = buildActiveSingleLevelState(titleOverride);
+      if (campaignLevels.length === 0) return [activeSnap];
+      const clampedIdx = Math.max(
+        0,
+        Math.min(campaignLevels.length - 1, activeLevelIndex)
+      );
+      return campaignLevels.map((lvl, idx) =>
+        idx === clampedIdx ? activeSnap : lvl
+      );
+    },
+    [buildActiveSingleLevelState, campaignLevels, activeLevelIndex]
+  );
+
+  /** Loads a single `LevelStateData` into the live editor React states. */
+  const applySingleLevelToEditor = useCallback(
+    (
+      state: LevelStateData,
+      targetIndex: number,
+      options?: {
+        preserveSimState?: SimulationState;
+        resetUndoStacks?: boolean;
+      }
+    ) => {
+      const nextGrid = state.grid.map((r) => [...r]);
+      const nextWallTex = state.wallTextures.map((r) => [...r]);
+      const nextFloorTex = state.floorTextures.map((r) => [...r]);
+      const nextCeilTex = state.ceilingTextures.map((r) => [...r]);
+      const restoredEnts = state.entities.map((e) => ({ ...e }));
+      const restoredVertical = state.vertical
+        ? cloneVerticalData(state.vertical)
+        : createDefaultVerticalData(nextGrid.length);
+
+      setLevelTitle(state.title || `Level ${targetIndex + 1}`);
+      setGrid(nextGrid);
+      setWallTextures(nextWallTex);
+      setFloorTextures(nextFloorTex);
+      setCeilingTextures(nextCeilTex);
+      if (state.customTextures && state.customTextures.length > 0) {
+        setCustomTextures((prev) => {
+          const byId = new Map(prev.map((t) => [t.id, t]));
+          for (const t of state.customTextures) byId.set(t.id, t);
+          return [...byId.values()];
+        });
+      }
+      setEntities(restoredEnts);
+      setNextEntityId(computeNextEntityId(restoredEnts, state.nextEntityId));
+      setSpawn({ ...state.spawn });
+      setVertical(restoredVertical);
+      setActiveLayer(0);
+      setSelectedEntityId(null);
+      setSkyboxTheme(state.skybox.theme);
+      setSkyboxSeed(state.skybox.seed);
+      setShowCeiling(state.skybox.showCeiling);
+      if (typeof state.minimapEnabled === 'boolean') {
+        setMinimapEnabled(state.minimapEnabled);
+      }
+      setActiveLevelIndex(targetIndex);
+
+      if (options?.resetUndoStacks) {
+        setPastHistory([]);
+        setFutureHistory([]);
+      }
+
+      if (options?.preserveSimState) {
+        setSimState(options.preserveSimState);
+      } else {
+        const restoredV3 = LevelSerializer.serializeLevelV3({
+          title: state.title || `Level ${targetIndex + 1}`,
+          grid: nextGrid,
+          wallTextures: nextWallTex,
+          floorTextures: nextFloorTex,
+          ceilingTextures: nextCeilTex,
+          customTextures: state.customTextures,
+          entities: restoredEnts,
+          nextEntityId: state.nextEntityId,
+          spawn: state.spawn,
+          skyboxTheme: state.skybox.theme,
+          skyboxSeed: state.skybox.seed,
+          showCeiling: state.skybox.showCeiling,
+          minimapEnabled:
+            typeof state.minimapEnabled === 'boolean'
+              ? state.minimapEnabled
+              : true,
+          cellTags: state.cellTags,
+          events: state.events || [],
+          regions: state.regions || [],
+          variables: state.variables,
+          vertical: restoredVertical,
+        });
+        setSimState(createInitialSimulationState(restoredV3, [0]));
+        setResetSignal((n) => n + 1);
+      }
+    },
+    []
+  );
+
+  const handleSelectCampaignLevel = useCallback(
+    (targetIndex: number) => {
+      const synced = getSyncedCampaignLevels();
+      if (targetIndex < 0 || targetIndex >= synced.length) return;
+      if (targetIndex === activeLevelIndex) return;
+      setCampaignLevels(synced);
+      const targetLevel = synced[targetIndex];
+      applySingleLevelToEditor(targetLevel, targetIndex, {
+        resetUndoStacks: true,
+      });
+      setEngineLog(
+        `Campaign: Switched editor to Level ${targetIndex + 1}/${synced.length} ('${
+          targetLevel.title || `Level ${targetIndex + 1}`
+        }').`
+      );
+    },
+    [getSyncedCampaignLevels, activeLevelIndex, applySingleLevelToEditor]
+  );
+
+  const handleRenameCampaignLevel = useCallback((nextTitle: string) => {
+    setLevelTitle(nextTitle);
+    setCampaignLevels((prev) =>
+      prev.map((lvl, idx) =>
+        idx === activeLevelIndex ? { ...lvl, title: nextTitle } : lvl
+      )
+    );
+  }, [activeLevelIndex]);
+
+  const handleAddCampaignLevel = useCallback(() => {
+    const synced = getSyncedCampaignLevels();
+    const newIndex = synced.length;
+    const newTitle = `Level ${newIndex + 1}: Sector ${newIndex + 1}`;
+    const size = 16;
+    const freshGrid: number[][] = Array.from({ length: size }, (_, r) =>
+      Array.from({ length: size }, (_, c) =>
+        r === 0 || r === size - 1 || c === 0 || c === size - 1
+          ? CellType.WALL
+          : CellType.EMPTY
+      )
+    );
+    const freshLevel = LevelSerializer.serializeLevel({
+      title: newTitle,
+      grid: freshGrid,
+      wallTextures: createUniformTextureMatrix('default-grid', size),
+      floorTextures: createUniformTextureMatrix('floor-obsidian', size),
+      ceilingTextures: createUniformTextureMatrix('ceiling-coffer', size),
+      customTextures: [],
+      entities: [],
+      nextEntityId: 1,
+      spawn: { row: Math.floor(size / 2), col: Math.floor(size / 2), yaw: 0 },
+      skyboxTheme,
+      skyboxSeed: skyboxSeed + 1,
+      showCeiling: false,
+      minimapEnabled: true,
+    });
+    const nextLevels = [...synced, freshLevel];
+    setCampaignLevels(nextLevels);
+    applySingleLevelToEditor(freshLevel, newIndex, { resetUndoStacks: true });
+    setEngineLog(
+      `Campaign: Added Level ${newIndex + 1}/${nextLevels.length} ('${newTitle}').`
+    );
+  }, [
+    getSyncedCampaignLevels,
+    skyboxTheme,
+    skyboxSeed,
+    applySingleLevelToEditor,
+  ]);
+
+  const handleDuplicateCampaignLevel = useCallback(() => {
+    const synced = getSyncedCampaignLevels();
+    const currentSnap = synced[activeLevelIndex] || buildActiveSingleLevelState();
+    const cloneTitle = `${
+      currentSnap.title || `Level ${activeLevelIndex + 1}`
+    } (Copy)`;
+    const clonedLevel: LevelStateData = JSON.parse(
+      JSON.stringify({
+        ...currentSnap,
+        title: cloneTitle,
+      })
+    );
+    const insertIndex = activeLevelIndex + 1;
+    const nextLevels = [
+      ...synced.slice(0, insertIndex),
+      clonedLevel,
+      ...synced.slice(insertIndex),
+    ];
+    setCampaignLevels(nextLevels);
+    applySingleLevelToEditor(clonedLevel, insertIndex, {
+      resetUndoStacks: true,
+    });
+    setEngineLog(
+      `Campaign: Duplicated into Level ${insertIndex + 1}/${nextLevels.length} ('${cloneTitle}').`
+    );
+  }, [
+    getSyncedCampaignLevels,
+    activeLevelIndex,
+    buildActiveSingleLevelState,
+    applySingleLevelToEditor,
+  ]);
+
+  const handleDeleteCampaignLevel = useCallback(
+    (deleteIndex: number) => {
+      const synced = getSyncedCampaignLevels();
+      if (synced.length <= 1) {
+        setEngineLog('Campaign: A game must have at least 1 level.');
+        return;
+      }
+      if (deleteIndex < 0 || deleteIndex >= synced.length) return;
+      const removedTitle =
+        synced[deleteIndex]?.title || `Level ${deleteIndex + 1}`;
+      const nextLevels = synced.filter((_, idx) => idx !== deleteIndex);
+      const nextActiveIdx =
+        deleteIndex < activeLevelIndex
+          ? activeLevelIndex - 1
+          : Math.min(activeLevelIndex, nextLevels.length - 1);
+      setCampaignLevels(nextLevels);
+      applySingleLevelToEditor(nextLevels[nextActiveIdx], nextActiveIdx, {
+        resetUndoStacks: true,
+      });
+      setEngineLog(
+        `Campaign: Deleted '${removedTitle}'. Active level is now ${
+          nextActiveIdx + 1
+        }/${nextLevels.length}.`
+      );
+    },
+    [getSyncedCampaignLevels, activeLevelIndex, applySingleLevelToEditor]
+  );
+
+  const handleMoveCampaignLevel = useCallback(
+    (index: number, direction: -1 | 1) => {
+      const synced = getSyncedCampaignLevels();
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= synced.length) return;
+      const nextLevels = [...synced];
+      const [moved] = nextLevels.splice(index, 1);
+      nextLevels.splice(targetIndex, 0, moved);
+
+      let nextActiveIdx = activeLevelIndex;
+      if (activeLevelIndex === index) {
+        nextActiveIdx = targetIndex;
+      } else if (
+        direction === -1 &&
+        activeLevelIndex === targetIndex
+      ) {
+        nextActiveIdx = activeLevelIndex + 1;
+      } else if (
+        direction === 1 &&
+        activeLevelIndex === targetIndex
+      ) {
+        nextActiveIdx = activeLevelIndex - 1;
+      }
+
+      setCampaignLevels(nextLevels);
+      setActiveLevelIndex(nextActiveIdx);
+      setEngineLog(
+        `Campaign: Moved '${moved.title || `Level ${index + 1}`}' to position #${
+          targetIndex + 1
+        }.`
+      );
+    },
+    [getSyncedCampaignLevels, activeLevelIndex]
+  );
+
+  const handleUpdateCampaignSettings = useCallback(
+    (nextSettings: CampaignSettings) => {
+      setCampaignSettings(nextSettings);
+      setEngineLog(
+        `Campaign Carry-Over: Health=${
+          nextSettings.carryOverHealth ? 'ON' : 'OFF'
+        }, Ammo=${nextSettings.carryOverAmmo ? 'ON' : 'OFF'}.`
+      );
+    },
+    []
+  );
+
+  const handlePlaceExitOnSelectedCell = useCallback(() => {
+    const { row, col } = selectedCell;
+    recordHistorySnapshot(`Set Level Exit at [X:${col}, Z:${row}]`);
+    // Ensure the exit tile is walkable
+    setActiveGrid((prev) => {
+      if (prev[row]?.[col] === CellType.EMPTY) return prev;
+      const next = prev.map((r) => [...r]);
+      next[row][col] = CellType.EMPTY;
+      return next;
+    });
+
+    const exitEventId = `evt_exit_${row}_${col}`;
+    const newExitEvent: EventDefinition = {
+      id: exitEventId,
+      name: `Level Exit at [X:${col}, Z:${row}]`,
+      enabled: true,
+      trigger: {
+        type: 'enter_cell',
+        row,
+        col,
+        who: 'player',
+      },
+      conditions: [],
+      actions: [{ type: 'exit_level' }],
+      options: { once: true, fire: 'once' },
+    };
+
+    const existingEvents = simState.events.filter(
+      (ev) =>
+        ev.id !== exitEventId &&
+        !(
+          ev.trigger.type === 'enter_cell' &&
+          ev.trigger.row === row &&
+          ev.trigger.col === col &&
+          ev.actions.some((a) => a.type === 'exit_level')
+        )
+    );
+    const nextEvents = [...existingEvents, newExitEvent];
+
+    const updatedV3 = LevelSerializer.serializeLevelV3({
+      title: levelTitle,
+      grid,
+      wallTextures,
+      floorTextures,
+      ceilingTextures,
+      customTextures,
+      entities,
+      nextEntityId,
+      spawn,
+      skyboxTheme,
+      skyboxSeed,
+      showCeiling,
+      minimapEnabled,
+      cellTags: simState.cellTags,
+      events: nextEvents,
+      regions: simState.regions,
+      variables: {
+        flags: simState.flags,
+        counters: simState.counters,
+        timers: Object.keys(simState.timers),
+      },
+      vertical,
+    });
+    setSimState(createInitialSimulationState(updatedV3, [0]));
+    setEngineLog(
+      `Campaign Exit: Added 'exit_level' trigger on cell [X:${col}, Z:${row}]. Stepping on this cell finishes Level ${
+        activeLevelIndex + 1
+      }.`
+    );
+  }, [
+    selectedCell,
+    recordHistorySnapshot,
+    setActiveGrid,
+    simState,
+    levelTitle,
+    grid,
+    wallTextures,
+    floorTextures,
+    ceilingTextures,
+    customTextures,
+    entities,
+    nextEntityId,
+    spawn,
+    skyboxTheme,
+    skyboxSeed,
+    showCeiling,
+    minimapEnabled,
+    vertical,
+    activeLevelIndex,
+  ]);
+
   const handleLoadPreset = useCallback(
     (presetId: string) => {
       const found = MAP_PRESETS.find((p) => p.id === presetId);
@@ -1444,6 +1922,7 @@ export default function App() {
       const nextEnts = found.entities
         ? found.entities.map((e) => ({ ...e }))
         : [];
+      setLevelTitle(found.name);
       setGrid(nextGrid);
       setWallTextures(nextWallTex);
       setFloorTextures(nextFloorTex);
@@ -1457,6 +1936,7 @@ export default function App() {
       setActiveLayer(0);
       setSelectedEntityId(null);
       const presetV3 = LevelSerializer.serializeLevelV3({
+        title: found.name,
         grid: nextGrid,
         wallTextures: nextWallTex,
         floorTextures: nextFloorTex,
@@ -1474,7 +1954,9 @@ export default function App() {
       });
       setSimState(createInitialSimulationState(presetV3, [0]));
       setResetSignal((n) => n + 1);
-      setEngineLog(`Preset: Loaded '${found.name}'.`);
+      setEngineLog(
+        `Preset: Loaded '${found.name}' into Level ${activeLevelIndex + 1}.`
+      );
     },
     [
       recordHistorySnapshot,
@@ -1482,71 +1964,51 @@ export default function App() {
       skyboxSeed,
       showCeiling,
       minimapEnabled,
+      activeLevelIndex,
     ]
   );
 
   const handleRestoreLevelState = useCallback(
     (state: LevelStateData) => {
       recordHistorySnapshot('Import Level JSON');
-      setGrid(state.grid.map((r) => [...r]));
-      setWallTextures(state.wallTextures.map((r) => [...r]));
-      setFloorTextures(state.floorTextures.map((r) => [...r]));
-      setCeilingTextures(state.ceilingTextures.map((r) => [...r]));
-      setCustomTextures((prev) => {
-        const projectTextures = prev.filter((t) => t.fromProject);
-        const byId = new Map(projectTextures.map((t) => [t.id, t]));
-        for (const t of state.customTextures) byId.set(t.id, t);
-        return [...byId.values()];
-      });
-      const restoredEnts = state.entities.map((e) => ({ ...e }));
-      setEntities(restoredEnts);
-      setNextEntityId(
-        computeNextEntityId(restoredEnts, state.nextEntityId)
-      );
-      setSpawn({ ...state.spawn });
-      const restoredVertical = state.vertical
-        ? cloneVerticalData(state.vertical)
-        : createDefaultVerticalData(state.grid.length);
-      setVertical(restoredVertical);
-      setActiveLayer(0);
-      setSelectedEntityId(null);
-      setSkyboxTheme(state.skybox.theme);
-      setSkyboxSeed(state.skybox.seed);
-      setShowCeiling(state.skybox.showCeiling);
-      if (typeof state.minimapEnabled === 'boolean') {
-        setMinimapEnabled(state.minimapEnabled);
+      if (state.campaign) {
+        setCampaignSettings({
+          carryOverHealth: state.campaign.carryOverHealth !== false,
+          carryOverAmmo: state.campaign.carryOverAmmo !== false,
+        });
       }
-      const restoredV3 = LevelSerializer.serializeLevelV3({
-        grid: state.grid,
-        wallTextures: state.wallTextures,
-        floorTextures: state.floorTextures,
-        ceilingTextures: state.ceilingTextures,
-        customTextures: state.customTextures,
-        entities: restoredEnts,
-        nextEntityId: state.nextEntityId,
-        spawn: state.spawn,
-        skyboxTheme: state.skybox.theme,
-        skyboxSeed: state.skybox.seed,
-        showCeiling: state.skybox.showCeiling,
-        minimapEnabled:
-          typeof state.minimapEnabled === 'boolean'
-            ? state.minimapEnabled
-            : true,
-        cellTags: state.cellTags,
-        events: state.events || [],
-        regions: state.regions || [],
-        variables: state.variables,
-        vertical: restoredVertical,
-      });
-      setSimState(createInitialSimulationState(restoredV3, [0]));
-      setResetSignal((n) => n + 1);
+      if (Array.isArray(state.levels) && state.levels.length > 0) {
+        const targetIdx =
+          typeof state.activeLevelIndex === 'number' &&
+          state.activeLevelIndex >= 0 &&
+          state.activeLevelIndex < state.levels.length
+            ? state.activeLevelIndex
+            : 0;
+        setCampaignLevels(state.levels);
+        applySingleLevelToEditor(state.levels[targetIdx], targetIdx, {
+          resetUndoStacks: true,
+        });
+        setEngineLog(
+          `File: Loaded Campaign JSON (${state.levels.length} Gameplay Levels, active Level ${
+            targetIdx + 1
+          }).`
+        );
+        return;
+      }
+
+      const singleSnap: LevelStateData = {
+        ...state,
+        title: state.title || 'Level 1',
+      };
+      setCampaignLevels([singleSnap]);
+      applySingleLevelToEditor(singleSnap, 0, { resetUndoStacks: true });
       setEngineLog(
         state.missingModelWarnings?.length
           ? `Warning: ${state.missingModelWarnings.join(' ')}`
           : `File: Loaded Level JSON (${state.entities.length} Entities, ${state.customTextures.length} Custom Textures).`
       );
     },
-    [recordHistorySnapshot]
+    [recordHistorySnapshot, applySingleLevelToEditor]
   );
 
   const handleSaveLevelDataFromEditor = useCallback(
@@ -1557,6 +2019,7 @@ export default function App() {
     }) => {
       recordHistorySnapshot('Edit Visual Triggers & Events');
       const updatedV3 = LevelSerializer.serializeLevelV3({
+        title: levelTitle,
         grid,
         wallTextures,
         floorTextures,
@@ -1584,6 +2047,7 @@ export default function App() {
     },
     [
       recordHistorySnapshot,
+      levelTitle,
       grid,
       wallTextures,
       floorTextures,
@@ -1601,60 +2065,60 @@ export default function App() {
   );
 
   const buildCurrentLevelState = useCallback(() => {
+    const syncedLevels = getSyncedCampaignLevels();
+    const activeSingle = syncedLevels[activeLevelIndex] || buildActiveSingleLevelState();
+
+    // Collect all used custom textures across all levels in the campaign
     const usedTexIds = new Set<string>();
-    for (const row of wallTextures) for (const id of row) usedTexIds.add(id);
-    for (const row of floorTextures) for (const id of row) usedTexIds.add(id);
-    for (const row of ceilingTextures) for (const id of row) usedTexIds.add(id);
-    for (const layer of vertical.layers) {
-      for (const m of [layer.wallTextures, layer.floorTextures, layer.ceilingTextures]) {
-        for (const row of m) for (const id of row) usedTexIds.add(id);
+    for (const lvl of syncedLevels) {
+      for (const row of lvl.wallTextures) for (const id of row) usedTexIds.add(id);
+      for (const row of lvl.floorTextures) for (const id of row) usedTexIds.add(id);
+      for (const row of lvl.ceilingTextures) for (const id of row) usedTexIds.add(id);
+      if (lvl.vertical) {
+        for (const layer of lvl.vertical.layers) {
+          for (const m of [
+            layer.wallTextures,
+            layer.floorTextures,
+            layer.ceilingTextures,
+          ]) {
+            for (const row of m) for (const id of row) usedTexIds.add(id);
+          }
+        }
       }
     }
-    const levelCustomTextures = customTextures.filter(
+    const allUsedCustomTextures = customTextures.filter(
       (t) => !t.fromProject || usedTexIds.has(t.id)
     );
+
     return LevelSerializer.serializeLevel({
-      grid,
-      wallTextures,
-      floorTextures,
-      ceilingTextures,
-      customTextures: levelCustomTextures,
-      entities,
-      nextEntityId,
-      spawn,
-      skyboxTheme,
-      skyboxSeed,
-      showCeiling,
-      minimapEnabled,
-      events: simState.events,
-      regions: simState.regions,
-      variables: {
-        flags: simState.flags,
-        counters: simState.counters,
-        timers: Object.keys(simState.timers),
-      },
-      // Flat levels save without vertical data (a classic retro level saves only its flag)
-      vertical: isFlatVerticalData(vertical) && !vertical.classic ? undefined : vertical,
+      title: activeSingle.title || levelTitle,
+      grid: activeSingle.grid,
+      wallTextures: activeSingle.wallTextures,
+      floorTextures: activeSingle.floorTextures,
+      ceilingTextures: activeSingle.ceilingTextures,
+      customTextures: allUsedCustomTextures,
+      entities: activeSingle.entities,
+      nextEntityId: activeSingle.nextEntityId,
+      spawn: activeSingle.spawn,
+      skyboxTheme: activeSingle.skybox.theme,
+      skyboxSeed: activeSingle.skybox.seed,
+      showCeiling: activeSingle.skybox.showCeiling,
+      minimapEnabled: activeSingle.minimapEnabled ?? true,
+      events: activeSingle.events,
+      regions: activeSingle.regions,
+      variables: activeSingle.variables,
+      vertical: activeSingle.vertical,
+      levels: syncedLevels,
+      activeLevelIndex,
+      campaign: campaignSettings,
     });
   }, [
-    vertical,
-    grid,
-    wallTextures,
-    floorTextures,
-    ceilingTextures,
+    getSyncedCampaignLevels,
+    activeLevelIndex,
+    buildActiveSingleLevelState,
     customTextures,
-    entities,
-    nextEntityId,
-    spawn,
-    skyboxTheme,
-    skyboxSeed,
-    showCeiling,
-    minimapEnabled,
-    simState.events,
-    simState.regions,
-    simState.flags,
-    simState.counters,
-    simState.timers,
+    levelTitle,
+    campaignSettings,
   ]);
 
   const handleSaveMap = useCallback(() => {
@@ -2170,6 +2634,64 @@ export default function App() {
     [activeLayer, activeLayerData, grid, vertical.layers, vertical.spawnLayer]
   );
 
+  const campaignLevelSummaries = useMemo(() => {
+    const synced = getSyncedCampaignLevels();
+    return synced.map((lvl, idx) => ({
+      title: lvl.title || `Level ${idx + 1}`,
+      gridSize: lvl.gridSize || lvl.grid.length,
+      entityCount: lvl.entities?.length ?? 0,
+      hasExitTrigger: Boolean(
+        lvl.events?.some((ev) =>
+          ev.actions?.some((a) => a.type === 'exit_level')
+        )
+      ),
+    }));
+  }, [getSyncedCampaignLevels]);
+
+  const campaignLevelsV3 = useMemo(() => {
+    const synced = getSyncedCampaignLevels();
+    return synced.map((lvl, idx) =>
+      LevelSerializer.serializeLevelV3({
+        title: lvl.title || `Level ${idx + 1}`,
+        grid: lvl.grid,
+        wallTextures: lvl.wallTextures,
+        floorTextures: lvl.floorTextures,
+        ceilingTextures: lvl.ceilingTextures,
+        customTextures: lvl.customTextures,
+        entities: lvl.entities,
+        nextEntityId: lvl.nextEntityId,
+        spawn: lvl.spawn,
+        skyboxTheme: lvl.skybox.theme,
+        skyboxSeed: lvl.skybox.seed,
+        showCeiling: lvl.skybox.showCeiling,
+        minimapEnabled: lvl.minimapEnabled ?? true,
+        cellTags: lvl.cellTags,
+        events: lvl.events,
+        regions: lvl.regions,
+        variables: lvl.variables,
+        vertical: lvl.vertical,
+      })
+    );
+  }, [getSyncedCampaignLevels]);
+
+  const handleRuntimeCampaignLevelChange = useCallback(
+    (
+      nextLevelIndex: number,
+      _carriedStats: { health: number; ammo: number },
+      nextSimState: SimulationState
+    ) => {
+      const synced = getSyncedCampaignLevels();
+      const target = synced[nextLevelIndex];
+      if (!target) return;
+      setCampaignLevels(synced);
+      applySingleLevelToEditor(target, nextLevelIndex, {
+        preserveSimState: nextSimState,
+        resetUndoStacks: true,
+      });
+    },
+    [getSyncedCampaignLevels, applySingleLevelToEditor]
+  );
+
   const activeCoord = hoveredCell || selectedCell;
   const nextUndoLabel =
     pastHistory.length > 0
@@ -2194,6 +2716,10 @@ export default function App() {
         onUndo={handleUndo}
         onRedo={handleRedo}
         onLoadPreset={handleLoadPreset}
+        campaignLevels={campaignLevelSummaries}
+        activeLevelIndex={activeLevelIndex}
+        onSelectCampaignLevel={handleSelectCampaignLevel}
+        onAddCampaignLevel={handleAddCampaignLevel}
         onSaveMap={handleSaveMap}
         onLoadMapFile={handleLoadMapFile}
         onOpenArchModal={() => setIsArchModalOpen(true)}
@@ -2310,6 +2836,7 @@ export default function App() {
               onEnterPlay={() => {
                 // Start the game from the level as it is now, layers and heights included
                 const playV3 = LevelSerializer.serializeLevelV3({
+                  title: levelTitle,
                   grid,
                   wallTextures,
                   floorTextures,
@@ -2340,6 +2867,10 @@ export default function App() {
           ) : (
           <Viewport3D
             vertical={vertical}
+            campaignLevels={campaignLevelsV3}
+            activeLevelIndex={activeLevelIndex}
+            campaignSettings={campaignSettings}
+            onCampaignLevelChange={handleRuntimeCampaignLevelChange}
             onExitPlay={() => {
               setViewMode('edit');
               if (isPlayFullscreen) setIsPlayFullscreen(false);
@@ -2423,6 +2954,18 @@ export default function App() {
           onBorderWalls={handleBorderWalls}
           onClearGrid={handleClearGrid}
           onResizeMap={handleResizeMap}
+          campaignLevels={campaignLevelSummaries}
+          activeLevelIndex={activeLevelIndex}
+          levelTitle={levelTitle}
+          onSelectCampaignLevel={handleSelectCampaignLevel}
+          onRenameCampaignLevel={handleRenameCampaignLevel}
+          onAddCampaignLevel={handleAddCampaignLevel}
+          onDuplicateCampaignLevel={handleDuplicateCampaignLevel}
+          onDeleteCampaignLevel={handleDeleteCampaignLevel}
+          onMoveCampaignLevel={handleMoveCampaignLevel}
+          campaignSettings={campaignSettings}
+          onUpdateCampaignSettings={handleUpdateCampaignSettings}
+          onPlaceExitOnSelectedCell={handlePlaceExitOnSelectedCell}
           libraryState={libraryState}
           onLibraryChange={setLibraryState}
           selectedVariantKey={modelLibrary.selectedVariant?.key ?? null}

@@ -9,12 +9,13 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  CampaignSettings,
   PlacedEntity,
   PlayerTransform,
   SkyboxThemeId,
   TextureAsset,
 } from '../types/engine';
-import { SimulationState } from '../runtime/sim';
+import { LevelDataV3, SimulationState } from '../runtime/sim';
 import { VerticalLevelData, isFlatVerticalData } from '../runtime/types';
 import { LevelSerializer } from '../engine/LevelSerializer';
 import { GameRuntimeHandle, startGame } from '../runtime/startGame';
@@ -56,6 +57,18 @@ interface Viewport3DProps {
   vertical?: VerticalLevelData;
   /** Shows an Edit button that returns the center pane to the 3D editor */
   onExitPlay?: () => void;
+  /** Full sequence of campaign gameplay levels */
+  campaignLevels?: LevelDataV3[];
+  /** Index of the active level in campaignLevels */
+  activeLevelIndex?: number;
+  /** Health & Ammo carry-over settings between levels */
+  campaignSettings?: CampaignSettings;
+  /** Callback when the player advances to another campaign level during play */
+  onCampaignLevelChange?: (
+    levelIndex: number,
+    carriedStats: { health: number; ammo: number },
+    nextSimState: SimulationState
+  ) => void;
 }
 
 export const Viewport3D: React.FC<Viewport3DProps> = ({
@@ -81,6 +94,10 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   onEngineLog,
   vertical,
   onExitPlay,
+  campaignLevels,
+  activeLevelIndex,
+  campaignSettings,
+  onCampaignLevelChange,
 }) => {
   // Flat levels keep the exact original level data
   const levelVertical = vertical && !isFlatVerticalData(vertical) ? vertical : undefined;
@@ -103,6 +120,9 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
 
   const onEngineLogRef = useRef(onEngineLog);
   onEngineLogRef.current = onEngineLog;
+
+  const onCampaignLevelChangeRef = useRef(onCampaignLevelChange);
+  onCampaignLevelChangeRef.current = onCampaignLevelChange;
 
   useEffect(() => {
     const container = canvasMountRef.current;
@@ -139,11 +159,16 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       collisionEnabled,
       minimapEnabled,
       customTextures,
+      levels: campaignLevels,
+      currentLevelIndex: activeLevelIndex,
+      campaign: campaignSettings,
       onSimStateChange: (nextState) => onSimStateChangeRef.current(nextState),
       onPlayerMove: (transform) => onPlayerMoveRef.current(transform),
       onEngineLog: (msg) => onEngineLogRef.current(msg),
       onPointerLockChange: (locked) => setIsPointerLocked(locked),
       onMinimapToggleRequest: () => onToggleMinimapRef.current(),
+      onLevelChange: (lvlIdx, carried, nextSim) =>
+        onCampaignLevelChangeRef.current?.(lvlIdx, carried, nextSim),
     });
 
     runtimeRef.current = handle;
@@ -180,6 +205,12 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   }, [skyboxTheme, skyboxSeed]);
 
   useEffect(() => {
+    if (campaignSettings) {
+      runtimeRef.current?.setCampaignSettings(campaignSettings);
+    }
+  }, [campaignSettings]);
+
+  useEffect(() => {
     runtimeRef.current?.syncEditorLevel({
       grid,
       wallTextures,
@@ -193,6 +224,9 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       showCeiling,
       minimapEnabled,
       vertical: levelVertical,
+      levels: campaignLevels,
+      currentLevelIndex: activeLevelIndex,
+      campaign: campaignSettings,
     });
   }, [
     levelVertical,
@@ -207,6 +241,9 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     skyboxSeed,
     showCeiling,
     minimapEnabled,
+    campaignLevels,
+    activeLevelIndex,
+    campaignSettings,
   ]);
 
   const isFirstResetEffect = useRef(true);

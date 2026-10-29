@@ -191,4 +191,67 @@ describe('Phase 2 Acceptance: GameManifest wrapping LevelDataV3', () => {
       }
     }
   });
+
+  it('supports multi-level campaigns with Health and Ammo carry-over settings', () => {
+    const level1 = createMinimalArenaTestLevel();
+    const level2 = createFullTestLevel();
+
+    const campaignManifest = createGameManifest(
+      {
+        ...level1,
+        levels: [level1, level2],
+        campaign: { carryOverHealth: true, carryOverAmmo: false },
+      } as any,
+      {
+        title: 'Two-Level Campaign',
+        author: 'Campaign Designer',
+      }
+    );
+
+    assert.equal(campaignManifest.levels?.length, 2);
+    assert.deepEqual(campaignManifest.campaign, {
+      carryOverHealth: true,
+      carryOverAmmo: false,
+    });
+
+    const validation = validateGameManifest(campaignManifest);
+    assert.equal(
+      validation.valid,
+      true,
+      `Multi-level manifest validation errors: ${validation.errors.join(', ')}`
+    );
+
+    // Start game in headless mode with campaign manifest
+    const game = startGame(campaignManifest, null);
+    assert.equal(game.getCurrentLevelIndex(), 0);
+    assert.equal(game.getTotalLevels(), 2);
+
+    // Modify player health to 62 and ammo to 19 in Level 1
+    const sim1 = game.getState();
+    sim1.players[0].health = 62;
+    sim1.players[0].ammo = 19;
+    game.setSimState({ ...sim1 });
+
+    // Advance to Level 2: carryOverHealth=true (should stay 62), carryOverAmmo=false (should reset to default 32)
+    game.advanceToNextLevel();
+    assert.equal(game.getCurrentLevelIndex(), 1);
+
+    const sim2 = game.getState();
+    assert.equal(sim2.players[0].health, 62);
+    assert.equal(sim2.players[0].ammo, 32);
+
+    // Now enable carryOverAmmo as well and test goToLevel / advance
+    game.setCampaignSettings({ carryOverHealth: false, carryOverAmmo: true });
+    sim2.players[0].health = 35;
+    sim2.players[0].ammo = 12;
+    game.setSimState({ ...sim2 });
+
+    // Going back to Level 0 with carryOverHealth=false, carryOverAmmo=true
+    game.goToLevel(0, { health: 100, ammo: 12 });
+    const simBack = game.getState();
+    assert.equal(simBack.players[0].health, 100);
+    assert.equal(simBack.players[0].ammo, 12);
+
+    game.dispose();
+  });
 });

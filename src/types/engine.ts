@@ -21,7 +21,9 @@ import type {
 import {
   AmmoLootSnapshot,
   BuiltInTextureId,
+  CampaignSettings,
   CellType,
+  DEFAULT_CAMPAIGN_SETTINGS,
   DEFAULT_ENTITY_BLUEPRINTS,
   ENGINE_CONFIG,
   EnemyAIState,
@@ -45,6 +47,7 @@ import {
 
 export {
   CellType,
+  DEFAULT_CAMPAIGN_SETTINGS,
   DEFAULT_ENTITY_BLUEPRINTS,
   SKYBOX_THEMES,
   ENGINE_CONFIG,
@@ -69,6 +72,7 @@ export type {
   GridCoord,
   PlayerTransform,
   LevelStateData,
+  CampaignSettings,
 };
 
 /**

@@ -198,7 +198,11 @@ export class TextureGenerator {
       loader.load(
         resolvedUrl,
         (loadedTex) => {
-          tex.image = loadedTex.image;
+          if (this.textureCache.get(cacheKey) !== tex) return;
+          // Release any 256x256 WebGL texStorage2D allocated for the placeholder
+          // canvas before swapping in the loaded image's Source at its true size.
+          tex.dispose();
+          tex.source = loadedTex.source;
           tex.needsUpdate = true;
           if (onAsyncLoad) onAsyncLoad();
         },
