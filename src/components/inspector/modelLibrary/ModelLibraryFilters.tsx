@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, MapPin } from 'lucide-react';
+import { Search, MapPin, X } from 'lucide-react';
 
 interface ModelLibraryFiltersProps {
   search: string;
@@ -23,17 +23,28 @@ export const ModelLibraryFilters: React.FC<ModelLibraryFiltersProps> = ({
 }) => (
   <div className="space-y-1.5">
     <div className="flex gap-1">
-      <label className="relative flex-1 min-w-0">
+      <div className="relative flex-1 min-w-0">
         <Search className="absolute left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[#858585] pointer-events-none" />
         <input
           type="search"
           value={search}
           onChange={(e) => onSearch(e.target.value)}
-          placeholder="Search models or tags..."
-          aria-label="Search models"
-          className="ide-input w-full !pl-5"
+          placeholder="Search models by name or tag..."
+          aria-label="Search models by name"
+          className="ide-input w-full !pl-5 !pr-5"
         />
-      </label>
+        {search && (
+          <button
+            type="button"
+            onClick={() => onSearch('')}
+            aria-label="Clear model search"
+            title="Clear search"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#858585] hover:text-[#cccccc]"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        )}
+      </div>
       <button
         type="button"
         onClick={onToggleUsedOnly}

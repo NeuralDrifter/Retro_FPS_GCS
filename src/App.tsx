@@ -102,6 +102,12 @@ import {
   removeModelCopies,
 } from './engine/modelLibrary/placement';
 import { EntityLoader } from './runtime/EntityLoader';
+import {
+  collectUsedTextureIdsFromMatrices,
+  loadRecentTextureIds,
+  recordRecentTexture,
+  saveRecentTextureIds,
+} from './engine/textureLibrary';
 
 export default function App() {
   const initialPreset = MAP_PRESETS[0];
@@ -234,6 +240,23 @@ export default function App() {
   const [selectedTextureId, setSelectedTextureId] =
     useState<string>('default-grid');
   const [targetSurface, setTargetSurface] = useState<SurfaceTarget>('wall');
+  const [recentTextureIds, setRecentTextureIds] = useState<string[]>(() =>
+    loadRecentTextureIds(
+      collectUsedTextureIdsFromMatrices([
+        wallTextures,
+        floorTextures,
+        ceilingTextures,
+      ])
+    )
+  );
+
+  const trackRecentTexture = useCallback((texId: string) => {
+    setRecentTextureIds((prev) => {
+      const next = recordRecentTexture(prev, texId);
+      saveRecentTextureIds(next);
+      return next;
+    });
+  }, []);
 
   const builtInModel3DAssets = useMemo<Model3DAsset[]>(
     () =>
@@ -827,6 +850,7 @@ export default function App() {
 
   const applyTextureToCell = useCallback(
     (row: number, col: number, surface: SurfaceTarget, texId: string) => {
+      trackRecentTexture(texId);
       if (surface === 'wall') {
         setActiveWallTextures((prev) => {
           const next = prev.map((r) => [...r]);
@@ -848,7 +872,12 @@ export default function App() {
         setShowCeiling(true);
       }
     },
-    [setActiveWallTextures, setActiveFloorTextures, setActiveCeilingTextures]
+    [
+      trackRecentTexture,
+      setActiveWallTextures,
+      setActiveFloorTextures,
+      setActiveCeilingTextures,
+    ]
   );
 
   const handleAssignCellTextureFromInspector = useCallback(
@@ -897,6 +926,7 @@ export default function App() {
   const handleFillSurfaceWithTexture = useCallback(
     (surface: SurfaceTarget, texId: string) => {
       recordHistorySnapshot(`Fill all ${surface}s with '${texId}'`);
+      trackRecentTexture(texId);
       if (surface === 'wall') {
         setActiveWallTextures((prev) => createUniformTextureMatrix(texId, prev.length));
       } else if (surface === 'floor') {
@@ -909,7 +939,13 @@ export default function App() {
       }
       setEngineLog(`Assets: Applied texture '${texId}' to all ${surface} cells.`);
     },
-    [recordHistorySnapshot, setActiveWallTextures, setActiveFloorTextures, setActiveCeilingTextures]
+    [
+      recordHistorySnapshot,
+      trackRecentTexture,
+      setActiveWallTextures,
+      setActiveFloorTextures,
+      setActiveCeilingTextures,
+    ]
   );
 
   /**
@@ -2213,19 +2249,27 @@ export default function App() {
     }));
   }, [recordHistorySnapshot]);
 
-  const handleSelectTexture = useCallback((id: string) => {
-    setSelectedTextureId(id);
-    setToolMode((prev) => (prev !== 'paint' && prev !== 'toggle' ? 'paint' : prev));
-  }, []);
+  const handleSelectTexture = useCallback(
+    (id: string) => {
+      setSelectedTextureId(id);
+      trackRecentTexture(id);
+      setToolMode((prev) => (prev !== 'paint' && prev !== 'toggle' ? 'paint' : prev));
+    },
+    [trackRecentTexture]
+  );
 
   const handleChangeTargetSurface = useCallback((surf: SurfaceTarget) => {
     setTargetSurface(surf);
     setToolMode('paint');
   }, []);
 
-  const handleAddCustomTexture = useCallback((asset: TextureAsset) => {
-    setCustomTextures((prev) => [...prev, asset]);
-  }, []);
+  const handleAddCustomTexture = useCallback(
+    (asset: TextureAsset) => {
+      setCustomTextures((prev) => [...prev, asset]);
+      trackRecentTexture(asset.id);
+    },
+    [trackRecentTexture]
+  );
 
   const handleSetSpawnCell = useCallback(
     (row: number, col: number) => {
@@ -2456,9 +2500,10 @@ export default function App() {
       setLayerTexture(hit.layer, hit.surface, row, col, texId);
       if (hit.surface === 'ceiling') setShowCeiling(true);
       setSelectedTextureId(texId);
+      trackRecentTexture(texId);
       setEngineLog(`3D Paint: Applied '${texId}' to the ${hit.surface} at [X:${col}, Z:${row}].`);
     },
-    [grid.length, recordHistorySnapshot, setLayerTexture]
+    [grid.length, recordHistorySnapshot, setLayerTexture, trackRecentTexture]
   );
 
   const handleCommitEntityTransform = useCallback(
@@ -2923,6 +2968,7 @@ export default function App() {
           selectedEntityId={selectedEntityId}
           layerCount={vertical.layers.length + 1}
           textures={allTextures}
+          recentTextureIds={recentTextureIds}
           selectedTextureId={selectedTextureId}
           onSelectTexture={handleSelectTexture}
           targetSurface={targetSurface}

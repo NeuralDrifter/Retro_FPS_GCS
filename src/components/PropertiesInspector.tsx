@@ -32,6 +32,7 @@ export interface PropertiesInspectorProps {
   floorTextures: string[][];
   ceilingTextures: string[][];
   textures: TextureAsset[];
+  recentTextureIds: string[];
   selectedTextureId: string;
   onSelectTexture: (id: string) => void;
   targetSurface: SurfaceTarget;
@@ -209,6 +210,7 @@ export const PropertiesInspector: React.FC<PropertiesInspectorProps> = React.mem
         {activeTab === 'assets' && (
           <AssetLibraryTab
             textures={props.textures}
+            recentTextureIds={props.recentTextureIds}
             selectedTextureId={props.selectedTextureId}
             onSelectTexture={props.onSelectTexture}
             targetSurface={props.targetSurface}

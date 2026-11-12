@@ -24,9 +24,11 @@ import {
 } from '../../engine/modelLibrary/libraryState';
 import { ModelDefaultsEditor } from './modelLibrary/ModelDefaultsEditor';
 import {
+  MAX_RECENT_TEXTURES,
   TextureFolderFilter,
   buildTextureFolderTree,
   filterTextures,
+  resolveRecentTextures,
 } from '../../engine/textureLibrary';
 import { getCategoryInfo } from '../../engine/modelLibrary/categories';
 import { groupPlacementsIntoVariants } from '../../engine/modelLibrary/variants';
@@ -45,19 +47,23 @@ import {
 } from '../../engine/modelLibrary/uploadStore';
 import {
   Check,
+  Clock,
   Download,
   FolderGit2,
   GripVertical,
   PaintBucket,
   RefreshCw,
+  Search,
   Trash2,
   Upload,
+  X,
 } from 'lucide-react';
 
 const ASSET_GRID_PAGE_SIZE = 48;
 
 interface AssetLibraryTabProps {
   textures: TextureAsset[];
+  recentTextureIds?: string[];
   selectedTextureId: string;
   onSelectTexture: (id: string) => void;
   targetSurface: SurfaceTarget;
@@ -135,6 +141,7 @@ function buildCustomModel3DAsset(params: {
 
 export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
   textures,
+  recentTextureIds = [],
   selectedTextureId,
   onSelectTexture,
   targetSurface,
@@ -189,6 +196,10 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
   const [confirmDeleteModelId, setConfirmDeleteModelId] = useState<string | null>(null);
 
   const textureFolders = useMemo(() => buildTextureFolderTree(textures), [textures]);
+  const recentTextures = useMemo(
+    () => resolveRecentTextures(textures, recentTextureIds, MAX_RECENT_TEXTURES),
+    [textures, recentTextureIds]
+  );
   const displayedTextures = useMemo(
     () => filterTextures(textures, texFolder, texSearch),
     [textures, texFolder, texSearch]
@@ -498,6 +509,35 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
         </div>
 
         <div className="p-2.5 space-y-2.5">
+          <div className="relative">
+            <Search className="absolute left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[#858585] pointer-events-none" />
+            <input
+              type="search"
+              value={texSearch}
+              onChange={(e) => {
+                setTexSearch(e.target.value);
+                setTexLimit(ASSET_GRID_PAGE_SIZE);
+              }}
+              placeholder="Search textures by name..."
+              aria-label="Search textures by name"
+              className="ide-input w-full !pl-5 !pr-5"
+            />
+            {texSearch && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTexSearch('');
+                  setTexLimit(ASSET_GRID_PAGE_SIZE);
+                }}
+                aria-label="Clear texture search"
+                title="Clear search"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#858585] hover:text-[#cccccc]"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="ide-label">Drop / Paint Target Surface</span>
@@ -519,6 +559,73 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* RECENT TEXTURES (LAST 5 USED IN PROJECT) */}
+          <div
+            aria-label="Recent Textures"
+            className="p-2 bg-[#181818] border border-[#2d2d30] rounded-[2px] space-y-1.5"
+          >
+            <div className="flex items-center justify-between">
+              <span className="ide-label flex items-center gap-1 text-[#cccccc]">
+                <Clock className="w-2.5 h-2.5 text-[#4ec9b0]" />
+                <span>Recent Textures</span>
+              </span>
+              <span className="font-mono text-[9px] text-[#858585]">
+                LAST {recentTextures.length}/{MAX_RECENT_TEXTURES}
+              </span>
+            </div>
+
+            {recentTextures.length === 0 ? (
+              <div className="py-1.5 text-center text-[10px] text-[#858585]">
+                Select or paint a texture to pin it here.
+              </div>
+            ) : (
+              <div className="grid grid-cols-5 gap-1">
+                {recentTextures.map((tex) => {
+                  const isSelected = tex.id === selectedTextureId;
+                  const isBeingDragged = tex.id === draggingTexId;
+                  return (
+                    <button
+                      key={tex.id}
+                      type="button"
+                      draggable={true}
+                      onDragStart={(e) => handleTextureDragStart(e, tex)}
+                      onDragEnd={() => setDraggingTexId(null)}
+                      onClick={() => onSelectTexture(tex.id)}
+                      title={`Recent: '${tex.name}' — Click to select or drag onto 2D/3D view (${targetSurface})`}
+                      className={`group relative p-0.5 rounded-[2px] border text-left cursor-grab active:cursor-grabbing select-none transition-colors ${
+                        isBeingDragged
+                          ? 'border-[#4ec9b0] bg-[#094771]/70 opacity-75'
+                          : isSelected
+                          ? 'border-[#478cbf] bg-[#094771]/60'
+                          : 'border-[#333333] bg-[#111111] hover:border-[#555558]'
+                      }`}
+                    >
+                      <div className="relative w-full aspect-square bg-[#111111] overflow-hidden">
+                        <img
+                          src={tex.previewUrl}
+                          alt={tex.name}
+                          draggable={false}
+                          loading="lazy"
+                          decoding="async"
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover pointer-events-none"
+                        />
+                        {isSelected && (
+                          <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-[#478cbf] text-white flex items-center justify-center">
+                            <Check className="w-2 h-2" />
+                          </span>
+                        )}
+                      </div>
+                      <span className="mt-0.5 block text-[9px] leading-tight truncate text-[#cccccc] text-center">
+                        {tex.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between gap-1 pt-0.5">
@@ -553,17 +660,6 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
               <span>Fill {targetSurface}s</span>
             </button>
           </div>
-
-          <input
-            type="search"
-            value={texSearch}
-            onChange={(e) => {
-              setTexSearch(e.target.value);
-              setTexLimit(ASSET_GRID_PAGE_SIZE);
-            }}
-            placeholder="Search textures by name"
-            className="ide-input w-full"
-          />
 
           {displayedTextures.length === 0 ? (
             <div className="p-3 bg-[#181818] border border-dashed border-[#3e3e42] text-center text-[11px] text-[#858585]">
@@ -711,28 +807,6 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
         </div>
 
         <div className="p-2.5 space-y-2.5">
-          <ModelFolderTree
-            state={libraryState}
-            selectedFolderId={selectedFolderId}
-            onSelectFolder={(id) => {
-              setSelectedFolderId(id);
-              setModelLimit(ASSET_GRID_PAGE_SIZE);
-            }}
-            onCreateFolder={(name, parentId) =>
-              applyLibraryEdit(() => createFolder(libraryState, name, parentId).state)
-            }
-            onRenameFolder={(id, name) =>
-              applyLibraryEdit(() => renameFolder(libraryState, id, name))
-            }
-            onDeleteFolder={(id) => {
-              applyLibraryEdit(() => deleteFolder(libraryState, id));
-              if (selectedFolderId === id) setSelectedFolderId(null);
-            }}
-            onDropModel={(modelId, folderId) =>
-              onLibraryChange((prev) => moveModelToFolder(prev, modelId, folderId))
-            }
-          />
-
           <ModelLibraryFilters
             search={modelSearch}
             onSearch={(val) => {
@@ -754,6 +828,28 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
               setModelLimit(ASSET_GRID_PAGE_SIZE);
               setUsedOnly((prev) => !prev);
             }}
+          />
+
+          <ModelFolderTree
+            state={libraryState}
+            selectedFolderId={selectedFolderId}
+            onSelectFolder={(id) => {
+              setSelectedFolderId(id);
+              setModelLimit(ASSET_GRID_PAGE_SIZE);
+            }}
+            onCreateFolder={(name, parentId) =>
+              applyLibraryEdit(() => createFolder(libraryState, name, parentId).state)
+            }
+            onRenameFolder={(id, name) =>
+              applyLibraryEdit(() => renameFolder(libraryState, id, name))
+            }
+            onDeleteFolder={(id) => {
+              applyLibraryEdit(() => deleteFolder(libraryState, id));
+              if (selectedFolderId === id) setSelectedFolderId(null);
+            }}
+            onDropModel={(modelId, folderId) =>
+              onLibraryChange((prev) => moveModelToFolder(prev, modelId, folderId))
+            }
           />
 
           {usedOnly && (

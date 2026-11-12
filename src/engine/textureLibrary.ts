@@ -98,3 +98,100 @@ export function filterTextures(
     return inFolder && (!query || t.name.toLowerCase().includes(query));
   });
 }
+
+export const MAX_RECENT_TEXTURES = 5;
+const RECENT_TEXTURES_STORAGE_KEY = 'gridforge.recentTextures.v1';
+
+/**
+ * Records `textureId` as the most recently used texture (index 0),
+ * deduplicating any prior occurrence and capping the list at `maxCount` (default 5).
+ */
+export function recordRecentTexture(
+  recentIds: readonly string[],
+  textureId: string,
+  maxCount: number = MAX_RECENT_TEXTURES
+): string[] {
+  const trimmed = textureId.trim();
+  if (!trimmed) return recentIds.slice(0, maxCount);
+  const next = [trimmed, ...recentIds.filter((id) => id !== trimmed)];
+  return next.slice(0, maxCount);
+}
+
+/**
+ * Resolves an ordered list of recent texture IDs against the available `textures` library,
+ * preserving most-recently-used order and skipping any missing IDs.
+ */
+export function resolveRecentTextures(
+  textures: readonly TextureAsset[],
+  recentIds: readonly string[],
+  maxCount: number = MAX_RECENT_TEXTURES
+): TextureAsset[] {
+  const byId = new Map(textures.map((t) => [t.id, t]));
+  const resolved: TextureAsset[] = [];
+  const seen = new Set<string>();
+  for (const id of recentIds) {
+    if (seen.has(id)) continue;
+    const found = byId.get(id);
+    if (found) {
+      seen.add(id);
+      resolved.push(found);
+      if (resolved.length >= maxCount) break;
+    }
+  }
+  return resolved;
+}
+
+/**
+ * Extracts up to `maxCount` unique texture IDs currently used across a level's surface matrices.
+ */
+export function collectUsedTextureIdsFromMatrices(
+  matrices: readonly (readonly (readonly string[])[])[],
+  maxCount: number = MAX_RECENT_TEXTURES
+): string[] {
+  const seen = new Set<string>();
+  for (const mat of matrices) {
+    for (const row of mat) {
+      for (const id of row) {
+        if (typeof id === 'string' && id.trim()) {
+          seen.add(id.trim());
+          if (seen.size >= maxCount) return [...seen];
+        }
+      }
+    }
+  }
+  return [...seen];
+}
+
+export function loadRecentTextureIds(
+  fallbackIds: readonly string[] = []
+): string[] {
+  try {
+    if (typeof localStorage === 'undefined') {
+      return fallbackIds.slice(0, MAX_RECENT_TEXTURES);
+    }
+    const raw = localStorage.getItem(RECENT_TEXTURES_STORAGE_KEY);
+    if (!raw) return fallbackIds.slice(0, MAX_RECENT_TEXTURES);
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return fallbackIds.slice(0, MAX_RECENT_TEXTURES);
+    const valid = parsed.filter(
+      (item): item is string => typeof item === 'string' && item.trim().length > 0
+    );
+    return valid.length > 0
+      ? valid.slice(0, MAX_RECENT_TEXTURES)
+      : fallbackIds.slice(0, MAX_RECENT_TEXTURES);
+  } catch {
+    return fallbackIds.slice(0, MAX_RECENT_TEXTURES);
+  }
+}
+
+export function saveRecentTextureIds(recentIds: readonly string[]): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(
+      RECENT_TEXTURES_STORAGE_KEY,
+      JSON.stringify(recentIds.slice(0, MAX_RECENT_TEXTURES))
+    );
+  } catch {
+    // Ignore storage quota or private browsing errors
+  }
+}

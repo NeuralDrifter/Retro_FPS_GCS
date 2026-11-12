@@ -2,9 +2,13 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { TextureAsset } from '../../types/engine';
 import {
+  MAX_RECENT_TEXTURES,
   buildTextureFolderTree,
+  collectUsedTextureIdsFromMatrices,
   filterTextures,
   parseTextureDiskPath,
+  recordRecentTexture,
+  resolveRecentTextures,
 } from '../textureLibrary';
 import {
   buildAssetsFromRepoPaths,
@@ -71,6 +75,41 @@ describe('Texture library folders', () => {
     assert.deepEqual(ids('Horror'), ['brick', 'metal']);
     assert.deepEqual(ids('Horror/Brick'), ['brick']);
     assert.deepEqual(ids('all', 'metal'), ['metal']);
+  });
+
+  it('recordRecentTexture and resolveRecentTextures track and display the last 5 used textures in MRU order', () => {
+    assert.equal(MAX_RECENT_TEXTURES, 5);
+    let recent: string[] = [];
+    for (const id of ['t1', 't2', 't3', 't4', 't5']) {
+      recent = recordRecentTexture(recent, id);
+    }
+    assert.deepEqual(recent, ['t5', 't4', 't3', 't2', 't1']);
+
+    // Re-using t2 moves it to the front without duplicating or changing length
+    recent = recordRecentTexture(recent, 't2');
+    assert.deepEqual(recent, ['t2', 't5', 't4', 't3', 't1']);
+
+    // Using a 6th distinct texture ('t6') drops the oldest ('t1')
+    recent = recordRecentTexture(recent, 't6');
+    assert.deepEqual(recent, ['t6', 't2', 't5', 't4', 't3']);
+
+    // Empty texture IDs are ignored
+    assert.deepEqual(recordRecentTexture(recent, '   '), ['t6', 't2', 't5', 't4', 't3']);
+
+    // resolveRecentTextures maps IDs to TextureAsset objects and skips missing IDs
+    const library = [tex('t1'), tex('t2'), tex('t3'), tex('t4'), tex('t5'), tex('t6')];
+    assert.deepEqual(
+      resolveRecentTextures(library, ['t6', 'missing-id', 't2', 't5', 't4', 't3']).map((t) => t.id),
+      ['t6', 't2', 't5', 't4', 't3']
+    );
+
+    // collectUsedTextureIdsFromMatrices extracts up to 5 unique texture IDs from surface matrices
+    const seeded = collectUsedTextureIdsFromMatrices([
+      [['wall-a', 'wall-b'], ['wall-a', 'wall-c']],
+      [['floor-a', 'floor-b']],
+      [['ceil-a', 'ceil-b']],
+    ]);
+    assert.deepEqual(seeded, ['wall-a', 'wall-b', 'wall-c', 'floor-a', 'floor-b']);
   });
 
   it('parseGitHubRepoSpec parses full GitHub URLs and owner/repo shorthands', () => {
