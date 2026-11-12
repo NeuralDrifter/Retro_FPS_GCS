@@ -8,7 +8,7 @@
  * standalone builds render identically without Tailwind.
  */
 
-import { PlayerCombatState } from '../types';
+import { CampaignSettings, DEFAULT_CAMPAIGN_SETTINGS, ENGINE_CONFIG, PlayerCombatState } from '../types';
 import { SIM_CONFIG, SimulationState } from '../sim';
 import { HUD_ICONS } from './icons';
 
@@ -18,6 +18,11 @@ export interface CombatHUDStateProps {
   isMuzzleFlashing: boolean;
   isHitMarkerActive: boolean;
   isPlayerHurtFlashing: boolean;
+  currentLevelIndex?: number;
+  totalLevels?: number;
+  currentLevelTitle?: string;
+  nextLevelTitle?: string;
+  campaign?: CampaignSettings;
 }
 
 export interface CombatHUDCallbacks {
@@ -25,11 +30,15 @@ export interface CombatHUDCallbacks {
   onReloadAmmo: () => void;
   onUseAction: () => void;
   onRespawnPlayer: () => void;
+  onNextLevel?: () => void;
+  onRestartCampaign?: () => void;
 }
 
 export class CombatHUDController {
   private root: HTMLElement;
   private hurtVignetteEl: HTMLDivElement;
+  private levelBadgeEl: HTMLDivElement;
+  private levelBadgeTextEl: HTMLSpanElement;
   private messageBannerEl: HTMLDivElement;
   private messageTextEl: HTMLSpanElement;
   private reticleBoxEl: HTMLDivElement;
@@ -46,6 +55,12 @@ export class CombatHUDController {
   private levelCompleteTimeEl: HTMLSpanElement;
   private levelCompleteSecretsEl: HTMLSpanElement;
   private levelCompleteKillsEl: HTMLSpanElement;
+  private levelCompleteCarryOverRowEl: HTMLDivElement;
+  private levelCompleteCarryOverEl: HTMLSpanElement;
+  private nextLevelBtnEl: HTMLButtonElement;
+  private nextLevelBtnTextEl: HTMLSpanElement;
+  private restartCampaignBtnEl: HTMLButtonElement;
+  private respawnCompleteBtnEl: HTMLButtonElement;
   private healthValueEl: HTMLSpanElement;
   private healthBarFillEl: HTMLDivElement;
   private killsValueEl: HTMLSpanElement;
@@ -74,6 +89,19 @@ export class CombatHUDController {
     this.hurtVignetteEl.style.cssText =
       'position:absolute;inset:0;pointer-events:none;z-index:10;border:4px solid #d14d41;background:rgba(209,77,65,0.15);display:none;';
     this.root.appendChild(this.hurtVignetteEl);
+
+    // 1A. Top-Left Campaign Level Indicator Badge (shown when totalLevels > 1)
+    this.levelBadgeEl = document.createElement('div');
+    this.levelBadgeEl.className =
+      'pointer-events-none absolute top-2.5 left-2.5 z-20 bg-[#252526]/95 border border-[#3e3e42] px-2.5 py-1 text-[10px] font-mono text-[#cccccc] flex items-center gap-1.5';
+    this.levelBadgeEl.style.cssText =
+      'position:absolute;top:10px;left:10px;pointer-events:none;z-index:20;background:rgba(37,37,38,0.95);border:1px solid #3e3e42;padding:4px 10px;font-size:10px;font-family:"JetBrains Mono",monospace;color:#cccccc;display:none;align-items:center;gap:6px;';
+    const levelDot = document.createElement('span');
+    levelDot.style.cssText =
+      'width:6px;height:6px;background:#4ec9b0;display:inline-block;flex-shrink:0;';
+    this.levelBadgeTextEl = document.createElement('span');
+    this.levelBadgeEl.append(levelDot, this.levelBadgeTextEl);
+    this.root.appendChild(this.levelBadgeEl);
 
     // 1B. Top Event Message Banner
     this.messageBannerEl = document.createElement('div');
@@ -236,11 +264,25 @@ export class CombatHUDController {
             <span class="text-[#858585]" style="color:#858585;">Hostiles Eliminated:</span>
             <span data-field="complete-kills" class="text-[#cccccc] font-semibold tabular-nums" style="color:#cccccc;font-weight:600;">0 / 0</span>
           </div>
+          <div data-field="complete-carryover-row" class="pt-1.5 mt-1.5 border-t border-[#333333] flex items-center justify-between" style="display:none;padding-top:6px;margin-top:6px;border-top:1px solid #333333;align-items:center;justify-content:space-between;">
+            <span class="text-[#858585]" style="color:#858585;">Next Level Status:</span>
+            <span data-field="complete-carryover" class="text-[#38bdf8] font-semibold" style="color:#38bdf8;font-weight:600;">HP & Ammo Carry Over</span>
+          </div>
         </div>
-        <button type="button" data-action="respawn-complete" class="ide-btn ide-btn--primary w-full" style="width:100%;">
-          ${HUD_ICONS.rotateCcw(14)}
-          <span>Replay Level from Start</span>
-        </button>
+        <div class="space-y-1.5" style="display:flex;flex-direction:column;gap:6px;">
+          <button type="button" data-action="next-level" class="ide-btn ide-btn--primary w-full" style="width:100%;display:none;">
+            <span data-field="next-level-text">Continue to Next Level</span>
+            ${HUD_ICONS.arrowRight(14)}
+          </button>
+          <button type="button" data-action="restart-campaign" class="ide-btn ide-btn--primary w-full" style="width:100%;display:none;">
+            ${HUD_ICONS.rotateCcw(14)}
+            <span>Restart Campaign (Level 1)</span>
+          </button>
+          <button type="button" data-action="respawn-complete" class="ide-btn ide-btn--primary w-full" style="width:100%;">
+            ${HUD_ICONS.rotateCcw(14)}
+            <span>Replay Level from Start</span>
+          </button>
+        </div>
       </div>
     `;
     this.levelCompleteTitleEl = this.levelCompleteModalEl.querySelector(
@@ -258,10 +300,32 @@ export class CombatHUDController {
     this.levelCompleteKillsEl = this.levelCompleteModalEl.querySelector(
       '[data-field="complete-kills"]'
     ) as HTMLSpanElement;
-    const respawnCompleteBtn = this.levelCompleteModalEl.querySelector(
+    this.levelCompleteCarryOverRowEl = this.levelCompleteModalEl.querySelector(
+      '[data-field="complete-carryover-row"]'
+    ) as HTMLDivElement;
+    this.levelCompleteCarryOverEl = this.levelCompleteModalEl.querySelector(
+      '[data-field="complete-carryover"]'
+    ) as HTMLSpanElement;
+    this.nextLevelBtnEl = this.levelCompleteModalEl.querySelector(
+      '[data-action="next-level"]'
+    ) as HTMLButtonElement;
+    this.nextLevelBtnTextEl = this.levelCompleteModalEl.querySelector(
+      '[data-field="next-level-text"]'
+    ) as HTMLSpanElement;
+    this.restartCampaignBtnEl = this.levelCompleteModalEl.querySelector(
+      '[data-action="restart-campaign"]'
+    ) as HTMLButtonElement;
+    this.respawnCompleteBtnEl = this.levelCompleteModalEl.querySelector(
       '[data-action="respawn-complete"]'
     ) as HTMLButtonElement;
-    respawnCompleteBtn.addEventListener('click', () =>
+
+    this.nextLevelBtnEl.addEventListener('click', () =>
+      callbacks.onNextLevel?.()
+    );
+    this.restartCampaignBtnEl.addEventListener('click', () =>
+      callbacks.onRestartCampaign?.()
+    );
+    this.respawnCompleteBtnEl.addEventListener('click', () =>
       callbacks.onRespawnPlayer()
     );
     this.root.appendChild(this.levelCompleteModalEl);
@@ -449,10 +513,24 @@ export class CombatHUDController {
       isMuzzleFlashing,
       isHitMarkerActive,
       isPlayerHurtFlashing,
+      currentLevelIndex = 0,
+      totalLevels = 1,
+      currentLevelTitle,
+      nextLevelTitle,
+      campaign = DEFAULT_CAMPAIGN_SETTINGS,
     } = props;
 
     // 1. Hurt Vignette
     this.hurtVignetteEl.style.display = isPlayerHurtFlashing ? 'block' : 'none';
+
+    // 1A. Campaign Level Indicator Badge
+    if (totalLevels > 1) {
+      const titleSuffix = currentLevelTitle ? ` — ${currentLevelTitle}` : '';
+      this.levelBadgeTextEl.textContent = `LEVEL ${currentLevelIndex + 1}/${totalLevels}${titleSuffix}`;
+      this.levelBadgeEl.style.display = 'flex';
+    } else {
+      this.levelBadgeEl.style.display = 'none';
+    }
 
     // 1B. Top Event Message Banner
     const latestMessage =
@@ -529,18 +607,62 @@ export class CombatHUDController {
     );
 
     if (simState.levelEnded) {
+      const hasNextLevel = currentLevelIndex + 1 < totalLevels;
+      const isFinalCampaignLevel = totalLevels > 1 && !hasNextLevel;
+
       this.levelCompleteModalEl.style.display = 'flex';
-      this.levelCompleteTitleEl.textContent = simState.secretExitTriggered
-        ? 'Secret Sector Exit Reached!'
-        : 'Sector Cleared — Level Complete';
+      if (isFinalCampaignLevel) {
+        this.levelCompleteTitleEl.textContent =
+          'Campaign Complete — All Levels Cleared!';
+      } else if (simState.secretExitTriggered) {
+        this.levelCompleteTitleEl.textContent = 'Secret Sector Exit Reached!';
+      } else if (totalLevels > 1) {
+        this.levelCompleteTitleEl.textContent = `Level ${currentLevelIndex + 1} / ${totalLevels} Complete`;
+      } else {
+        this.levelCompleteTitleEl.textContent =
+          'Sector Cleared — Level Complete';
+      }
+
       this.levelCompleteMsgEl.textContent = latestMessage
         ? latestMessage.text
+        : isFinalCampaignLevel
+        ? 'Congratulations! You have completed all levels in this game.'
         : 'All mission extraction objectives verified.';
       this.levelCompleteTimeEl.textContent = `${completionSeconds}s (${simState.tick} ticks)`;
       this.levelCompleteSecretsEl.textContent = `${
         simState.secretsFound
       } / ${Math.max(1, totalSecretEvents)}`;
       this.levelCompleteKillsEl.textContent = `${combatState.kills} / ${combatState.totalEnemies}`;
+
+      if (hasNextLevel) {
+        const nextHp = campaign.carryOverHealth
+          ? `${Math.max(1, Math.round(combatState.health))} HP (Carry)`
+          : `${ENGINE_CONFIG.PLAYER_MAX_HEALTH} HP (Reset)`;
+        const nextAmmo = campaign.carryOverAmmo
+          ? `${Math.round(combatState.ammo)} Ammo (Carry)`
+          : `${ENGINE_CONFIG.PLAYER_START_AMMO} Ammo (Reset)`;
+        this.levelCompleteCarryOverEl.textContent = `${nextHp} • ${nextAmmo}`;
+        this.levelCompleteCarryOverRowEl.style.display = 'flex';
+
+        const nextLabel = nextLevelTitle
+          ? `Continue to Level ${currentLevelIndex + 2}: ${nextLevelTitle}`
+          : `Continue to Level ${currentLevelIndex + 2}`;
+        this.nextLevelBtnTextEl.textContent = nextLabel;
+        this.nextLevelBtnEl.style.display = 'inline-flex';
+        this.restartCampaignBtnEl.style.display = 'none';
+        this.respawnCompleteBtnEl.className = 'ide-btn w-full';
+      } else if (isFinalCampaignLevel) {
+        this.levelCompleteCarryOverRowEl.style.display = 'none';
+        this.nextLevelBtnEl.style.display = 'none';
+        this.restartCampaignBtnEl.style.display = 'inline-flex';
+        this.respawnCompleteBtnEl.className = 'ide-btn w-full';
+      } else {
+        this.levelCompleteCarryOverRowEl.style.display = 'none';
+        this.nextLevelBtnEl.style.display = 'none';
+        this.restartCampaignBtnEl.style.display = 'none';
+        this.respawnCompleteBtnEl.className =
+          'ide-btn ide-btn--primary w-full';
+      }
     } else {
       this.levelCompleteModalEl.style.display = 'none';
     }

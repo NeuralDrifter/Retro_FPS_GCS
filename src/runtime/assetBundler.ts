@@ -132,88 +132,111 @@ export function collectReferencedAssets(
 
 /**
  * Comprehensive asset collector returning both filtered (non-builtin) and
- * all referenced asset IDs.
+ * all referenced asset IDs across the primary level and any campaign levels.
  */
 export function collectAllReferencedAssets(
   levelInput: LevelDataV3 | LevelStateData | GameManifest
 ): AllReferencedAssets {
-  const level: LevelDataV3 =
+  const primaryLevel: LevelDataV3 =
     'level' in levelInput && typeof (levelInput as any).level === 'object'
       ? (levelInput as GameManifest).level
       : (levelInput as LevelDataV3);
 
+  const extraLevels: (LevelDataV3 | LevelStateData)[] =
+    'levels' in levelInput && Array.isArray((levelInput as any).levels)
+      ? ((levelInput as any).levels as (LevelDataV3 | LevelStateData)[])
+      : [];
+
+  const levelsToScan: (LevelDataV3 | LevelStateData)[] = [
+    primaryLevel,
+    ...extraLevels,
+  ];
+
   const textureIdSet = new Set<string>();
   const modelIdSet = new Set<string>();
 
-  // 1. Scan cell textures
-  if (Array.isArray(level.wallTextures)) {
-    for (const row of level.wallTextures) {
-      if (Array.isArray(row)) {
-        for (const id of row) {
-          if (id) textureIdSet.add(id);
-        }
-      }
-    }
-  }
-  if (Array.isArray(level.floorTextures)) {
-    for (const row of level.floorTextures) {
-      if (Array.isArray(row)) {
-        for (const id of row) {
-          if (id) textureIdSet.add(id);
-        }
-      }
-    }
-  }
-  if (Array.isArray(level.ceilingTextures)) {
-    for (const row of level.ceilingTextures) {
-      if (Array.isArray(row)) {
-        for (const id of row) {
-          if (id) textureIdSet.add(id);
-        }
-      }
-    }
-  }
+  for (const level of levelsToScan) {
+    if (!level || typeof level !== 'object') continue;
 
-  // 1b. Scan the textures of stacked layers
-  if (Array.isArray(level.layers)) {
-    for (const layer of level.layers) {
-      for (const mat of [layer?.wallTextures, layer?.floorTextures, layer?.ceilingTextures]) {
-        if (!Array.isArray(mat)) continue;
-        for (const row of mat) {
-          if (Array.isArray(row)) {
-            for (const id of row) {
-              if (id) textureIdSet.add(id);
+    // 1. Scan cell textures
+    if (Array.isArray(level.wallTextures)) {
+      for (const row of level.wallTextures) {
+        if (Array.isArray(row)) {
+          for (const id of row) {
+            if (id) textureIdSet.add(id);
+          }
+        }
+      }
+    }
+    if (Array.isArray(level.floorTextures)) {
+      for (const row of level.floorTextures) {
+        if (Array.isArray(row)) {
+          for (const id of row) {
+            if (id) textureIdSet.add(id);
+          }
+        }
+      }
+    }
+    if (Array.isArray(level.ceilingTextures)) {
+      for (const row of level.ceilingTextures) {
+        if (Array.isArray(row)) {
+          for (const id of row) {
+            if (id) textureIdSet.add(id);
+          }
+        }
+      }
+    }
+
+    // 1b. Scan the textures of stacked layers (v3 `layers` or editor `vertical.layers`)
+    const stackedLayers = Array.isArray((level as LevelDataV3).layers)
+      ? (level as LevelDataV3).layers
+      : Array.isArray((level as LevelStateData).vertical?.layers)
+      ? (level as LevelStateData).vertical?.layers
+      : undefined;
+    if (Array.isArray(stackedLayers)) {
+      for (const layer of stackedLayers) {
+        for (const mat of [
+          layer?.wallTextures,
+          layer?.floorTextures,
+          layer?.ceilingTextures,
+        ]) {
+          if (!Array.isArray(mat)) continue;
+          for (const row of mat) {
+            if (Array.isArray(row)) {
+              for (const id of row) {
+                if (id) textureIdSet.add(id);
+              }
             }
           }
         }
       }
     }
-  }
 
-  // 2. Scan event actions (including nested actions)
-  if (Array.isArray(level.events)) {
-    for (const evt of level.events) {
-      walkActions(evt.actions, (action) => {
-        if (action.type === 'set_wall_texture') {
-          if (action.texture_id) textureIdSet.add(action.texture_id);
-        } else if (action.type === 'set_floor_texture') {
-          if (action.texture_id) textureIdSet.add(action.texture_id);
-        } else if (action.type === 'set_ceiling_texture') {
-          if (action.texture_id) textureIdSet.add(action.texture_id);
-        } else if (action.type === 'spawn_entity') {
-          const modelId =
-            (action as any).modelAssetId || action.blueprintId;
-          if (modelId) modelIdSet.add(modelId);
-        }
-      });
+    // 2. Scan event actions (including nested actions)
+    if (Array.isArray(level.events)) {
+      for (const evt of level.events) {
+        walkActions(evt.actions, (action) => {
+          if (action.type === 'set_wall_texture') {
+            if (action.texture_id) textureIdSet.add(action.texture_id);
+          } else if (action.type === 'set_floor_texture') {
+            if (action.texture_id) textureIdSet.add(action.texture_id);
+          } else if (action.type === 'set_ceiling_texture') {
+            if (action.texture_id) textureIdSet.add(action.texture_id);
+          } else if (action.type === 'spawn_entity') {
+            const modelId =
+              (action as any).modelAssetId || action.blueprintId;
+            if (modelId) modelIdSet.add(modelId);
+          }
+        });
+      }
     }
-  }
 
-  // 3. Scan placed entities
-  if (Array.isArray(level.entities)) {
-    for (const ent of level.entities) {
-      const modelId = ent.modelAssetId || ent.blueprintId;
-      if (modelId) modelIdSet.add(modelId);
+    // 3. Scan placed entities
+    if (Array.isArray(level.entities)) {
+      for (const ent of level.entities) {
+        const modelId = ent.modelAssetId || ent.blueprintId;
+        if (modelId) modelIdSet.add(modelId);
+      }
     }
   }
 
@@ -659,7 +682,7 @@ export async function bundleLevelAssets(
   options: BundleOptions = {}
 ): Promise<AssetBundleResult> {
   const baseManifest = migrateGameManifest(levelInput);
-  const referenced = collectReferencedAssets(baseManifest.level);
+  const referenced = collectReferencedAssets(baseManifest);
 
   const bundledAssets: BundledAssetItem[] = [];
   const licenseWarnings: string[] = [];
@@ -751,6 +774,9 @@ export async function bundleLevelAssets(
   // 3. Cloned LevelDataV3 references models strictly by modelAssetId;
   // all relative export file paths are housed in manifest.assets.models and manifest.assets.textures.
   const clonedLevel: LevelDataV3 = JSON.parse(JSON.stringify(baseManifest.level));
+  const clonedLevels: LevelDataV3[] | undefined = baseManifest.levels
+    ? JSON.parse(JSON.stringify(baseManifest.levels))
+    : undefined;
 
   // 4. Load Draco decoders if Draco compression was detected
   let dracoFiles: BundledDracoFiles | undefined;
@@ -772,6 +798,10 @@ export async function bundleLevelAssets(
     schemaVersion: 1,
     meta: { ...baseManifest.meta },
     level: clonedLevel,
+    ...(clonedLevels && clonedLevels.length > 0 ? { levels: clonedLevels } : {}),
+    ...(baseManifest.campaign
+      ? { campaign: { ...baseManifest.campaign } }
+      : {}),
     assets: {
       textures: manifestTextures,
       models: manifestModels,
