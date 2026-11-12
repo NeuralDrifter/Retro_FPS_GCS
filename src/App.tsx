@@ -110,6 +110,7 @@ import {
 } from './engine/textureLibrary';
 import { useCampaignManager } from './hooks/useCampaignManager';
 import { useEditorHistory } from './hooks/useEditorHistory';
+import { useLayerManager } from './hooks/useLayerManager';
 
 export default function App() {
   const initialPreset = MAP_PRESETS[0];
@@ -1984,84 +1985,26 @@ export default function App() {
   // --------------------------------------------------------------------------
   // LAYERS, VERTICAL SETTINGS & 3D EDITOR ACTIONS
   // --------------------------------------------------------------------------
-  const handleAddLayer = useCallback(() => {
-    if (classicRef.current) {
-      setEngineLog('Classic retro movement keeps one floor (World tab).');
-      return;
-    }
-    if (vertical.layers.length >= SIM_CONFIG.MAX_LAYERS - 1) {
-      setEngineLog(`Layers: A level can have at most ${SIM_CONFIG.MAX_LAYERS} layers.`);
-      return;
-    }
-    recordHistorySnapshot('Add Layer');
-    const newIndex = vertical.layers.length + 1;
-    setVertical((v) => ({
-      ...v,
-      layers: [
-        ...v.layers,
-        createSolidLayer(grid.length, {
-          wall: 'default-grid',
-          floor: 'floor-obsidian',
-          ceiling: 'ceiling-coffer',
-        }),
-      ],
-    }));
-    setActiveLayer(newIndex);
-    setEngineLog(
-      `Layers: Added layer ${newIndex} (solid; carve rooms into it, and use the Hole tool to open floors).`
-    );
-  }, [grid.length, recordHistorySnapshot, vertical.layers.length]);
-
-  const handleRemoveTopLayer = useCallback(() => {
-    const top = vertical.layers.length;
-    if (top === 0) return;
-    recordHistorySnapshot(`Remove Layer ${top}`);
-    setVertical((v) => ({
-      ...v,
-      layers: v.layers.slice(0, -1),
-      spawnLayer: Math.min(v.spawnLayer, top - 1),
-    }));
-    setEntities((prev) => prev.filter((e) => (e.layer ?? 0) < top));
-    setActiveLayer((l) => Math.min(l, top - 1));
-    setEngineLog(`Layers: Removed layer ${top} and the models on it.`);
-  }, [recordHistorySnapshot, vertical.layers.length]);
-
-  /** Vertical features in use; classic retro movement can only be switched on without them */
-  const verticalFeatures = useMemo(
-    () => editorVerticalFeatures(grid, vertical, entities),
-    [grid, vertical, entities]
-  );
-
-  const handleToggleClassic = useCallback(
-    (on: boolean) => {
-      if (on && verticalFeatures.length > 0) return;
-      recordHistorySnapshot(on ? 'Use Classic Retro Movement' : 'Use Full 3D Movement');
-      setVertical((v) => {
-        const next = { ...v };
-        if (on) next.classic = true;
-        else delete next.classic;
-        return next;
-      });
-      if (on) {
-        setActiveLayer(0);
-        setToolMode((mode) => (mode === 'height' || mode === 'slope' || mode === 'hole' ? 'toggle' : mode));
-      }
-      setEngineLog(
-        on
-          ? 'Movement: Classic retro (one flat floor; layer, height, slope and hole tools are off).'
-          : 'Movement: Full 3D (layers, heights, slopes, jumping and crouching are available).'
-      );
-    },
-    [recordHistorySnapshot, verticalFeatures.length]
-  );
-
-  const handleUpdateMovement = useCallback(
-    (movement: MovementSettingsSpec) => {
-      recordHistorySnapshot('Edit Movement Settings');
-      setVertical((v) => ({ ...v, movement }));
-    },
-    [recordHistorySnapshot]
-  );
+  const {
+    verticalFeatures,
+    handleAddLayer,
+    handleRemoveTopLayer,
+    handleToggleClassic,
+    handleUpdateMovement,
+  } = useLayerManager({
+    grid,
+    vertical,
+    setVertical,
+    activeLayer,
+    setActiveLayer,
+    classicRef,
+    activeLayerRef,
+    entities,
+    setEntities,
+    setToolMode,
+    recordHistorySnapshot,
+    setEngineLog,
+  });
 
   /** Inspector: exact floor/ceiling height and slope of the selected tile */
   const handleSetTileVertical = useCallback(
