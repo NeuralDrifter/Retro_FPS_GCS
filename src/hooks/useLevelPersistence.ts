@@ -8,6 +8,7 @@ import {
   PlacedEntity,
   SkyboxThemeId,
   TextureAsset,
+  collectMenuTextureIds,
   createUniformTextureMatrix,
   resizeSquareMatrix,
 } from '../types/engine';
@@ -206,6 +207,7 @@ export function useLevelPersistence({
         setCampaignSettings({
           carryOverHealth: state.campaign.carryOverHealth !== false,
           carryOverAmmo: state.campaign.carryOverAmmo !== false,
+          ...(state.campaign.menus ? { menus: state.campaign.menus } : {}),
         });
       }
       if (Array.isArray(state.levels) && state.levels.length > 0) {
@@ -318,6 +320,11 @@ export function useLevelPersistence({
             for (const row of m) for (const id of row) usedTexIds.add(id);
           }
         }
+      }
+    }
+    if (campaignSettings.menus) {
+      for (const id of collectMenuTextureIds(campaignSettings.menus)) {
+        usedTexIds.add(id);
       }
     }
     const allUsedCustomTextures = customTextures.filter(

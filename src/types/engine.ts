@@ -75,6 +75,8 @@ export type {
   CampaignSettings,
 };
 
+export * from '../runtime/menu';
+
 /**
  * Editor Paint Modes (Phase 1 + Phase 2 + Phase 3)
  * ------------------------------------------------

@@ -30,6 +30,7 @@ import {
   SkyboxThemeId,
   SurfaceTarget,
   TextureAsset,
+  createDefaultMenuPack,
   createUniformTextureMatrix,
   resizeSquareMatrix,
 } from './types/engine';
@@ -81,6 +82,7 @@ import { ExportModal } from './components/ide/ExportModal';
 import { TopMenuBar } from './components/ide/TopMenuBar';
 import { LeftToolPalette } from './components/ide/LeftToolPalette';
 import { BottomStatusBar } from './components/ide/BottomStatusBar';
+import { MenuStudioWorkspace } from './components/menuStudio/MenuStudioWorkspace';
 import { useModelLibrary } from './components/inspector/modelLibrary/useModelLibrary';
 import type { ModelSettings } from './types/modelLibrary';
 import {
@@ -483,8 +485,10 @@ export default function App() {
   const [isArchModalOpen, setIsArchModalOpen] = useState<boolean>(false);
   const [isEventEditorOpen, setIsEventEditorOpen] = useState<boolean>(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+  const [isMenuStudioOpen, setIsMenuStudioOpen] = useState<boolean>(false);
+  const [startInMainMenu, setStartInMainMenu] = useState<boolean>(false);
   const [engineLog, setEngineLog] = useState<string>(
-    'Ready — Click 2D grid to sculpt level (Ctrl+Z Undo / Ctrl+Y Redo) or click 3D viewport to fire.'
+    'Ready — Click 2D grid to sculpt level (Ctrl+Z Undo / Ctrl+Y Redo) or open UI Menu Studio to design custom menus.'
   );
 
   // --------------------------------------------------------------------------
@@ -494,7 +498,10 @@ export default function App() {
     () => initialPreset.name || 'Level 1'
   );
   const [campaignSettings, setCampaignSettings] = useState<CampaignSettings>(
-    () => ({ ...DEFAULT_CAMPAIGN_SETTINGS })
+    () => ({
+      ...DEFAULT_CAMPAIGN_SETTINGS,
+      menus: createDefaultMenuPack(initialPreset.name || 'GRIDFORGE 3D'),
+    })
   );
   const [activeLevelIndex, setActiveLevelIndex] = useState<number>(0);
   const [campaignLevels, setCampaignLevels] = useState<LevelStateData[]>(() => [
@@ -2123,7 +2130,7 @@ export default function App() {
   return (
     <div
       className={`ide-shell ${
-        isPlayFullscreen ? 'ide-shell--play-fullscreen' : ''
+        isPlayFullscreen || isMenuStudioOpen ? 'ide-shell--play-fullscreen' : ''
       }`}
     >
       <TopMenuBar
@@ -2143,12 +2150,30 @@ export default function App() {
         onOpenArchModal={() => setIsArchModalOpen(true)}
         onOpenEventEditor={() => setIsEventEditorOpen(true)}
         onOpenExportModal={() => setIsExportModalOpen(true)}
+        isMenuStudioOpen={isMenuStudioOpen}
+        onToggleMenuStudio={() => {
+          setIsMenuStudioOpen((prev) => {
+            const next = !prev;
+            if (next) {
+              setIsPlayFullscreen(false);
+              setEngineLog(
+                'UI Menu Studio: Drag & drop widgets onto the 16:9 canvas, customize button shapes & textures, or configure In-Game Pause/Inventory overlays.'
+              );
+            } else {
+              setEngineLog('Returned to 2D/3D Level Editor.');
+            }
+            return next;
+          });
+        }}
         isPlayFullscreen={isPlayFullscreen}
-        onTogglePlayFullscreen={handleTogglePlayFullscreen}
+        onTogglePlayFullscreen={() => {
+          if (isMenuStudioOpen) setIsMenuStudioOpen(false);
+          handleTogglePlayFullscreen();
+        }}
         onRespawnPlayer={() => setResetSignal((n) => n + 1)}
       />
 
-      {!isPlayFullscreen && (
+      {!isPlayFullscreen && !isMenuStudioOpen && (
         <LeftToolPalette
           toolMode={toolMode}
           onSelectTool={(mode) => {
@@ -2166,9 +2191,64 @@ export default function App() {
       )}
 
       {/* ====================================================================
-          3. MIDDLE RESIZABLE WORKSPACE (2D Map Editor + 3D Viewport)
+          3. MIDDLE RESIZABLE WORKSPACE (Menu Studio OR 2D Map + 3D Viewport)
           ==================================================================== */}
       <main ref={workspaceRef} className="ide-workspace">
+        {isMenuStudioOpen && !isPlayFullscreen ? (
+          <MenuStudioWorkspace
+            menuPack={
+              campaignSettings.menus ||
+              createDefaultMenuPack(levelTitle || 'GRIDFORGE 3D')
+            }
+            gameTitle={levelTitle || 'GRIDFORGE 3D'}
+            textures={allTextures}
+            campaignLevelNames={campaignLevelSummaries.map((l) => l.title)}
+            onChangeMenuPack={(nextMenus) => {
+              handleUpdateCampaignSettings({
+                ...campaignSettings,
+                menus: nextMenus,
+              });
+            }}
+            onLaunch3DTestWithMainMenu={() => {
+              const playV3 = LevelSerializer.serializeLevelV3({
+                title: levelTitle,
+                grid,
+                wallTextures,
+                floorTextures,
+                ceilingTextures,
+                customTextures,
+                entities,
+                nextEntityId,
+                spawn,
+                skyboxTheme,
+                skyboxSeed,
+                showCeiling,
+                minimapEnabled,
+                cellTags: simState.cellTags,
+                events: simState.events,
+                regions: simState.regions,
+                variables: {
+                  flags: simState.flags,
+                  counters: simState.counters,
+                  timers: Object.keys(simState.timers),
+                },
+                vertical:
+                  isFlatVerticalData(vertical) && !vertical.classic
+                    ? undefined
+                    : vertical,
+              });
+              setSimState(createInitialSimulationState(playV3, [0]));
+              setIsMenuStudioOpen(false);
+              setStartInMainMenu(true);
+              setViewMode('play');
+              setIsPlayFullscreen(true);
+              setEngineLog(
+                '3D Menu Test Play: Booted into custom Main Menu with live 3D background diorama. Click Start Game or press ESC in-game!'
+              );
+            }}
+          />
+        ) : (
+          <>
         {!isPlayFullscreen && (
           <>
             <div
@@ -2278,6 +2358,7 @@ export default function App() {
                   vertical: isFlatVerticalData(vertical) && !vertical.classic ? undefined : vertical,
                 });
                 setSimState(createInitialSimulationState(playV3, [0]));
+                setStartInMainMenu(false);
                 setViewMode('play');
                 setEngineLog('Test Play: Click the view to look around; press Edit to go back to building.');
               }}
@@ -2288,9 +2369,11 @@ export default function App() {
             campaignLevels={campaignLevelsV3}
             activeLevelIndex={activeLevelIndex}
             campaignSettings={campaignSettings}
+            startInMainMenu={startInMainMenu}
             onCampaignLevelChange={handleRuntimeCampaignLevelChange}
             onExitPlay={() => {
               setViewMode('edit');
+              setStartInMainMenu(false);
               if (isPlayFullscreen) setIsPlayFullscreen(false);
               setEngineLog('Edit mode: Fly with the right mouse button held and W/A/S/D/Q/E.');
             }}
@@ -2318,12 +2401,14 @@ export default function App() {
           />
           )}
         </div>
+          </>
+        )}
       </main>
 
       {/* ====================================================================
           4. RIGHT PROPERTIES INSPECTOR PANEL (280px wide, grid-area: inspector)
           ==================================================================== */}
-      {!isPlayFullscreen && (
+      {!isPlayFullscreen && !isMenuStudioOpen && (
         <PropertiesInspector
           selectedCell={selectedCell}
           grid={activeLayerData.grid}

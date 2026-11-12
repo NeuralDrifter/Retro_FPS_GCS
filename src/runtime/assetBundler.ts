@@ -31,6 +31,7 @@ import {
 } from './types';
 import { AssetRegistry } from './AssetRegistry';
 import { createGameManifest, migrateGameManifest } from './manifest';
+import { collectMenuTextureIds } from './menu/types';
 
 export const BUILTIN_PROCEDURAL_TEXTURE_IDS = new Set<string>([
   'default-grid',
@@ -237,6 +238,17 @@ export function collectAllReferencedAssets(
         const modelId = ent.modelAssetId || ent.blueprintId;
         if (modelId) modelIdSet.add(modelId);
       }
+    }
+  }
+
+  // 4. Scan UI Menu Pack textures (backgrounds, button skins, image widgets)
+  const campaignObj =
+    'campaign' in levelInput && levelInput.campaign
+      ? levelInput.campaign
+      : undefined;
+  if (campaignObj?.menus) {
+    for (const texId of collectMenuTextureIds(campaignObj.menus)) {
+      if (texId) textureIdSet.add(texId);
     }
   }
 

@@ -150,6 +150,12 @@ export async function exportSingleHtml(
     schemaVersion: 1,
     meta: { ...baseManifest.meta },
     level: bundle.level,
+    ...(baseManifest.levels && baseManifest.levels.length > 0
+      ? { levels: baseManifest.levels }
+      : {}),
+    ...(baseManifest.campaign
+      ? { campaign: { ...baseManifest.campaign } }
+      : {}),
     assets: {
       textures: inlinedTextures,
       models: inlinedModels,

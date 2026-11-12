@@ -74,6 +74,7 @@ export function createGameManifest(
     ? {
         carryOverHealth: rawCampaign.carryOverHealth !== false,
         carryOverAmmo: rawCampaign.carryOverAmmo !== false,
+        ...(rawCampaign.menus ? { menus: rawCampaign.menus } : {}),
       }
     : undefined;
 
@@ -184,6 +185,9 @@ export function migrateGameManifest(raw: unknown): GameManifest {
     campaign = {
       carryOverHealth: rawCamp.carryOverHealth !== false,
       carryOverAmmo: rawCamp.carryOverAmmo !== false,
+      ...(rawCamp.menus && typeof rawCamp.menus === 'object' && !Array.isArray(rawCamp.menus)
+        ? { menus: rawCamp.menus as CampaignSettings['menus'] }
+        : {}),
     };
   }
 

@@ -8,6 +8,7 @@
  */
 
 import {
+  CampaignSettings,
   ENGINE_CONFIG,
   EntityArchetypeId,
   GameManifest,
@@ -695,7 +696,7 @@ export class RuntimeLevelSerializer {
     vertical?: VerticalLevelData;
     levels?: LevelStateData[];
     activeLevelIndex?: number;
-    campaign?: { carryOverHealth: boolean; carryOverAmmo: boolean };
+    campaign?: CampaignSettings;
   }): LevelStateData {
     const nextEntityId = computeNextEntityId(
       params.entities,
@@ -874,6 +875,9 @@ export class RuntimeLevelSerializer {
         rootState.campaign = {
           carryOverHealth: camp.carryOverHealth !== false,
           carryOverAmmo: camp.carryOverAmmo !== false,
+          ...(camp.menus && typeof camp.menus === 'object' && !Array.isArray(camp.menus)
+            ? { menus: camp.menus as CampaignSettings['menus'] }
+            : {}),
         };
       }
     }

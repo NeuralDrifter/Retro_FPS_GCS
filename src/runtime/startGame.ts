@@ -62,6 +62,12 @@ import { CombatSystem } from './CombatSystem';
 import { SoundEffects } from './SoundEffects';
 import { CombatHUDController } from './hud/CombatHUD';
 import { MinimapHUDController } from './hud/MinimapHUD';
+import {
+  DEFAULT_MENU_RUNTIME_SETTINGS,
+  MenuRuntimeController,
+  MenuRuntimeSettings,
+  RuntimeAppState,
+} from './menu';
 
 const TICK_MS = 1000 / SIM_CONFIG.TICKS_PER_SECOND;
 const UNITS_TO_METERS = ENGINE_CONFIG.CELL_SIZE / SIM_CONFIG.CELL_UNITS; // 4.0 / 1000 = 0.004
@@ -120,6 +126,11 @@ export interface StartGameOptions {
   onEngineLog?: (message: string) => void;
   onPointerLockChange?: (locked: boolean) => void;
   onMinimapToggleRequest?: () => void;
+  startInMainMenu?: boolean;
+  onMenuStateChange?: (
+    state: RuntimeAppState,
+    activeScreenId: string | null
+  ) => void;
 }
 
 export interface EditorLevelSyncPayload {
@@ -168,6 +179,10 @@ export interface GameRuntimeHandle {
   resetToSpawn: () => void;
   fullRespawn: () => void;
   lockPointer: () => void;
+  getMenuAppState: () => RuntimeAppState;
+  openMainMenu: () => void;
+  openInGameOverlay: (screenId?: string) => void;
+  resumeFromOverlay: () => void;
 }
 
 function normalizeManifestToLevelV3(input: StartGameManifestInput): {
@@ -476,9 +491,16 @@ export function startGame(
 
   let combatHud: CombatHUDController | null = null;
   let minimapHud: MinimapHUDController | null = null;
+  let menuController: MenuRuntimeController | null = null;
+  let runtimeSettings: MenuRuntimeSettings = {
+    ...DEFAULT_MENU_RUNTIME_SETTINGS,
+  };
+  let elapsedSec = 0;
 
   function syncHud(): void {
+    const hideHudForMenu = Boolean(menuController?.shouldHideCombatHud());
     if (combatHud) {
+      combatHud.setVisible(!hideHudForMenu);
       const currentTitle =
         campaignLevels[currentLevelIndex]?.metadata?.title ||
         `Level ${currentLevelIndex + 1}`;
@@ -502,7 +524,7 @@ export function startGame(
     }
     if (minimapHud) {
       minimapHud.update({
-        visible: minimapEnabled,
+        visible: minimapEnabled && !hideHudForMenu,
         grid,
         entities,
         enemySnapshots,
@@ -512,6 +534,7 @@ export function startGame(
         openDoors: getOpenDoorsSetFromSim(currSimState),
       });
     }
+    menuController?.syncView();
   }
 
   function emitLog(message: string): void {
@@ -1162,6 +1185,26 @@ export function startGame(
       ? canvasOrContainer
       : null;
 
+  // PointerLockControls.lock() drops the promise requestPointerLock() returns, so a refusal
+  // (e.g. clicking again within ~1 s of pressing Esc) surfaced as an uncaught rejection.
+  // Request the lock on the controls' own element instead; the controls still see the change.
+  let pointerLockRequested = false;
+  const requestPointerLockSafely = () => {
+    const el = controls?.domElement as HTMLElement | undefined;
+    if (!el?.requestPointerLock) return;
+    pointerLockRequested = true;
+    const onRefused = () => {
+      // Fall back to drag-look instead of turning on every mouse move
+      pointerLockRequested = false;
+    };
+    try {
+      const pending = el.requestPointerLock() as unknown as Promise<void> | undefined;
+      pending?.catch?.(onRefused);
+    } catch {
+      onRefused();
+    }
+  };
+
   // Mount vanilla HUDs if hudRoot is provided or defaulted to container
   if (resolvedHudRoot) {
     combatHud = new CombatHUDController(resolvedHudRoot, {
@@ -1182,33 +1225,126 @@ export function startGame(
         syncHud();
       }
     });
+
+    if (!isReplayOrDeterministic) {
+      const bootInMainMenu =
+        options.startInMainMenu !== undefined
+          ? options.startInMainMenu
+          : Boolean(
+              campaignSettings.menus?.enableMainMenuOnBoot &&
+                !options.initialSimState
+            );
+
+      menuController = new MenuRuntimeController(
+        resolvedHudRoot,
+        campaignSettings.menus,
+        {
+          getGameTitle: () =>
+            activeManifest.meta?.title ||
+            campaignLevels[0]?.metadata?.title ||
+            'GridForge Game',
+          getCombatState: () => combatState,
+          getSimState: () => currSimState,
+          getCurrentLevelIndex: () => currentLevelIndex,
+          getTotalLevels: () => campaignLevels.length,
+          getCurrentLevelTitle: () =>
+            campaignLevels[currentLevelIndex]?.metadata?.title ||
+            `Level ${currentLevelIndex + 1}`,
+          getElapsedSeconds: () => elapsedSec,
+          getCustomTextures: () => customTextures,
+          onStartNewGame: (startIdx) => {
+            loadCampaignLevel(startIdx, {
+              health: ENGINE_CONFIG.PLAYER_MAX_HEALTH,
+              ammo: ENGINE_CONFIG.PLAYER_START_AMMO,
+            });
+            syncHud();
+            requestPointerLockSafely();
+            emitLog(
+              `Menu System: Launched campaign at Level ${startIdx + 1}/${campaignLevels.length}.`
+            );
+          },
+          onResumeGame: () => {
+            syncHud();
+            requestPointerLockSafely();
+          },
+          onRestartCurrentLevel: () => {
+            handleFullRespawn();
+            requestPointerLockSafely();
+          },
+          onRestoreCheckpoint: (payload) => {
+            loadCampaignLevel(payload.levelIndex, {
+              health: payload.combatState.health,
+              ammo: payload.combatState.ammo,
+            });
+            currSimState = payload.simState;
+            prevSimState = payload.simState;
+            combatState = { ...payload.combatState };
+            rebuild3DWorld();
+            syncHud();
+            requestPointerLockSafely();
+          },
+          onFireSimEvent: (action) => {
+            if (action.flagName) {
+              currSimState = {
+                ...currSimState,
+                flags: {
+                  ...currSimState.flags,
+                  [action.flagName]: action.flagValue ?? true,
+                },
+              };
+            }
+            if (action.counterName) {
+              const prevVal = currSimState.counters[action.counterName] ?? 0;
+              currSimState = {
+                ...currSimState,
+                counters: {
+                  ...currSimState.counters,
+                  [action.counterName]: prevVal + (action.counterDelta ?? 1),
+                },
+              };
+            }
+            options.onSimStateChange?.(currSimState);
+            syncHud();
+          },
+          onQuitToMainMenu: () => {
+            if (typeof document !== 'undefined' && document.pointerLockElement) {
+              try {
+                document.exitPointerLock?.();
+              } catch {
+                // Ignore
+              }
+            }
+            syncHud();
+          },
+          onApplySettings: (nextSettings) => {
+            runtimeSettings = { ...nextSettings };
+            SoundEffects.setMasterVolume(nextSettings.masterVolume);
+            minimapEnabled = nextSettings.minimapEnabled;
+            if (camera) {
+              camera.fov = nextSettings.fov;
+              camera.updateProjectionMatrix();
+            }
+            syncHud();
+          },
+          onAppStateChange: (state, activeScreen) => {
+            syncHud();
+            options.onMenuStateChange?.(state, activeScreen?.id ?? null);
+          },
+          onEngineLog: (msg) => emitLog(msg),
+        },
+        { startInMainMenu: bootInMainMenu }
+      );
+      runtimeSettings = { ...menuController.getSettings() };
+      SoundEffects.setMasterVolume(runtimeSettings.masterVolume);
+    }
+
     syncHud();
   }
 
   let frameId = 0;
   let stopped = false;
   let disposed = false;
-  let pointerLockRequested = false;
   let cleanupDomListeners: (() => void) | null = null;
-
-  // PointerLockControls.lock() drops the promise requestPointerLock() returns, so a refusal
-  // (e.g. clicking again within ~1 s of pressing Esc) surfaced as an uncaught rejection.
-  // Request the lock on the controls' own element instead; the controls still see the change.
-  const requestPointerLockSafely = () => {
-    const el = controls?.domElement as HTMLElement | undefined;
-    if (!el?.requestPointerLock) return;
-    pointerLockRequested = true;
-    const onRefused = () => {
-      // Fall back to drag-look instead of turning on every mouse move
-      pointerLockRequested = false;
-    };
-    try {
-      const pending = el.requestPointerLock() as unknown as Promise<void> | undefined;
-      pending?.catch?.(onRefused);
-    } catch {
-      onRefused();
-    }
-  };
 
   // Initialize Three.js WebGL scene if a canvas or container element is provided in a browser environment
   if (canvasOrContainer && typeof document !== 'undefined') {
@@ -1307,6 +1443,13 @@ export function startGame(
       const onUnlock = () => {
         pointerLockRequested = false;
         options.onPointerLockChange?.(false);
+        if (
+          menuController &&
+          menuController.getAppState() === 'ACTIVE_GAMEPLAY' &&
+          campaignSettings.menus?.enablePauseOverlay
+        ) {
+          menuController.openInGameOverlay();
+        }
       };
       controls.addEventListener('lock', onLock);
       controls.addEventListener('unlock', onUnlock);
@@ -1322,6 +1465,9 @@ export function startGame(
 
       const onCanvasPointerDown = (e: PointerEvent) => {
         if (inputReader || e.button !== 0) return;
+        if (menuController && menuController.getAppState() !== 'ACTIVE_GAMEPLAY') {
+          return;
+        }
         if (
           document.pointerLockElement === domCanvas ||
           document.pointerLockElement === mountEl
@@ -1342,6 +1488,11 @@ export function startGame(
 
       const onWindowMouseMove = (e: MouseEvent) => {
         if (inputReader) return;
+        if (menuController && menuController.getAppState() !== 'ACTIVE_GAMEPLAY') {
+          return;
+        }
+        const sensMult = Math.max(0.1, (runtimeSettings.mouseSensitivity ?? 100) / 100);
+        const invertSign = runtimeSettings.invertY ? -1 : 1;
         const isLocked =
           document.pointerLockElement === domCanvas ||
           document.pointerLockElement === mountEl;
@@ -1351,8 +1502,8 @@ export function startGame(
             !isDraggingLook &&
             Boolean(e.movementX || e.movementY))
         ) {
-          const yawRad = -(e.movementX || 0) * 0.0022;
-          const pitchRad = -(e.movementY || 0) * 0.0022;
+          const yawRad = -(e.movementX || 0) * 0.0022 * sensMult;
+          const pitchRad = -(e.movementY || 0) * 0.0022 * sensMult * invertSign;
           pendingYawDeltaBam += Math.round((yawRad / (Math.PI * 2)) * 65536);
           pendingPitchDeltaBam += Math.round(
             (pitchRad / (Math.PI * 2)) * 65536
@@ -1374,8 +1525,8 @@ export function startGame(
           maxDragDelta = totalDrag;
         }
 
-        const yawRad = -dx * 0.0045;
-        const pitchRad = -dy * 0.0045;
+        const yawRad = -dx * 0.0045 * sensMult;
+        const pitchRad = -dy * 0.0045 * sensMult * invertSign;
         pendingYawDeltaBam += Math.round((yawRad / (Math.PI * 2)) * 65536);
         pendingPitchDeltaBam += Math.round((pitchRad / (Math.PI * 2)) * 65536);
       };
@@ -1383,6 +1534,9 @@ export function startGame(
       const onWindowPointerUp = (e: PointerEvent) => {
         if (inputReader || !isDraggingLook) return;
         isDraggingLook = false;
+        if (menuController && menuController.getAppState() !== 'ACTIVE_GAMEPLAY') {
+          return;
+        }
         if (
           e.button === 0 &&
           maxDragDelta < 6 &&
@@ -1403,6 +1557,12 @@ export function startGame(
         }
         if (e.code === 'Escape') {
           pointerLockRequested = false;
+        }
+        if (menuController && menuController.handleKeyDown(e.code)) {
+          for (const k of Object.keys(keysPressed)) {
+            keysPressed[k] = false;
+          }
+          return;
         }
         keysPressed[e.code] = true;
 
@@ -1470,7 +1630,6 @@ export function startGame(
 
       let lastFrameTimeMs = performance.now();
       let accumulatorMs = 0;
-      let elapsedSec = 0;
       let lastHudSyncTime = 0;
       let hasSyncedHud = false;
       let lastSyncX = initialWorld.x;
@@ -1480,6 +1639,7 @@ export function startGame(
       let lastSyncRow = spawn.row;
       let lastSyncCol = spawn.col;
       let lastSyncSpeed = 0;
+      let dioramaAngleRad = 0;
 
       const onVisibilityChange = () => {
         if (document.hidden) {
@@ -1530,6 +1690,48 @@ export function startGame(
         }
 
         const dtSec = Math.min(rawDeltaMs / 1000, 0.1);
+        const isMenuPaused = Boolean(
+          menuController && menuController.isSimulationPaused()
+        );
+
+        if (isMenuPaused) {
+          accumulatorMs = 0;
+          const activeScreen = menuController?.getActiveScreen();
+          if (
+            menuController?.getAppState() === 'MAIN_MENU' &&
+            activeScreen?.backgroundConfig.type === '3d-scene'
+          ) {
+            const bg = activeScreen.backgroundConfig;
+            const targetWorld = CollisionSystem.gridToWorld(
+              bg.cameraTarget.row,
+              bg.cameraTarget.col,
+              grid.length
+            );
+            const targetY = bg.cameraTarget.elevationMeters ?? 1.8;
+            if (bg.cameraMode === 'orbit') {
+              dioramaAngleRad += (bg.orbitSpeedRadPerSec || 0.2) * dtSec;
+              const radius = Math.max(2, bg.orbitRadiusMeters || 10);
+              camera.position.set(
+                targetWorld.x + Math.cos(dioramaAngleRad) * radius,
+                targetY + 2.2,
+                targetWorld.z + Math.sin(dioramaAngleRad) * radius
+              );
+              camera.lookAt(targetWorld.x, targetY, targetWorld.z);
+            } else {
+              camera.position.set(targetWorld.x, targetY, targetWorld.z);
+              euler.set(bg.fixedPitchRad ?? 0, bg.fixedYawRad ?? 0, 0, 'YXZ');
+              camera.quaternion.setFromEuler(euler);
+            }
+          }
+          renderer.render(scene, camera);
+          if (isSoftwareGl) {
+            afterDraw(tick);
+          } else {
+            frameId = requestAnimationFrame(tick);
+          }
+          return;
+        }
+
         elapsedSec += dtSec;
         accumulatorMs += rawDeltaMs;
 
@@ -1964,6 +2166,8 @@ export function startGame(
     combatHud = null;
     minimapHud?.dispose();
     minimapHud = null;
+    menuController?.dispose();
+    menuController = null;
     skyboxTex?.dispose();
     skyboxTex = null;
     doorTex?.dispose();
@@ -2001,6 +2205,7 @@ export function startGame(
     advanceToNextLevel: handleAdvanceToNextLevel,
     setCampaignSettings: (nextCampaign: CampaignSettings) => {
       campaignSettings = { ...nextCampaign };
+      menuController?.setMenuPack(campaignSettings.menus);
       syncHud();
     },
     setShowCeiling: (show: boolean) => {
@@ -2029,6 +2234,7 @@ export function startGame(
     syncEditorLevel: (payload: EditorLevelSyncPayload) => {
       if (payload.campaign) {
         campaignSettings = { ...payload.campaign };
+        menuController?.setMenuPack(campaignSettings.menus);
       }
       if (payload.levels && payload.levels.length > 0) {
         campaignLevels = payload.levels.map((l) =>
@@ -2159,5 +2365,11 @@ export function startGame(
     resetToSpawn: teleportToSpawn,
     fullRespawn: handleFullRespawn,
     lockPointer: requestPointerLockSafely,
+    getMenuAppState: () => menuController?.getAppState() ?? 'ACTIVE_GAMEPLAY',
+    openMainMenu: () => menuController?.enterMainMenu(),
+    openInGameOverlay: (screenId?: string) => {
+      menuController?.openInGameOverlay(screenId);
+    },
+    resumeFromOverlay: () => menuController?.closeMenuAndResume(),
   };
 }

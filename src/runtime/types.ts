@@ -16,6 +16,7 @@ import type {
   WalkSurfaceSpec,
 } from './sim/types';
 import { DEFAULT_MOVEMENT_SETTINGS, SIM_CONFIG } from './sim/types';
+import type { MenuPackSpec } from './menu/types';
 
 export type ModelCategoryId =
   | 'characters'
@@ -434,6 +435,8 @@ export interface PlayerTransform {
 export interface CampaignSettings {
   carryOverHealth: boolean;
   carryOverAmmo: boolean;
+  /** Optional custom Main Menu and In-Game Overlay configuration */
+  menus?: MenuPackSpec;
 }
 
 export const DEFAULT_CAMPAIGN_SETTINGS: CampaignSettings = {

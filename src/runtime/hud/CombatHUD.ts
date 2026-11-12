@@ -703,6 +703,10 @@ export class CombatHUDController {
     this.useBtnEl.disabled = combatState.isDead || simState.levelEnded;
   }
 
+  public setVisible(visible: boolean): void {
+    this.root.style.display = visible ? 'block' : 'none';
+  }
+
   public dispose(): void {
     this.root.remove();
   }

@@ -9,6 +9,15 @@
 
 export class SoundEffects {
   private static ctx: AudioContext | null = null;
+  private static masterVolumePct = 80;
+
+  public static setMasterVolume(volumePct: number): void {
+    this.masterVolumePct = Math.max(0, Math.min(100, Number(volumePct) || 0));
+  }
+
+  public static getMasterVolume(): number {
+    return this.masterVolumePct;
+  }
 
   private static getContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -32,6 +41,7 @@ export class SoundEffects {
   }
 
   public static playById(soundId: string): void {
+    if (this.masterVolumePct <= 0) return;
     const ctx = this.getContext();
     if (!ctx) return;
 

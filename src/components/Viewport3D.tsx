@@ -63,6 +63,8 @@ interface Viewport3DProps {
   activeLevelIndex?: number;
   /** Health & Ammo carry-over settings between levels */
   campaignSettings?: CampaignSettings;
+  /** Whether to boot directly into the Out-of-Game Main Menu when entering play */
+  startInMainMenu?: boolean;
   /** Callback when the player advances to another campaign level during play */
   onCampaignLevelChange?: (
     levelIndex: number,
@@ -97,6 +99,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   campaignLevels,
   activeLevelIndex,
   campaignSettings,
+  startInMainMenu,
   onCampaignLevelChange,
 }) => {
   // Flat levels keep the exact original level data
@@ -162,6 +165,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       levels: campaignLevels,
       currentLevelIndex: activeLevelIndex,
       campaign: campaignSettings,
+      startInMainMenu,
       onSimStateChange: (nextState) => onSimStateChangeRef.current(nextState),
       onPlayerMove: (transform) => onPlayerMoveRef.current(transform),
       onEngineLog: (msg) => onEngineLogRef.current(msg),
@@ -281,6 +285,27 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         </div>
 
         <div className="flex items-center gap-1">
+          {campaignSettings?.menus && (
+            <>
+              <button
+                type="button"
+                onClick={() => runtimeRef.current?.openMainMenu()}
+                className="ide-btn !h-[18px] !px-1.5 !text-[10px] text-[#38bdf8]"
+                title="Preview Out-of-Game Main Menu in Live 3D Runtime"
+              >
+                <span>Main Menu</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => runtimeRef.current?.openInGameOverlay()}
+                className="ide-btn !h-[18px] !px-1.5 !text-[10px] text-[#4ec9b0]"
+                title="Trigger In-Game Pause Overlay [ESC / I]"
+              >
+                <span>Pause UI</span>
+              </button>
+            </>
+          )}
+
           <button
             type="button"
             onClick={onToggleMinimap}

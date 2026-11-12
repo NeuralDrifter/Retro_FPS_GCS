@@ -26,18 +26,28 @@ export function launchSingleHtmlGame(): void {
     return;
   }
 
+  const hasCustomMainMenu = Boolean(
+    manifest.campaign?.menus?.enableMainMenuOnBoot &&
+      Array.isArray(manifest.campaign?.menus?.screens) &&
+      manifest.campaign.menus.screens.length > 0
+  );
+
   const game = startGame(manifest, container, {
     hudRoot: container,
-    autoLockPointerOnClick: true,
+    autoLockPointerOnClick: !hasCustomMainMenu,
     assetBaseUrl: '',
     dracoDecoderPath: '',
   });
 
   if (overlay) {
-    overlay.addEventListener('click', () => {
+    if (hasCustomMainMenu) {
       overlay.style.display = 'none';
-      game.lockPointer();
-    });
+    } else {
+      overlay.addEventListener('click', () => {
+        overlay.style.display = 'none';
+        game.lockPointer();
+      });
+    }
   }
 }
 

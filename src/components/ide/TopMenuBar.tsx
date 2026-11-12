@@ -5,6 +5,7 @@ import {
   Download,
   FileCode2,
   FolderOpen,
+  LayoutTemplate,
   PackageCheck,
   Play,
   Plus,
@@ -31,6 +32,8 @@ interface TopMenuBarProps {
   onOpenArchModal: () => void;
   onOpenEventEditor: () => void;
   onOpenExportModal: () => void;
+  isMenuStudioOpen: boolean;
+  onToggleMenuStudio: () => void;
   isPlayFullscreen: boolean;
   onTogglePlayFullscreen: () => void;
   onRespawnPlayer: () => void;
@@ -53,6 +56,8 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
   onOpenArchModal,
   onOpenEventEditor,
   onOpenExportModal,
+  isMenuStudioOpen,
+  onToggleMenuStudio,
   isPlayFullscreen,
   onTogglePlayFullscreen,
   onRespawnPlayer,
@@ -213,6 +218,20 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
         >
           <Sliders className="w-3 h-3" />
           <span>Visual Triggers</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onToggleMenuStudio}
+          className={`ide-btn !h-[20px] ${
+            isMenuStudioOpen
+              ? '!bg-amber-500 !text-zinc-950 !border-amber-400 font-semibold'
+              : 'text-amber-400 hover:text-amber-300 border-amber-500/40'
+          }`}
+          title="Open UI Menu Studio (Out-of-Game Main Menu Studio & In-Game Overlay Builder)"
+        >
+          <LayoutTemplate className="w-3 h-3" />
+          <span>{isMenuStudioOpen ? 'Level Editor' : 'UI Menu Studio'}</span>
         </button>
       </div>
 
