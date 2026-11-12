@@ -7,6 +7,7 @@ export * from './validator';
 export * from './executor';
 export * from './collisionUnits';
 export * from './moverSim';
+export * from './entitySim';
 export * from './footprint';
 export * from './vertical';
 export * from './verticalMovement';
