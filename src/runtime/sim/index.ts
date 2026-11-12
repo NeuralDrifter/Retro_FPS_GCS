@@ -5,6 +5,7 @@ export * from './raycast';
 export * from './hash';
 export * from './validator';
 export * from './executor';
+export * from './collisionUnits';
 export * from './footprint';
 export * from './vertical';
 export * from './verticalMovement';
