@@ -80,7 +80,7 @@ src/hooks/
 - [x] Move 5: extract-leaf-module: campaign management hook -> `src/hooks/useCampaignManager.ts`
 - [x] Move 6: extract-leaf-module: history management hook -> `src/hooks/useEditorHistory.ts`
 - [x] Move 7: extract-leaf-module: layer & vertical state hook -> `src/hooks/useLayerManager.ts`
-- [ ] Move 8: extract-leaf-module: level persistence & grid actions hook -> `src/hooks/useLevelPersistence.ts`
+- [x] Move 8: extract-leaf-module: level persistence & grid actions hook -> `src/hooks/useLevelPersistence.ts`
 - [ ] Move 9: thin-entry-point: wire hooks into `src/App.tsx`, verify clean layout
 - [ ] Verify: `npm run lint`, `npm run build:runtime`, `npm test`
 
