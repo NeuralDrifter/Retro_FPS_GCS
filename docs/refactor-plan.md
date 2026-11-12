@@ -77,7 +77,7 @@ src/hooks/
 - [x] Verify: `npm run lint`, `npm run build:runtime`, `npm test` (all 174 determinism tests pass)
 
 ### Campaign 2: `src/App.tsx`
-- [ ] Move 5: extract-leaf-module: campaign management hook -> `src/hooks/useCampaignManager.ts`
+- [x] Move 5: extract-leaf-module: campaign management hook -> `src/hooks/useCampaignManager.ts`
 - [ ] Move 6: extract-leaf-module: history management hook -> `src/hooks/useEditorHistory.ts`
 - [ ] Move 7: extract-leaf-module: layer & vertical state hook -> `src/hooks/useLayerManager.ts`
 - [ ] Move 8: extract-leaf-module: level persistence & grid actions hook -> `src/hooks/useLevelPersistence.ts`
