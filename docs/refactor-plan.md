@@ -73,8 +73,8 @@ src/hooks/
 - [x] Move 1: extract-leaf-module: circle collision & depenetration -> `src/runtime/sim/collisionUnits.ts`
 - [x] Move 2: extract-pure-core: mover actions & tick updates -> `src/runtime/sim/moverSim.ts`
 - [x] Move 3: extract-pure-core: entity lifecycle & tick updates -> `src/runtime/sim/entitySim.ts`
-- [ ] Move 4: thin-entry-point: update `src/runtime/sim/executor.ts` & re-export from `src/runtime/sim/index.ts`
-- [ ] Verify: `npm run lint`, `npm run build:runtime`, `npm test` (all 174 determinism tests pass)
+- [x] Move 4: thin-entry-point: update `src/runtime/sim/executor.ts` & re-export from `src/runtime/sim/index.ts`
+- [x] Verify: `npm run lint`, `npm run build:runtime`, `npm test` (all 174 determinism tests pass)
 
 ### Campaign 2: `src/App.tsx`
 - [ ] Move 5: extract-leaf-module: campaign management hook -> `src/hooks/useCampaignManager.ts`
