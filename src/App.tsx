@@ -109,6 +109,7 @@ import {
   saveRecentTextureIds,
 } from './engine/textureLibrary';
 import { useCampaignManager } from './hooks/useCampaignManager';
+import { useEditorHistory } from './hooks/useEditorHistory';
 
 export default function App() {
   const initialPreset = MAP_PRESETS[0];
@@ -616,36 +617,32 @@ export default function App() {
   // --------------------------------------------------------------------------
   // 5. GLOBAL HISTORY MANAGEMENT SYSTEM (UNDO / REDO STACKS)
   // --------------------------------------------------------------------------
-  const [pastHistory, setPastHistory] = useState<DesignStateSnapshot[]>([]);
-  const [futureHistory, setFutureHistory] = useState<DesignStateSnapshot[]>([]);
-
-  const pastHistoryRef = useRef<DesignStateSnapshot[]>(pastHistory);
-  pastHistoryRef.current = pastHistory;
-
-  const futureHistoryRef = useRef<DesignStateSnapshot[]>(futureHistory);
-  futureHistoryRef.current = futureHistory;
-
-  // Live ref to the current design state so history snapshots are always synchronous
-  const currentDesignRef = useRef<DesignStateSnapshot>({
+  const {
+    pastHistory,
+    setPastHistory,
+    futureHistory,
+    setFutureHistory,
+    currentDesignRef,
+    recordHistorySnapshot,
+    handleUndo,
+    handleRedo,
+  } = useEditorHistory({
     grid,
+    setGrid,
     wallTextures,
+    setWallTextures,
     floorTextures,
+    setFloorTextures,
     ceilingTextures,
+    setCeilingTextures,
     entities,
+    setEntities,
     spawn,
+    setSpawn,
     vertical,
-    actionLabel: 'Initial State',
+    setVertical,
+    setEngineLog,
   });
-  currentDesignRef.current = {
-    grid,
-    wallTextures,
-    floorTextures,
-    ceilingTextures,
-    entities,
-    spawn,
-    vertical,
-    actionLabel: 'Current State',
-  };
 
   /** The matrices of the layer being edited, read synchronously from the latest design */
   const getActiveLayerSnapshot = (): EditorLayerData => {
@@ -666,142 +663,6 @@ export default function App() {
   };
   /** Placed models on the layer being edited */
   const onActiveLayer = (e: PlacedEntity) => (e.layer ?? 0) === activeLayerRef.current;
-
-  /**
-   * Records a deep-cloned snapshot of the current map state (`grid`, `entities`,
-   * `wallTextures`, `floorTextures`, `ceilingTextures`, and `spawn`) onto the
-   * Undo stack before a mutation is applied, and clears the Redo stack.
-   */
-  const recordHistorySnapshot = useCallback((actionLabel: string) => {
-    const snapshot = HistoryManager.cloneSnapshot({
-      ...currentDesignRef.current,
-      actionLabel,
-    });
-
-    setPastHistory((prev) => {
-      if (
-        prev.length > 0 &&
-        HistoryManager.areSnapshotsEqual(prev[prev.length - 1], snapshot)
-      ) {
-        // Update action label of top entry if state hasn't changed yet
-        const updated = [...prev];
-        updated[updated.length - 1] = snapshot;
-        return updated;
-      }
-      const next = [...prev, snapshot];
-      return next.length > MAX_HISTORY_DEPTH
-        ? next.slice(next.length - MAX_HISTORY_DEPTH)
-        : next;
-    });
-
-    setFutureHistory([]);
-  }, []);
-
-  /**
-   * Reverts the map design (`grid`, `entities`, `textureAssignments`, `spawn`)
-   * to the previous snapshot on the Undo stack (`Ctrl+Z`).
-   */
-  const handleUndo = useCallback(() => {
-    const prevPast = pastHistoryRef.current;
-    if (prevPast.length === 0) {
-      setEngineLog('History: Nothing to undo.');
-      return;
-    }
-
-    const targetSnapshot = prevPast[prevPast.length - 1];
-    const remainingPast = prevPast.slice(0, -1);
-
-    // Push current state onto Redo stack
-    const currentSnap = HistoryManager.cloneSnapshot({
-      ...currentDesignRef.current,
-      actionLabel: targetSnapshot.actionLabel,
-    });
-
-    setPastHistory(remainingPast);
-    setFutureHistory((prevFuture) => [...prevFuture, currentSnap]);
-
-    // Restore state from targetSnapshot
-    const restored = HistoryManager.cloneSnapshot(targetSnapshot);
-    setGrid(restored.grid);
-    setWallTextures(restored.wallTextures);
-    setFloorTextures(restored.floorTextures);
-    setCeilingTextures(restored.ceilingTextures);
-    setEntities(restored.entities);
-    setSpawn(restored.spawn);
-    if (restored.vertical) setVertical(restored.vertical);
-
-    setEngineLog(
-      `Undo (Ctrl+Z): Reverted '${targetSnapshot.actionLabel}' (${remainingPast.length} steps left).`
-    );
-  }, []);
-
-  /**
-   * Re-applies a previously undone map design step from the Redo stack (`Ctrl+Y` / `Ctrl+Shift+Z`).
-   */
-  const handleRedo = useCallback(() => {
-    const prevFuture = futureHistoryRef.current;
-    if (prevFuture.length === 0) {
-      setEngineLog('History: Nothing to redo.');
-      return;
-    }
-
-    const targetSnapshot = prevFuture[prevFuture.length - 1];
-    const remainingFuture = prevFuture.slice(0, -1);
-
-    // Push current state back onto Undo stack
-    const currentSnap = HistoryManager.cloneSnapshot({
-      ...currentDesignRef.current,
-      actionLabel: targetSnapshot.actionLabel,
-    });
-
-    setFutureHistory(remainingFuture);
-    setPastHistory((prevPast) => [...prevPast, currentSnap]);
-
-    // Restore state from targetSnapshot
-    const restored = HistoryManager.cloneSnapshot(targetSnapshot);
-    setGrid(restored.grid);
-    setWallTextures(restored.wallTextures);
-    setFloorTextures(restored.floorTextures);
-    setCeilingTextures(restored.ceilingTextures);
-    setEntities(restored.entities);
-    setSpawn(restored.spawn);
-    if (restored.vertical) setVertical(restored.vertical);
-
-    setEngineLog(
-      `Redo (Ctrl+Y): Restored '${targetSnapshot.actionLabel}' (${remainingFuture.length} steps left).`
-    );
-  }, []);
-
-  // Global Keyboard Listener for Ctrl+Z (Undo) and Ctrl+Y / Ctrl+Shift+Z (Redo)
-  useEffect(() => {
-    const onGlobalKeyDown = (e: KeyboardEvent) => {
-      // Allow native undo/redo inside text inputs and textareas
-      if (
-        document.activeElement instanceof HTMLInputElement ||
-        document.activeElement instanceof HTMLTextAreaElement
-      ) {
-        return;
-      }
-
-      const isMod = e.ctrlKey || e.metaKey;
-      if (!isMod) return;
-
-      if (e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) {
-          handleRedo();
-        } else {
-          handleUndo();
-        }
-      } else if (e.key.toLowerCase() === 'y') {
-        e.preventDefault();
-        handleRedo();
-      }
-    };
-
-    window.addEventListener('keydown', onGlobalKeyDown);
-    return () => window.removeEventListener('keydown', onGlobalKeyDown);
-  }, [handleUndo, handleRedo]);
 
   // --------------------------------------------------------------------------
   // 6. REAL-TIME FIRST-PERSON CAMERA TRANSFORM
