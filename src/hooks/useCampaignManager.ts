@@ -9,6 +9,8 @@ import {
 import { LevelSerializer } from '../engine/LevelSerializer';
 import { SimulationState } from '../runtime/sim';
 
+const DEFAULT_LEVEL_GRID_SIZE = 16;
+
 export interface UseCampaignManagerOptions {
   levelTitle: string;
   setLevelTitle: React.Dispatch<React.SetStateAction<string>>;
@@ -98,7 +100,7 @@ export function useCampaignManager({
     const synced = getSyncedCampaignLevels();
     const newIndex = synced.length;
     const newTitle = `Level ${newIndex + 1}: Sector ${newIndex + 1}`;
-    const size = 16;
+    const size = DEFAULT_LEVEL_GRID_SIZE;
     const freshGrid: number[][] = Array.from({ length: size }, (_, r) =>
       Array.from({ length: size }, (_, c) =>
         r === 0 || r === size - 1 || c === 0 || c === size - 1

@@ -20,7 +20,6 @@ export interface UseLayerManagerProps {
   activeLayer: number;
   setActiveLayer: React.Dispatch<React.SetStateAction<number>>;
   classicRef: React.RefObject<boolean>;
-  activeLayerRef: React.RefObject<number>;
   entities: PlacedEntity[];
   setEntities: React.Dispatch<React.SetStateAction<PlacedEntity[]>>;
   setToolMode: React.Dispatch<React.SetStateAction<EditorToolMode>>;

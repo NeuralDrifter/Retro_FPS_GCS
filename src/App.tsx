@@ -52,8 +52,6 @@ import {
 } from './runtime/sim';
 import {
   DesignStateSnapshot,
-  HistoryManager,
-  MAX_HISTORY_DEPTH,
 } from './engine/HistoryManager';
 import { MapEditor2D } from './components/MapEditor2D';
 import { Viewport3D } from './components/Viewport3D';
@@ -65,16 +63,13 @@ import {
   VerticalLevelData,
   cloneVerticalData,
   createDefaultVerticalData,
-  createSolidLayer,
   isFlatVerticalData,
   resizeVerticalData,
 } from './runtime/types';
 import { LAYER_METERS, entityAnchorWorld } from './runtime/entityPlacement';
-import { editorVerticalFeatures } from './runtime/verticalLevelData';
 import {
   CardinalDirection,
   FloorSlopeSpec,
-  MovementSettingsSpec,
   SIM_CONFIG,
   SlopeSurface,
   WalkSurfaceSpec,
@@ -94,7 +89,6 @@ import {
 } from './engine/modelLibrary/libraryState';
 import { getCategoryInfo } from './engine/modelLibrary/categories';
 import {
-  entitiesFittingGrid,
   findPlacementConflicts,
   getEntitiesCoveringCell,
   getEntityRect,
@@ -1739,7 +1733,6 @@ export default function App() {
     activeLayer,
     setActiveLayer,
     classicRef,
-    activeLayerRef,
     entities,
     setEntities,
     setToolMode,
