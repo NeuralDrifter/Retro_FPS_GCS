@@ -3,7 +3,7 @@
  * GRIDFORGE 3D MODEL LIBRARY PERSISTENCE (BROWSER STORAGE + EXPORT / IMPORT FILE)
  * ============================================================================
  * Browser storage is per-site and can be blocked, full, or cleared (private
- * windows, AI Studio iframes), so every access is guarded and falls back to an
+ * windows, sandboxed iframes), so every access is guarded and falls back to an
  * empty library. The exported `gridforge-library.json` file is the durable copy.
  */
 

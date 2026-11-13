@@ -888,8 +888,8 @@ export const MENU_STUDIO_PRESETS: MenuPresetDefinition[] = [
     id: 'retro-shareware',
     name: '90s Shareware Techbase (Tiled Texture BG)',
     description:
-      'Classic 1993 Doom/Wolf3D shareware aesthetic with riveted steel texture background, amber/crimson accents, and pixel-mono typography.',
-    buildPack: (gameTitle = 'DOOM TECHBASE') => {
+      'Classic early-90s shareware shooter aesthetic with riveted steel texture background, amber/crimson accents, and pixel-mono typography.',
+    buildPack: (gameTitle = 'TECHBASE') => {
       const theme: MenuThemeTokens = {
         primaryAccentHex: '#f59e0b',
         dangerAccentHex: '#ef4444',

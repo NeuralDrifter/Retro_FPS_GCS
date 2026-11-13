@@ -13,7 +13,7 @@
  *  6. Tracks licenses (GitHub repo license, user uploads, remote warnings) and
  *     formats ASSET_LICENSES.md.
  *
- * Pure runtime-compatible module with zero React/lucide/Gemini imports.
+ * Pure runtime-compatible module with zero React or lucide imports.
  */
 
 import {

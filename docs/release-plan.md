@@ -1065,7 +1065,7 @@ cross-area edges                              external packages
 
 ## Appendix C: Progress tracker
 
-- [ ] P0.1 Remove leaked and leftover files
+- [x] P0.1 Remove leaked and leftover files (history purge per Q1 not done)
 - [ ] P0.2 Dependency cleanup and reproducible installs
 - [ ] P0.3 Move tests to Vitest
 - [ ] P0.4 Playwright smoke harness

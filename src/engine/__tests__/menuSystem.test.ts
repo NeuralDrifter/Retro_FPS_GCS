@@ -33,7 +33,7 @@ describe('UI Menu System: Main Menu Studio & In-Game Overlay Builder', () => {
     assert.equal(pauseOverlay!.overlayConfig?.triggerHotkey, 'Escape');
 
     // Test switching presets
-    const retroPack = createMenuPackFromPreset('retro-shareware', 'DOOMFORGE');
+    const retroPack = createMenuPackFromPreset('retro-shareware', 'IRONFORGE');
     assert.equal(retroPack.presetId, 'retro-shareware');
     const minimalPack = createMenuPackFromPreset('minimal-cyber', 'NEON GRID');
     assert.equal(minimalPack.presetId, 'minimal-cyber');

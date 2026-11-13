@@ -4,5 +4,5 @@ Subfolders become texture folders (for example `Horror/Brick/`). Square, power-o
 sizes work best; 256x256 is the project's standard.
 
 The project's CC0 texture collection (1,077 textures with license files and credits) is
-kept outside the repository to keep the AI Studio project small. Copying its `textures/`
-folder here restores it.
+kept in the separate repository NeuralDrifter/Retro_FPS_GCS-assets. Copying its `textures/`
+folder here makes those textures available offline.

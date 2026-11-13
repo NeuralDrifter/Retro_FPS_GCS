@@ -1,7 +1,7 @@
 {
-  "name": "react-example",
+  "name": "retro-fps-gcs",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "npm run build:runtime && vite --port=3000 --host=0.0.0.0",

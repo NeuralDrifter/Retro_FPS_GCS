@@ -1,7 +1,4 @@
 /**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- *
  * ============================================================================
  * GRIDFORGE 3D GAME CREATION SYSTEM — DESKTOP GAME ENGINE IDE SHELL (PHASE 1, 2 & 3)
  * ============================================================================

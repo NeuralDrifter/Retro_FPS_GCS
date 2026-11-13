@@ -31,7 +31,7 @@ describe('Phase 6 Acceptance: Export Safety Scanner & Credential Leak Prevention
     );
 
     assert.equal(violations.length, 1);
-    assert.equal(violations[0].pattern, 'Google Cloud / AI Studio API Key (AIza...)');
+    assert.equal(violations[0].pattern, 'Google Cloud API Key (AIza...)');
     assert.equal(violations[0].file, 'src/config.js');
   });
 

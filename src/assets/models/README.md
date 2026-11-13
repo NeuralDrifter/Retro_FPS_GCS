@@ -13,5 +13,5 @@ Drop `.glb` or `.gltf` models in here and the Asset Library finds them automatic
   first time they are used.
 
 The project's CC0 model collection (608 models with `model-sizes.json`, license texts and
-credits) is kept outside the repository to keep the AI Studio project small. Copying its
-`models/` folder here restores it.
+credits) lives in the separate repository NeuralDrifter/Retro_FPS_GCS-assets. Copying its
+`models/` folder here makes those models available offline.

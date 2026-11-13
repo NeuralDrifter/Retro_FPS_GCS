@@ -123,7 +123,7 @@ export interface MapPreset {
 export const MAP_PRESETS: MapPreset[] = [
   {
     id: 'classic-maze',
-    name: 'GridForge Classic Maze (Wolf3D Parity)',
+    name: 'Classic Maze: Keys and Secrets',
     description:
       'Perimeter fortress with a key-locked bulkhead door, a secret sliding push wall at [X:1, Z:6], and an extraction switch at [X:8, Z:8].',
     spawn: { row: 1, col: 1, yaw: Math.PI },
@@ -166,7 +166,7 @@ export const MAP_PRESETS: MapPreset[] = [
       },
       {
         id: 'evt-secret-pushwall',
-        name: 'Wolf3D Secret Push Wall at (6, 1)',
+        name: 'Secret Push Wall at (6, 1)',
         enabled: true,
         trigger: { type: 'use', row: 6, col: 1 },
         conditions: [],
@@ -270,10 +270,10 @@ export const MAP_PRESETS: MapPreset[] = [
     ],
   },
   {
-    id: 'doom-techbase-outpost',
-    name: 'Doom Techbase Outpost (Doom Parity)',
+    id: 'techbase-outpost',
+    name: 'Techbase Outpost: Lifts and Ambushes',
     description:
-      'Classic Doom mechanics: hydraulic lift at [X:7, Z:3], monster closet ambush at [X:2, Z:1], lock-in arena at [X:7, Z:7] with all_dead unlock, and instant teleporters.',
+      'Classic 90s shooter mechanics: hydraulic lift at [X:7, Z:3], monster closet ambush at [X:2, Z:1], lock-in arena at [X:7, Z:7] with all_dead unlock, and instant teleporters.',
     spawn: { row: 3, col: 1, yaw: 0 },
     defaultWallTex: 'techbase-panel',
     regions: [

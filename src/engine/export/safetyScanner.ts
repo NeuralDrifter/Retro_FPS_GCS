@@ -32,7 +32,7 @@ export function scanStringForSecrets(
   if (googleKeyMatch) {
     violations.push({
       file: filename,
-      pattern: 'Google Cloud / AI Studio API Key (AIza...)',
+      pattern: 'Google Cloud API Key (AIza...)',
       snippet:
         content.substring(
           Math.max(0, googleKeyMatch.index - 8),
@@ -43,7 +43,7 @@ export function scanStringForSecrets(
 
   // 2. Generic secret / token assignments: apiKey = "...", secret: "...", etc.
   const secretAssignMatch =
-    /(?:api_?key|secret_?key|auth_?token|gemini_api_key)\s*[:=]\s*['"]([a-zA-Z0-9_\-]{16,})['"]/i.exec(
+    /(?:api_?key|secret_?key|auth_?token)\s*[:=]\s*['"]([a-zA-Z0-9_\-]{16,})['"]/i.exec(
       content
     );
   if (secretAssignMatch) {
