@@ -1077,7 +1077,7 @@ cross-area edges                              external packages
 - [x] P1.3 Move authoring code out of the runtime (legacy formats went to src/editor/project/legacy.ts, not src/shared: the migration registers assets in the runtime AssetRegistry)
 - [ ] P1.4 Split startGame into core and playtest adapter
 - [x] P1.5 Enforce boundaries
-- [ ] P1.6 Sim hot path
+- [x] P1.6 Sim hot path (runtime hashing fixed: p95 27x lower; sim state-shape items moved to P4, see commit)
 - [ ] P1.7 Decouple playtest from editor state
 - [ ] P1.8 Disposal and WebGL context hygiene
 - [ ] P2.1 Project schema v4
