@@ -1,0 +1,1150 @@
+{
+  "formatVersion": 3,
+  "gridSize": 10,
+  "rngSeed": 424242,
+  "nextEntityId": 5,
+  "spawn": {
+    "row": 2,
+    "col": 2,
+    "yawBam": 32768
+  },
+  "minimapEnabled": true,
+  "skybox": {
+    "theme": "crimson-dusk",
+    "seed": 7,
+    "showCeiling": true
+  },
+  "grid": [
+    [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      1,
+      0,
+      0,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      1,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ]
+  ],
+  "wallTextures": [
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "custom-tex-upload-hazard",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "stone-dungeon",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ]
+  ],
+  "floorTextures": [
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "folder-tex-floor-tiles-checker-tiles-bw-marble-tile-01",
+      "folder-tex-floor-tiles-checker-tiles-bw-marble-tile-01",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ]
+  ],
+  "ceilingTextures": [
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ]
+  ],
+  "cellTags": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      10,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      20,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      30,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "floorHeights": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "ceilingHeights": [
+    [
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000
+    ],
+    [
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000
+    ],
+    [
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000
+    ],
+    [
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000
+    ],
+    [
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000
+    ],
+    [
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000
+    ],
+    [
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000
+    ],
+    [
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000
+    ],
+    [
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000
+    ],
+    [
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000
+    ]
+  ],
+  "entities": [
+    {
+      "id": "ent-1",
+      "row": 7,
+      "col": 3,
+      "blueprintId": "sentinel-bot",
+      "name": "Arena Sentinel",
+      "yawBam": 0,
+      "scalePct": 100,
+      "isEnemy": true,
+      "maxHealth": 70,
+      "moveSpeedUnitsPerTick": 40,
+      "attackDamage": 8,
+      "tag": 100
+    },
+    {
+      "id": "ent-2",
+      "row": 7,
+      "col": 7,
+      "blueprintId": "custom-glb",
+      "modelAssetId": "folder-glb-characters-robots-turret",
+      "name": "GitHub Turret Unit",
+      "yawBam": 16384,
+      "scalePct": 100,
+      "isEnemy": true,
+      "maxHealth": 80,
+      "moveSpeedUnitsPerTick": 30,
+      "attackDamage": 10,
+      "tag": 101,
+      "category": "characters",
+      "collision": "solid",
+      "footprintW": 1,
+      "footprintD": 1
+    },
+    {
+      "id": "ent-3",
+      "row": 3,
+      "col": 7,
+      "blueprintId": "custom-glb",
+      "modelAssetId": "custom-glb-draco-pillar",
+      "name": "Uploaded Draco Pillar",
+      "yawBam": 0,
+      "scalePct": 100,
+      "isEnemy": false,
+      "maxHealth": 100,
+      "tag": 102,
+      "category": "decorations",
+      "collision": "solid",
+      "footprintW": 1,
+      "footprintD": 1
+    }
+  ],
+  "regions": [
+    {
+      "id": "reg-key-hall",
+      "name": "Key Hallway",
+      "cells": [
+        {
+          "row": 2,
+          "col": 3
+        },
+        {
+          "row": 3,
+          "col": 3
+        }
+      ]
+    },
+    {
+      "id": "reg-south-sector",
+      "name": "South Sector",
+      "cells": [
+        {
+          "row": 6,
+          "col": 5
+        },
+        {
+          "row": 6,
+          "col": 6
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "flags": {
+      "hall_visited": false,
+      "lift_activated": false,
+      "secret_opened": false
+    },
+    "counters": {
+      "steps_taken": 0,
+      "combat_wave": 0
+    },
+    "timers": [
+      "wave_timer"
+    ]
+  },
+  "events": [
+    {
+      "id": "evt-01-level-start",
+      "name": "Initialize Level Timer",
+      "enabled": true,
+      "trigger": {
+        "type": "level_start"
+      },
+      "conditions": [],
+      "actions": [
+        {
+          "type": "start_timer",
+          "timer": "wave_timer",
+          "duration_ticks": 60
+        },
+        {
+          "type": "play_sound",
+          "sound_id": "level_start_chime",
+          "row": 2,
+          "col": 2
+        }
+      ],
+      "options": {
+        "once": true
+      }
+    },
+    {
+      "id": "evt-02-enter-hall",
+      "name": "Enter Key Hallway",
+      "enabled": true,
+      "trigger": {
+        "type": "enter_region",
+        "region": "reg-key-hall",
+        "who": "player"
+      },
+      "conditions": [
+        {
+          "type": "flag",
+          "name": "hall_visited",
+          "is": false
+        }
+      ],
+      "actions": [
+        {
+          "type": "set_flag",
+          "name": "hall_visited",
+          "value": true
+        },
+        {
+          "type": "add_counter",
+          "name": "steps_taken",
+          "delta": 1
+        },
+        {
+          "type": "slide_wall",
+          "row": 5,
+          "col": 2,
+          "direction": "E",
+          "distance_cells": 2,
+          "speed_per_tick": 500
+        },
+        {
+          "type": "open_door",
+          "row": 4,
+          "col": 5,
+          "speed_per_tick": 500
+        },
+        {
+          "type": "set_wall_texture",
+          "row": 0,
+          "col": 3,
+          "texture_id": "custom-tex-upload-hazard"
+        },
+        {
+          "type": "set_floor_texture",
+          "row": 3,
+          "col": 3,
+          "texture_id": "folder-tex-floor-tiles-checker-tiles-bw-marble-tile-01"
+        },
+        {
+          "type": "set_ceiling_texture",
+          "row": 3,
+          "col": 3,
+          "texture_id": "industrial-rust"
+        }
+      ],
+      "options": {
+        "once": true
+      }
+    },
+    {
+      "id": "evt-03-wave-timer",
+      "name": "Wave Timer Branches",
+      "enabled": true,
+      "trigger": {
+        "type": "timer_fired",
+        "timer": "wave_timer"
+      },
+      "conditions": [],
+      "actions": [
+        {
+          "type": "add_counter",
+          "name": "combat_wave",
+          "delta": 1
+        },
+        {
+          "type": "if_then_else",
+          "condition": {
+            "type": "flag",
+            "name": "hall_visited",
+            "is": true
+          },
+          "then_actions": [
+            {
+              "type": "toggle_lift",
+              "row": 6,
+              "col": 6,
+              "lower_height_units": 0,
+              "upper_height_units": 250,
+              "speed_per_tick": 500,
+              "wait_ticks": 30
+            },
+            {
+              "type": "random_branch",
+              "branches": [
+                {
+                  "weight": 50,
+                  "actions": [
+                    {
+                      "type": "spawn_entity",
+                      "blueprintId": "sentinel-bot",
+                      "row": 8,
+                      "col": 2,
+                      "yaw_bam": 0,
+                      "isEnemy": true,
+                      "maxHealth": 60
+                    }
+                  ]
+                },
+                {
+                  "weight": 50,
+                  "actions": [
+                    {
+                      "type": "spawn_entity",
+                      "blueprintId": "supply-crate",
+                      "row": 8,
+                      "col": 4,
+                      "yaw_bam": 0,
+                      "isEnemy": false,
+                      "maxHealth": 40
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "else_actions": [
+            {
+              "type": "set_flag",
+              "name": "lift_activated",
+              "value": true
+            },
+            {
+              "type": "toggle_lift",
+              "row": 6,
+              "col": 6,
+              "lower_height_units": 0,
+              "upper_height_units": 200,
+              "speed_per_tick": 500,
+              "wait_ticks": 20
+            }
+          ]
+        }
+      ],
+      "options": {
+        "once": true
+      }
+    }
+  ],
+  "metadata": {
+    "title": "Full Export Test Level",
+    "author": "GridForge Test Suite"
+  }
+}

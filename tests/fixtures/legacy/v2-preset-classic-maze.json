@@ -1,0 +1,677 @@
+{
+  "engine": "GridForge 3D Game Creation System",
+  "version": "2.0",
+  "formatVersion": 3,
+  "timestamp": "2026-11-14T10:51:52.282Z",
+  "title": "Classic Maze: Keys and Secrets",
+  "gridSize": 10,
+  "nextEntityId": 5,
+  "spawn": {
+    "row": 1,
+    "col": 1,
+    "yaw": 3.141592653589793
+  },
+  "minimapEnabled": true,
+  "skybox": {
+    "theme": "crimson-dusk",
+    "seed": 7,
+    "showCeiling": true
+  },
+  "grid": [
+    [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      3,
+      1
+    ],
+    [
+      1,
+      0,
+      1,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1
+    ],
+    [
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      1
+    ],
+    [
+      1,
+      0,
+      1,
+      0,
+      1,
+      2,
+      1,
+      1,
+      0,
+      1
+    ],
+    [
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      1,
+      1,
+      1,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1
+    ],
+    [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1
+    ],
+    [
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ]
+  ],
+  "wallTextures": [
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ],
+    [
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel",
+      "techbase-panel"
+    ]
+  ],
+  "floorTextures": [
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ],
+    [
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian",
+      "floor-obsidian"
+    ]
+  ],
+  "ceilingTextures": [
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ],
+    [
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer",
+      "ceiling-coffer"
+    ]
+  ],
+  "customTextures": [],
+  "entities": [
+    {
+      "id": "ent-starter-1",
+      "row": 3,
+      "col": 3,
+      "blueprintId": "sentinel-bot",
+      "name": "Cyber Sentinel Bot (.glb)",
+      "yaw": 0,
+      "scale": 1,
+      "isEnemy": true,
+      "maxHealth": 75,
+      "moveSpeed": 4.6,
+      "attackDamage": 12
+    },
+    {
+      "id": "ent-starter-2",
+      "row": 5,
+      "col": 3,
+      "blueprintId": "sentinel-bot",
+      "name": "Cyber Sentinel Bot (.glb)",
+      "yaw": 1.5707963267948966,
+      "scale": 1,
+      "isEnemy": true,
+      "maxHealth": 75,
+      "moveSpeed": 4.6,
+      "attackDamage": 12
+    },
+    {
+      "id": "ent-starter-3",
+      "row": 7,
+      "col": 5,
+      "blueprintId": "turret-guardian",
+      "name": "Heavy Mech Stalker (.glb)",
+      "yaw": 3.141592653589793,
+      "scale": 1,
+      "isEnemy": true,
+      "maxHealth": 100,
+      "moveSpeed": 3.4,
+      "attackDamage": 18
+    },
+    {
+      "id": "ent-starter-4",
+      "row": 1,
+      "col": 7,
+      "blueprintId": "supply-crate",
+      "name": "Supply Crate (.glb)",
+      "yaw": 0,
+      "scale": 1,
+      "isEnemy": false,
+      "maxHealth": 50
+    }
+  ],
+  "events": [
+    {
+      "id": "evt-start-lock-door",
+      "name": "Lock Bulkhead Door at Start",
+      "enabled": true,
+      "trigger": {
+        "type": "level_start"
+      },
+      "conditions": [],
+      "actions": [
+        {
+          "type": "lock_door",
+          "row": 4,
+          "col": 5,
+          "required_key": "keycard"
+        },
+        {
+          "type": "show_message",
+          "text": "Find the Keycard [X:8, Z:1], push Secret Wall [X:1, Z:6] with [E/Space], and reach Exit [X:8, Z:8]."
+        }
+      ],
+      "options": {
+        "once": true
+      }
+    },
+    {
+      "id": "evt-keycard-pickup",
+      "name": "Keycard Pickup Audio & Briefing",
+      "enabled": true,
+      "trigger": {
+        "type": "pickup_item",
+        "item": "keycard"
+      },
+      "conditions": [],
+      "actions": [
+        {
+          "type": "play_sound",
+          "sound_id": "key_pickup"
+        },
+        {
+          "type": "show_message",
+          "text": "Security Keycard acquired — Bulkhead Door at [X:5, Z:4] unlocked!"
+        }
+      ],
+      "options": {
+        "once": true
+      }
+    },
+    {
+      "id": "evt-secret-pushwall",
+      "name": "Secret Push Wall at (6, 1)",
+      "enabled": true,
+      "trigger": {
+        "type": "use",
+        "row": 6,
+        "col": 1
+      },
+      "conditions": [],
+      "actions": [
+        {
+          "type": "slide_wall",
+          "row": 6,
+          "col": 1,
+          "direction": "S",
+          "distance_cells": 2
+        },
+        {
+          "type": "mark_secret_found",
+          "secret_id": "west_alcove_secret"
+        },
+        {
+          "type": "play_sound",
+          "sound_id": "secret_found",
+          "row": 6,
+          "col": 1
+        },
+        {
+          "type": "show_message",
+          "text": "Secret Push Wall discovered! Passage opened to the southern chamber."
+        }
+      ],
+      "options": {
+        "once": true
+      }
+    },
+    {
+      "id": "evt-level-exit-switch",
+      "name": "Sector Extraction Switch at (8, 8)",
+      "enabled": true,
+      "trigger": {
+        "type": "use",
+        "row": 8,
+        "col": 8
+      },
+      "conditions": [],
+      "actions": [
+        {
+          "type": "play_sound",
+          "sound_id": "level_exit",
+          "row": 8,
+          "col": 8
+        },
+        {
+          "type": "show_message",
+          "text": "Extraction switch activated — Sector Complete!"
+        },
+        {
+          "type": "exit_level",
+          "secret": false
+        }
+      ],
+      "options": {
+        "once": true
+      }
+    }
+  ]
+}
