@@ -14,15 +14,13 @@ import {
   DEFAULT_CAMPAIGN_SETTINGS,
   ENGINE_CONFIG,
   GameManifest,
-  PlacedEntity,
   PlayerTransform,
-  SkyboxThemeId,
   TextureAsset,
-  VerticalLevelData,
 } from './types';
 import { emitDebugEvent, registerDebugProbe } from './debugEvents';
 import { InputState, bindInputListeners } from './core/InputController';
 import { createRenderSystem } from './core/RenderSystem';
+import { RUNTIME_CONTEXT } from './core/RuntimeState';
 import type { RuntimeContext, RuntimeState } from './core/RuntimeState';
 import { UNITS_TO_METERS } from './core/constants';
 import { syncHud } from './core/hud';
@@ -35,16 +33,10 @@ import { verticalFromLevelV3 } from './verticalLevelData';
 import {
   LevelDataV3,
   PlayerTickInput,
-  SIM_CONFIG,
   SimulationState,
   bamToRadians,
-  buildSolidFootprintGrid,
-  checkCircleCollisionUnits,
   createInitialSimulationState,
-  depenetrateCircleUnits,
   isVerticalLevel,
-  radiansToBam,
-  worldUnitsToGrid,
 } from '../sim';
 import {
   placedEntitiesFromLevelV3,
@@ -118,23 +110,6 @@ export interface StartGameOptions {
   ) => void;
 }
 
-export interface EditorLevelSyncPayload {
-  grid: number[][];
-  wallTextures: string[][];
-  floorTextures: string[][];
-  ceilingTextures: string[][];
-  customTextures: TextureAsset[];
-  entities: PlacedEntity[];
-  spawn: { row: number; col: number; yaw: number };
-  skyboxTheme: SkyboxThemeId;
-  skyboxSeed: number;
-  showCeiling: boolean;
-  minimapEnabled: boolean;
-  vertical?: VerticalLevelData;
-  levels?: LevelDataV3[];
-  currentLevelIndex?: number;
-  campaign?: CampaignSettings;
-}
 
 export interface GameRuntimeHandle {
   stop: () => void;
@@ -153,14 +128,6 @@ export interface GameRuntimeHandle {
   ) => void;
   advanceToNextLevel: () => void;
   setCampaignSettings: (campaign: CampaignSettings) => void;
-  // Editor control methods
-  setShowCeiling: (show: boolean) => void;
-  setShowWireframe: (wireframe: boolean) => void;
-  setCollisionEnabled: (enabled: boolean) => void;
-  setMinimapEnabled: (enabled: boolean) => void;
-  setSkybox: (theme: SkyboxThemeId, seed: number) => void;
-  syncEditorLevel: (payload: EditorLevelSyncPayload) => void;
-  setSimState: (nextSim: SimulationState) => void;
   resetToSpawn: () => void;
   fullRespawn: () => void;
   lockPointer: () => void;
@@ -784,7 +751,7 @@ export function startGame(
     rt.dirLight = null;
   }
 
-  return {
+  const handle: GameRuntimeHandle = {
     stop,
     dispose,
     getState: () => rt.currSimState,
@@ -812,160 +779,6 @@ export function startGame(
       rt.menuController?.setMenuPack(rt.campaignSettings.menus);
       syncHud(ctx);
     },
-    setShowCeiling: (show: boolean) => {
-      if (rt.showCeiling === show) return;
-      rt.showCeiling = show;
-      rebuild3DWorld(ctx);
-    },
-    setShowWireframe: (wireframe: boolean) => {
-      if (rt.showWireframe === wireframe) return;
-      rt.showWireframe = wireframe;
-      rebuild3DWorld(ctx);
-    },
-    setCollisionEnabled: (enabled: boolean) => {
-      rt.collisionEnabled = enabled;
-    },
-    setMinimapEnabled: (enabled: boolean) => {
-      rt.minimapEnabled = enabled;
-      syncHud(ctx);
-    },
-    setSkybox: (theme: SkyboxThemeId, seed: number) => {
-      if (rt.skyboxTheme === theme && rt.skyboxSeed === seed) return;
-      rt.skyboxTheme = theme;
-      rt.skyboxSeed = seed;
-      updateSkybox(ctx);
-    },
-    syncEditorLevel: (payload: EditorLevelSyncPayload) => {
-      if (payload.campaign) {
-        rt.campaignSettings = { ...payload.campaign };
-        rt.menuController?.setMenuPack(rt.campaignSettings.menus);
-      }
-      if (payload.levels && payload.levels.length > 0) {
-        rt.campaignLevels = payload.levels.map((l) =>
-          JSON.parse(JSON.stringify(l))
-        );
-      }
-      if (
-        typeof payload.currentLevelIndex === 'number' &&
-        payload.currentLevelIndex !== rt.currentLevelIndex
-      ) {
-        rt.currentLevelIndex = Math.max(
-          0,
-          Math.min(rt.campaignLevels.length - 1, payload.currentLevelIndex)
-        );
-      }
-
-      rt.customTextures = payload.customTextures;
-      rt.wallTextures = payload.wallTextures.map((r) => [...r]);
-      rt.floorTextures = payload.floorTextures.map((r) => [...r]);
-      rt.ceilingTextures = payload.ceilingTextures.map((r) => [...r]);
-      rt.entities = payload.entities.map((e) => ({ ...e }));
-      rt.spawn = { ...payload.spawn };
-      rt.showCeiling = payload.showCeiling;
-      rt.minimapEnabled = payload.minimapEnabled;
-
-      if (
-        rt.skyboxTheme !== payload.skyboxTheme ||
-        rt.skyboxSeed !== payload.skyboxSeed
-      ) {
-        rt.skyboxTheme = payload.skyboxTheme;
-        rt.skyboxSeed = payload.skyboxSeed;
-        updateSkybox(ctx);
-      }
-
-      if (payload.grid.length !== rt.currSimState.gridSize || payload.vertical !== rt.vertical) {
-        rt.grid = payload.grid.map((r) => [...r]);
-        rt.vertical = payload.vertical;
-        rebuild3DWorld(ctx);
-        teleportToSpawn(ctx);
-        return;
-      }
-
-      rt.grid = payload.grid.map((r) => [...r]);
-      rt.currSimState.grid = rt.grid.map((r) => [...r]);
-      rt.currSimState.solidFootprint = buildSolidFootprintGrid(
-        rt.entities.map((e) => ({
-          ...e,
-          yawBam: radiansToBam(e.yaw || 0),
-        })),
-        rt.grid.length
-      );
-
-      for (let r = 0; r < rt.grid.length; r++) {
-        for (let c = 0; c < rt.grid.length; c++) {
-          const mKey = `door:${r},${c}`;
-          if (rt.grid[r]?.[c] === 2 && !rt.currSimState.movers[mKey]) {
-            rt.currSimState.movers[mKey] = {
-              id: mKey,
-              kind: 'door',
-              row: r,
-              col: c,
-              tag: rt.currSimState.cellTags[r]?.[c] ?? 0,
-              state: 'closed',
-              progress: 0,
-              speedPerTick: SIM_CONFIG.DEFAULT_DOOR_SPEED_PER_TICK,
-              waitTicks: 0,
-              configuredWaitTicks: 0,
-              locked: false,
-              blockedBehavior: 'wait',
-            };
-          }
-        }
-      }
-
-      const p0 = rt.currSimState.players[0];
-      if (
-        p0 &&
-        rt.collisionEnabled &&
-        checkCircleCollisionUnits(
-          p0.xUnits,
-          p0.zUnits,
-          SIM_CONFIG.PLAYER_RADIUS_UNITS,
-          rt.currSimState.grid,
-          rt.currSimState.movers,
-          rt.currSimState.solidFootprint
-        )
-      ) {
-        const unstuck = depenetrateCircleUnits(
-          p0.xUnits,
-          p0.zUnits,
-          SIM_CONFIG.PLAYER_RADIUS_UNITS,
-          rt.currSimState.grid,
-          rt.currSimState.movers,
-          rt.currSimState.solidFootprint
-        );
-        p0.xUnits = unstuck.xUnits;
-        p0.zUnits = unstuck.zUnits;
-        const nextCell = worldUnitsToGrid(
-          p0.xUnits,
-          p0.zUnits,
-          rt.currSimState.gridSize
-        );
-        p0.gridRow = nextCell.row;
-        p0.gridCol = nextCell.col;
-        if (rt.prevSimState.players[0]) {
-          rt.prevSimState.players[0].xUnits = unstuck.xUnits;
-          rt.prevSimState.players[0].zUnits = unstuck.zUnits;
-          rt.prevSimState.players[0].gridRow = nextCell.row;
-          rt.prevSimState.players[0].gridCol = nextCell.col;
-        }
-      }
-
-      rt.combatState = {
-        ...rt.combatState,
-        totalEnemies: countLevelEnemies(),
-      };
-
-      rebuild3DWorld(ctx);
-      syncHud(ctx);
-    },
-    setSimState: (nextSim: SimulationState) => {
-      rt.currSimState = nextSim;
-      rt.prevSimState = nextSim;
-      rt.lastLogCount = nextSim.logs.length;
-      rt.lastSoundCount = nextSim.soundsPlayed.length;
-      syncHud(ctx);
-    },
     resetToSpawn: () => teleportToSpawn(ctx),
     fullRespawn: () => handleFullRespawn(ctx),
     lockPointer: requestPointerLockSafely,
@@ -976,4 +789,7 @@ export function startGame(
     },
     resumeFromOverlay: () => rt.menuController?.closeMenuAndResume(),
   };
+  // startPlaytest (debug/editorControls.ts) reads the context to add the editor's controls
+  Object.defineProperty(handle, RUNTIME_CONTEXT, { value: ctx });
+  return handle;
 }

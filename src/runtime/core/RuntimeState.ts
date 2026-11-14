@@ -109,3 +109,6 @@ export interface RuntimeContext {
   tickHashes: string[];
   countLevelEnemies: () => number;
 }
+
+/** Key under which startGame attaches its RuntimeContext to the handle (read by startPlaytest only) */
+export const RUNTIME_CONTEXT: unique symbol = Symbol('gcs.runtimeContext');

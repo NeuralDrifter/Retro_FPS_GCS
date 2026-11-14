@@ -23,3 +23,4 @@ export * from './startGame';
 export * from './verticalLevelData';
 export * from './entityPlacement';
 export * from './debugEvents';
+export * from './debug/editorControls';

@@ -15,6 +15,7 @@ import {
   generateDeterministic3000TickInputs,
 } from './determinismFixtures';
 import { createGameManifestFromEditor } from '../editor/project/legacy';
+import { startPlaytest } from '../runtime/debug/editorControls';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const baselinePath = path.join(__dirname, 'determinismBaseline.json');
@@ -221,8 +222,8 @@ describe('Phase 2 Acceptance: GameManifest wrapping LevelDataV3', () => {
       `Multi-level manifest validation errors: ${validation.errors.join(', ')}`
     );
 
-    // Start game in headless mode with campaign manifest
-    const game = startGame(campaignManifest, null);
+    // Start game in headless mode with campaign manifest (startPlaytest adds setSimState)
+    const game = startPlaytest(campaignManifest, null);
     assert.equal(game.getCurrentLevelIndex(), 0);
     assert.equal(game.getTotalLevels(), 2);
 

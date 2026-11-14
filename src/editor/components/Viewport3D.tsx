@@ -17,7 +17,7 @@ import {
 import { LevelDataV3, SimulationState } from '../../sim';
 import { VerticalLevelData, isFlatVerticalData } from '../../runtime';
 import { LevelSerializer } from '../engine/LevelSerializer';
-import { GameRuntimeHandle, startGame } from '../../runtime';
+import { PlaytestRuntimeHandle, startPlaytest } from '../../runtime';
 import { createGameManifest } from '../../runtime';
 import { playtestStore } from '../playtest/playtestStore';
 import {
@@ -102,7 +102,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   const levelVertical = vertical && !isFlatVerticalData(vertical) ? vertical : undefined;
   const canvasMountRef = useRef<HTMLDivElement | null>(null);
   const hudRootRef = useRef<HTMLDivElement | null>(null);
-  const runtimeRef = useRef<GameRuntimeHandle | null>(null);
+  const runtimeRef = useRef<PlaytestRuntimeHandle | null>(null);
 
   const [isPointerLocked, setIsPointerLocked] = useState(false);
   const [showWireframe, setShowWireframe] = useState(false);
@@ -146,7 +146,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       vertical: levelVertical,
     });
 
-    const handle = startGame(createGameManifest(initialLevelV3), container, {
+    const handle = startPlaytest(createGameManifest(initialLevelV3), container, {
       hudRoot,
       initialSimState: simState,
       showCeiling,
