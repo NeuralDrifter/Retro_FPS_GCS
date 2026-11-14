@@ -18,19 +18,16 @@
 
 import {
   ActionSpec,
-  EventDefinition,
   LevelDataV3,
 } from './sim';
 import {
   GameManifest,
-  GameManifestAssets,
   LevelStateData,
   ManifestModelAsset,
   ManifestTextureAsset,
-  TextureAsset,
 } from './types';
 import { AssetRegistry } from './AssetRegistry';
-import { createGameManifest, migrateGameManifest } from './manifest';
+import { migrateGameManifest } from './manifest';
 import { collectMenuTextureIds } from './menu/types';
 
 export const BUILTIN_PROCEDURAL_TEXTURE_IDS = new Set<string>([

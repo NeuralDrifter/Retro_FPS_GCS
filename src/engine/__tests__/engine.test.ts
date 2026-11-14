@@ -1800,7 +1800,6 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     ];
 
     let sim = createInitialSimulationState(level, [0]);
-    const hashBefore = hashSimulationState(sim);
 
     // Trigger earthquake
     sim = step(sim, {

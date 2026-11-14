@@ -29,7 +29,6 @@ import {
   RotateCcw,
   ZoomIn,
   ZoomOut,
-  Maximize,
   Layers,
   LayoutGrid,
   Search,
@@ -582,12 +581,11 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
     if (dragOverCell) {
       outlineCell(dragOverCell.row, dragOverCell.col, CELL_COLORS.dragTarget, 2);
     }
-    // texMap is rebuilt every render from these same props
   }, [
     grid,
     wallTextures,
     floorTextures,
-    textures,
+    texMap,
     entities,
     spawn,
     selectedCell,
@@ -1006,7 +1004,7 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
           {showRawMatrix && (
             <div className="mt-2 p-2 bg-[#141414] border border-[#3e3e42] font-mono text-[10px] text-[#cccccc] overflow-x-auto">
               <div className="text-[#858585] mb-1">
-                // grid[{gridSize}][{gridSize}] (Drag textures from Asset Library onto cells)
+                {`// grid[${gridSize}][${gridSize}] (Drag textures from Asset Library onto cells)`}
               </div>
               {grid.map((row, rIdx) => (
                 <div key={rIdx} className="pl-2 leading-tight tabular-nums">

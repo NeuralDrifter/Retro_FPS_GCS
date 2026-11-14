@@ -32,8 +32,6 @@ import { TextureGenerator } from './TextureGenerator';
 import { EntityLoader } from './EntityLoader';
 import { EnemyAISystem } from './EnemyAISystem';
 import { isStaticModel } from './categories';
-import { getFootprintRect } from './sim/footprint';
-import { radiansToBam } from './sim/trigTable';
 import { layerCellKey } from './sim/raycast';
 import { SurfaceBatch, buildLayeredSurfaces } from './LayeredSurfaces';
 import { applyVerticalPlacement, entityAnchorWorld, tileFloorMeters } from './entityPlacement';

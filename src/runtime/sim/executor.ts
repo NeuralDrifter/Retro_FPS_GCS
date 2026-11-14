@@ -13,10 +13,7 @@
  */
 
 import {
-  ActionSpec,
   ActivatorContext,
-  ConditionSpec,
-  EventDefinition,
   LevelDataV3,
   MoverSimState,
   PendingContinuation,
@@ -28,20 +25,16 @@ import {
   SimulationState,
 } from './types';
 import {
-  BAM_MASK,
   TRIG_SCALE,
-  bamAtan2,
   bamCos,
   bamSin,
   isqrt,
   normalizeBam,
-  shortestBamDelta,
 } from './trigTable';
-import { nextUint32, normalizeRngSeed, rollPercentChance } from './rng';
+import { normalizeRngSeed } from './rng';
 import {
   castGridRayDDA,
   gridToWorldUnits,
-  isDoorPassable,
   layerCellKey,
   worldUnitsToGrid,
 } from './raycast';
@@ -58,7 +51,7 @@ import {
   entitySpawnPointUnits,
   spawnFeetUnits,
 } from './vertical';
-import { moveSimEntityVertical, stepVerticalPlayer } from './verticalMovement';
+import { stepVerticalPlayer } from './verticalMovement';
 
 import {
   QueuedTriggerEvent,
@@ -66,7 +59,6 @@ import {
   applyFloorMoverAction,
   buildStairsMover,
   closeDoorMoverAtCell,
-  getTargetDoors,
   openDoorMoverAtCell,
   stopCrusherMover,
   toggleDoorMoverAtCell,

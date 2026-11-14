@@ -30,10 +30,6 @@ const FALLBACK_CATEGORY: ModelCategoryId = 'decorations';
 export const categoryFolderId = (category: ModelCategoryId): string =>
   `cat:${category}`;
 
-function isBuiltInFolder(s: ModelLibraryState, folderId: string): boolean {
-  return s.folders.some((f) => f.id === folderId && f.categoryId !== undefined);
-}
-
 function requireCustomFolder(s: ModelLibraryState, folderId: string): LibraryFolder {
   const folder = s.folders.find((f) => f.id === folderId);
   if (!folder) throw new Error(`Folder '${folderId}' does not exist.`);

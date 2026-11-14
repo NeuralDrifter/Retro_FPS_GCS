@@ -35,13 +35,11 @@ export interface UseCampaignManagerOptions {
 }
 
 export function useCampaignManager({
-  levelTitle,
   setLevelTitle,
   activeLevelIndex,
   setActiveLevelIndex,
   campaignLevels,
   setCampaignLevels,
-  campaignSettings,
   setCampaignSettings,
   buildActiveSingleLevelState,
   applySingleLevelToEditor,
@@ -102,7 +100,7 @@ export function useCampaignManager({
     const newTitle = `Level ${newIndex + 1}: Sector ${newIndex + 1}`;
     const size = DEFAULT_LEVEL_GRID_SIZE;
     const freshGrid: number[][] = Array.from({ length: size }, (_, r) =>
-      Array.from({ length: size }, (_, c) =>
+      Array.from({ length: size }, (_cell, c) =>
         r === 0 || r === size - 1 || c === 0 || c === size - 1
           ? CellType.WALL
           : CellType.EMPTY

@@ -29,7 +29,6 @@ import {
   TextureAsset,
   createDefaultMenuPack,
   createUniformTextureMatrix,
-  resizeSquareMatrix,
 } from './types/engine';
 import { CollisionSystem } from './runtime/CollisionSystem';
 import { TextureGenerator } from './runtime/TextureGenerator';
@@ -45,8 +44,6 @@ import {
   getCollectedKeysSetFromSim,
   getOpenDoorsSetFromSim,
   EventDefinition,
-  RegionDefinition,
-  VariableRegistrySpec,
 } from './runtime/sim';
 import {
   DesignStateSnapshot,
@@ -62,7 +59,6 @@ import {
   cloneVerticalData,
   createDefaultVerticalData,
   isFlatVerticalData,
-  resizeVerticalData,
 } from './runtime/types';
 import { LAYER_METERS, entityAnchorWorld } from './runtime/entityPlacement';
 import {
@@ -549,6 +545,7 @@ export default function App() {
     setPastHistory(removeCopies);
     setFutureHistory(removeCopies);
     AssetRegistry.removeModelFile(modelId);
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- setPastHistory and setFutureHistory are useState setters from useEditorHistory, declared after this callback
   }, []);
   // Placed copies (and undo / redo steps) follow stored models that moved to new ids
   const handleModelIdsRenamed = useCallback((renamed: Record<string, string>) => {
@@ -558,6 +555,7 @@ export default function App() {
     setPastHistory(remapSnapshots);
     setFutureHistory(remapSnapshots);
     setSelectedModelAssetId((prev) => renamed[prev] ?? prev);
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- setPastHistory and setFutureHistory are useState setters from useEditorHistory, declared after this callback
   }, []);
   const modelLibrary = useModelLibrary({
     models: allModel3DAssets,
@@ -645,7 +643,7 @@ export default function App() {
   });
 
   /** The matrices of the layer being edited, read synchronously from the latest design */
-  const getActiveLayerSnapshot = (): EditorLayerData => {
+  const getActiveLayerSnapshot = useCallback((): EditorLayerData => {
     const d = currentDesignRef.current;
     const layer = activeLayerRef.current;
     const v = d.vertical!;
@@ -660,7 +658,7 @@ export default function App() {
           slopes: v.slopes,
         }
       : v.layers[layer - 1];
-  };
+  }, [currentDesignRef, activeLayerRef]);
   /** Placed models on the layer being edited */
   const onActiveLayer = (e: PlacedEntity) => (e.layer ?? 0) === activeLayerRef.current;
 
@@ -912,7 +910,8 @@ export default function App() {
       );
       return true;
     },
-    [allModel3DAssets, selectedModelAssetId, libraryState, selectedVariant]
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- currentDesignRef is a ref from useEditorHistory, read at call time
+    [allModel3DAssets, selectedModelAssetId, libraryState, selectedVariant, getActiveLayerSnapshot]
   );
 
   /** Places a copy with the same settings as an already placed model (variant drag) */
@@ -951,6 +950,7 @@ export default function App() {
         recordHistorySnapshot(`Place '${source.name}' variant at [X:${col}, Z:${row}]`);
       }
     },
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- currentDesignRef is a ref from useEditorHistory, read at call time
     [allModel3DAssets, recordHistorySnapshot, placeEntityAtCell]
   );
 
@@ -1068,7 +1068,8 @@ export default function App() {
     } else {
       setEngineLog(`Erase: Cleared cell [X:${col}, Z:${row}].`);
     }
-  }, [setActiveGrid, setActiveWallTextures, setActiveFloorTextures, setActiveCeilingTextures]);
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- currentDesignRef is a ref from useEditorHistory, read at call time
+  }, [setActiveGrid, setActiveWallTextures, setActiveFloorTextures, setActiveCeilingTextures, getActiveLayerSnapshot]);
 
   /** Changes the floor/ceiling heights or slopes of one layer */
   const updateLayerHeights = useCallback(
@@ -1286,6 +1287,7 @@ export default function App() {
       setActiveGrid,
       adjustTileHeight,
       cycleTileSlope,
+      getActiveLayerSnapshot,
     ]
   );
 
@@ -1351,7 +1353,7 @@ export default function App() {
         prev.map((e) => (e.id === updated.id ? updated : e))
       );
     },
-    [recordHistorySnapshot]
+    [recordHistorySnapshot, currentDesignRef, getActiveLayerSnapshot]
   );
 
   const handleRemoveEntity = useCallback(
@@ -1362,6 +1364,7 @@ export default function App() {
       setEntities((prev) => prev.filter((e) => e.id !== entityId));
       setEngineLog(`Inspector: Removed '${target.name}'.`);
     },
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- currentDesignRef is a ref from useEditorHistory, read at call time
     [recordHistorySnapshot]
   );
 
@@ -1514,7 +1517,7 @@ export default function App() {
         setResetSignal((n) => n + 1);
       }
     },
-    []
+    [setPastHistory, setFutureHistory]
   );
 
   const {
@@ -1860,6 +1863,7 @@ export default function App() {
         drop
       );
     },
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- currentDesignRef is a ref from useEditorHistory, read at call time
     [allModel3DAssets, recordHistorySnapshot, placeEntityAtCell]
   );
 
@@ -1929,6 +1933,7 @@ export default function App() {
       setSelectedCell({ row: ent.row, col: ent.col });
       setActiveLayer(ent.layer ?? 0);
     }
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- currentDesignRef is a ref from useEditorHistory, read at call time
   }, []);
 
   const setSelectedVariant = modelLibrary.setSelectedVariant;

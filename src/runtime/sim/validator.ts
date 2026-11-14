@@ -19,7 +19,6 @@ import {
   LevelDataV3,
   SIM_CONFIG,
   SimCellType,
-  SimulationState,
   TriggerSpec,
 } from './types';
 import { findFloatPaths } from './hash';

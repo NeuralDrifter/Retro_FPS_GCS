@@ -645,7 +645,7 @@ export class RuntimeLevelSerializer {
           ? obj.title.trim()
           : typeof (obj?.metadata as Record<string, unknown> | undefined)?.title ===
               'string'
-          ? String((obj?.metadata as Record<string, unknown>).title)
+          ? String((obj?.metadata as Record<string, unknown> | undefined)?.title)
           : undefined,
       vertical: editorVertical,
     });

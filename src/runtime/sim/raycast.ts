@@ -197,7 +197,6 @@ export function castGridRayDDA(params: {
     );
   }
 
-  const maxDistFp = maxDist * DIST_FP;
   let side: 'x' | 'z' = 'x';
   let traveledFp = 0;
 

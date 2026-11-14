@@ -126,7 +126,7 @@ export const MenuStudioWorkspace: React.FC<MenuStudioWorkspaceProps> = ({
   const handleToggleWidgetVisible = (widgetId: string) => {
     updateWidget(widgetId, (w) => ({
       ...w,
-      visible: w.visible === false ? true : false,
+      visible: w.visible === false,
     }));
   };
 

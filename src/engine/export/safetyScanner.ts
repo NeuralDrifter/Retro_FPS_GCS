@@ -43,7 +43,7 @@ export function scanStringForSecrets(
 
   // 2. Generic secret / token assignments: apiKey = "...", secret: "...", etc.
   const secretAssignMatch =
-    /(?:api_?key|secret_?key|auth_?token)\s*[:=]\s*['"]([a-zA-Z0-9_\-]{16,})['"]/i.exec(
+    /(?:api_?key|secret_?key|auth_?token)\s*[:=]\s*['"]([a-zA-Z0-9_-]{16,})['"]/i.exec(
       content
     );
   if (secretAssignMatch) {

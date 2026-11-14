@@ -9,14 +9,13 @@
 import React, { useState } from 'react';
 import {
   ActionSpec,
-  ConditionSpec,
   EventDefinition,
   RegionDefinition,
   TriggerSpec,
   VariableRegistrySpec,
 } from '../runtime/sim/types';
-import { validateLevelDataV3, ValidationErrorItem } from '../runtime/sim/validator';
-import { X, Plus, Trash2, CheckCircle2, AlertTriangle, Sliders, ShieldAlert, BookOpen } from 'lucide-react';
+import { validateLevelDataV3 } from '../runtime/sim/validator';
+import { X, Plus, Trash2, CheckCircle2, AlertTriangle, Sliders, ShieldAlert } from 'lucide-react';
 
 interface EventTriggerEditorModalProps {
   isOpen: boolean;

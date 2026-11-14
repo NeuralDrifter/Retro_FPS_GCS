@@ -137,7 +137,7 @@ export const VerticalTileSection: React.FC<VerticalTileSectionProps> = ({
         <SlopeFields
           label="Ceiling slope"
           slope={ceilingSlope}
-          onChange={(ceilingSlope) => onSetTileVertical(row, col, { ceilingSlope })}
+          onChange={(slope) => onSetTileVertical(row, col, { ceilingSlope: slope })}
         />
       </div>
     </div>

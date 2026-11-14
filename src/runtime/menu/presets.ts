@@ -8,7 +8,6 @@
 
 import {
   MenuButtonShape,
-  MenuFontFamilyId,
   MenuPackSpec,
   MenuScreenSpec,
   MenuThemeTokens,
