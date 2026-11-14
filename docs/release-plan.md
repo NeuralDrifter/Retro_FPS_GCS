@@ -1083,7 +1083,7 @@ cross-area edges                              external packages
 - [x] P2.1 Project schema v4
 - [x] P2.2 Migrations to v4
 - [x] P2.3 Document store and complete undo (HistoryManager is deleted when App moves onto the store in P2.4)
-- [ ] P2.4 Move App onto the store
+- [x] P2.4 Move App onto the store (App is 706 lines. All domains moved in one commit, not one per domain, because undo cannot be split across two history systems; the new e2e spec covers each domain. Uploaded textures stay in the texture catalog until P2.6 makes them user assets, and save files keep the editor format until P2.5.)
 - [ ] P2.5 Local persistence and project management
 - [ ] P2.6 Portable user assets and import hardening
 - [ ] P2.7 Pin and describe the asset library
