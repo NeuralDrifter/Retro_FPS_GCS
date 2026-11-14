@@ -93,11 +93,9 @@ export function pickPlacementFields(src: {
   };
 }
 
-/**
- * Converts a validated `LevelDataV3` back into runtime `PlacedEntity[]` for 3D rendering.
- */
-export function placedEntitiesFromLevelV3(levelV3: LevelDataV3): PlacedEntity[] {
-  return levelV3.entities.map((e) => ({
+/** Converts one level entity back into the editor's `PlacedEntity` (meters, radians) */
+export function placedEntityFromV3(e: SimPlacedEntityV3): PlacedEntity {
+  return {
     id: e.id,
     row: e.row,
     col: e.col,
@@ -129,7 +127,63 @@ export function placedEntitiesFromLevelV3(levelV3: LevelDataV3): PlacedEntity[] 
     ambush: e.ambush,
     ...pickPlacementFields(e),
     ...verticalPlacementFromV3(e),
-  }));
+  };
+}
+
+/**
+ * Converts a validated `LevelDataV3` back into runtime `PlacedEntity[]` for 3D rendering.
+ */
+export function placedEntitiesFromLevelV3(levelV3: LevelDataV3): PlacedEntity[] {
+  return levelV3.entities.map(placedEntityFromV3);
+}
+
+/**
+ * Converts one editor entity to the integer level format, clamped to a `gridSize` map.
+ * Registers a model id for entities that only carry a custom GLB URL.
+ */
+export function placedEntityToV3(ent: PlacedEntity, gridSize: number): SimPlacedEntityV3 {
+  const maxIdx = gridSize - 1;
+  let modelAssetId = ent.modelAssetId;
+  if (!modelAssetId && ent.customGlbUrl) {
+    modelAssetId = AssetRegistry.registerCustomGlbUrl(
+      ent.customGlbUrl,
+      ent.name,
+      ent.isEnemy !== false
+    );
+  }
+
+  const speedMetersPerSec =
+    ent.moveSpeed ?? (ent.isEnemy !== false ? 4.5 : 0);
+  const speedUnitsPerTick = Math.max(
+    0,
+    Math.round(
+      (speedMetersPerSec / ENGINE_CONFIG.CELL_SIZE) *
+        (SIM_CONFIG.CELL_UNITS / SIM_CONFIG.TICKS_PER_SECOND)
+    )
+  );
+
+  return {
+    id: ent.id,
+    row: Math.max(0, Math.min(maxIdx, Math.trunc(ent.row))),
+    col: Math.max(0, Math.min(maxIdx, Math.trunc(ent.col))),
+    blueprintId: ent.blueprintId,
+    ...(modelAssetId ? { modelAssetId } : {}),
+    name: ent.name,
+    yawBam: radiansToBam(ent.yaw || 0),
+    scalePct: Math.max(
+      1,
+      Math.min(500, Math.round((ent.scale || 1) * 100))
+    ),
+    isEnemy: ent.isEnemy !== false,
+    maxHealth: Math.max(1, Math.trunc(ent.maxHealth ?? 75)),
+    moveSpeedUnitsPerTick: speedUnitsPerTick,
+    attackDamage: Math.max(0, Math.trunc(ent.attackDamage ?? 12)),
+    ...(ent.tag !== undefined ? { tag: Math.trunc(ent.tag) } : {}),
+    ...(ent.patrol !== undefined ? { patrol: Boolean(ent.patrol) } : {}),
+    ...(ent.ambush !== undefined ? { ambush: Boolean(ent.ambush) } : {}),
+    ...pickPlacementFields(ent),
+    ...verticalPlacementToV3(ent),
+  };
 }
 
 export class RuntimeLevelSerializer {
@@ -170,49 +224,7 @@ export class RuntimeLevelSerializer {
     const gridSize = params.grid.length;
     const maxIdx = gridSize - 1;
 
-    const v3Entities: SimPlacedEntityV3[] = params.entities.map((ent) => {
-      let modelAssetId = ent.modelAssetId;
-      if (!modelAssetId && ent.customGlbUrl) {
-        modelAssetId = AssetRegistry.registerCustomGlbUrl(
-          ent.customGlbUrl,
-          ent.name,
-          ent.isEnemy !== false
-        );
-      }
-
-      const speedMetersPerSec =
-        ent.moveSpeed ?? (ent.isEnemy !== false ? 4.5 : 0);
-      const speedUnitsPerTick = Math.max(
-        0,
-        Math.round(
-          (speedMetersPerSec / ENGINE_CONFIG.CELL_SIZE) *
-            (SIM_CONFIG.CELL_UNITS / SIM_CONFIG.TICKS_PER_SECOND)
-        )
-      );
-
-      return {
-        id: ent.id,
-        row: Math.max(0, Math.min(maxIdx, Math.trunc(ent.row))),
-        col: Math.max(0, Math.min(maxIdx, Math.trunc(ent.col))),
-        blueprintId: ent.blueprintId,
-        ...(modelAssetId ? { modelAssetId } : {}),
-        name: ent.name,
-        yawBam: radiansToBam(ent.yaw || 0),
-        scalePct: Math.max(
-          1,
-          Math.min(500, Math.round((ent.scale || 1) * 100))
-        ),
-        isEnemy: ent.isEnemy !== false,
-        maxHealth: Math.max(1, Math.trunc(ent.maxHealth ?? 75)),
-        moveSpeedUnitsPerTick: speedUnitsPerTick,
-        attackDamage: Math.max(0, Math.trunc(ent.attackDamage ?? 12)),
-        ...(ent.tag !== undefined ? { tag: Math.trunc(ent.tag) } : {}),
-        ...(ent.patrol !== undefined ? { patrol: Boolean(ent.patrol) } : {}),
-        ...(ent.ambush !== undefined ? { ambush: Boolean(ent.ambush) } : {}),
-        ...pickPlacementFields(ent),
-        ...verticalPlacementToV3(ent),
-      };
-    });
+    const v3Entities: SimPlacedEntityV3[] = params.entities.map((ent) => placedEntityToV3(ent, gridSize));
 
     const nextEntityId = computeNextEntityId(v3Entities, params.nextEntityId);
 

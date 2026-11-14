@@ -57,6 +57,15 @@ import {
   placedEntitiesFromLevelV3,
 } from '../../runtime';
 
+/** A gridSize x gridSize matrix of integers (cell tags in an editor save) */
+function isIntMatrix(m: unknown, gridSize: number): m is number[][] {
+  return (
+    Array.isArray(m) &&
+    m.length === gridSize &&
+    m.every((r: unknown) => Array.isArray(r) && r.length === gridSize && r.every((v) => Number.isInteger(v)))
+  );
+}
+
 export class LegacyLevelSerializer extends RuntimeLevelSerializer {
   /**
    * Strict Migrator: Upgrades untrusted v1 (square grid array) or v2 (`version: "2.0"`)
@@ -244,6 +253,7 @@ export class LegacyLevelSerializer extends RuntimeLevelSerializer {
       skyboxSeed,
       showCeiling,
       minimapEnabled,
+      ...(isIntMatrix(obj?.cellTags, gridSize) ? { cellTags: obj.cellTags } : {}),
       events: Array.isArray(obj?.events)
         ? (obj.events as EventDefinition[])
         : undefined,
@@ -309,6 +319,7 @@ export class LegacyLevelSerializer extends RuntimeLevelSerializer {
     events?: EventDefinition[];
     regions?: RegionDefinition[];
     variables?: VariableRegistrySpec;
+    cellTags?: number[][];
     vertical?: VerticalLevelData;
     levels?: LevelStateData[];
     activeLevelIndex?: number;
@@ -344,6 +355,7 @@ export class LegacyLevelSerializer extends RuntimeLevelSerializer {
         ? { regions: params.regions.map((r) => ({ ...r })) }
         : {}),
       ...(params.variables ? { variables: { ...params.variables } } : {}),
+      ...(params.cellTags ? { cellTags: params.cellTags.map((row) => [...row]) } : {}),
       ...(params.vertical ? { vertical: params.vertical } : {}),
       ...(params.levels && params.levels.length > 0
         ? { levels: params.levels }
@@ -453,6 +465,7 @@ export class LegacyLevelSerializer extends RuntimeLevelSerializer {
       customTextures,
       ...(missingModelWarnings.length > 0 ? { missingModelWarnings } : {}),
       entities,
+      ...(levelV3.cellTags ? { cellTags: levelV3.cellTags } : {}),
       events: levelV3.events,
       regions: levelV3.regions,
       variables: levelV3.variables,
