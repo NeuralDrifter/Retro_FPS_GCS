@@ -19,7 +19,11 @@ async function clickMapCell(page: Page, row: number, col: number) {
   await canvas.click({ position: { x: ruler + (col + 0.5) * cell, y: ruler + (row + 0.5) * cell } });
 }
 
+// Each step waits for the editor to re-render; CI's software renderer needs more than the default 60 s
+const STEPS_TIMEOUT_MS = 180_000;
+
 test('edit, undo and redo across map, events, world settings and campaign', async ({ page }) => {
+  test.setTimeout(STEPS_TIMEOUT_MS);
   await page.goto('./');
   await waitForGcsEvent(page, 'editor-ready');
   const inspector = page.getByRole('complementary', { name: 'Properties and Asset Library' });
@@ -70,6 +74,7 @@ test('edit, undo and redo across map, events, world settings and campaign', asyn
 });
 
 test('a drag of a map tool is one undo step, and play starts from the edited level', async ({ page }) => {
+  test.setTimeout(STEPS_TIMEOUT_MS);
   await page.goto('./');
   await waitForGcsEvent(page, 'editor-ready');
   const undoDepth = () => page.evaluate(() => window.__gcsProbes?.undoDepth?.() as number);
