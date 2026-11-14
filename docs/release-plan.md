@@ -1,6 +1,6 @@
 # Retro FPS GCS: Audit and Release Plan
 
-Prepared 2026-11-12 against commit `a5f61d2` on `main`. It covers two products: the GCS editor (React, Tailwind and Three.js, hosted on GitHub Pages) and the web games the editor exports.
+Prepared 2026-11-12 against commit `514e578` on `main`. That commit was `a5f61d2` until the history rewrite of 2026-11-13 (P0.1, Q1) changed every hash. It covers two products: the GCS editor (React, Tailwind and Three.js, hosted on GitHub Pages) and the web games the editor exports.
 
 ## How to use this document
 
@@ -1021,7 +1021,7 @@ The low end assumes one session per task. The high end adds a second session for
 
 ---
 
-## Appendix A: Evidence log (2026-11-12, commit `a5f61d2`)
+## Appendix A: Evidence log (2026-11-12, commit `514e578`)
 
 | Check | Result |
 |---|---|
@@ -1042,7 +1042,7 @@ The low end assumes one session per task. The high end adds a second session for
 
 Sources for the external facts: [itch.io HTML5 creator docs](https://itch.io/docs/creators/html5), [GitHub Pages limits](https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits), [Node.js release schedule announcement](https://nodejs.org/en/blog/announcements/evolving-the-nodejs-release-schedule), [endoflife.date: Node.js](https://endoflife.date/node), [WebTransport baseline report (webrtc.ventures)](https://webrtc.ventures/2026/04/webtransport-is-now-baseline-what-it-means-for-real-time-media/), [caniuse: WebTransport](https://caniuse.com/webtransport).
 
-## Appendix B: Import graph (non-test source, commit `a5f61d2`)
+## Appendix B: Import graph (non-test source, commit `514e578`)
 
 Counts are import statements from one area to another. Edges into the root area through `../../runtime` are imports of `src/runtime/index.ts`.
 
@@ -1065,8 +1065,8 @@ cross-area edges                              external packages
 
 ## Appendix C: Progress tracker
 
-- [x] P0.1 Remove leaked and leftover files (history purge per Q1 not done)
-- [ ] P0.2 Dependency cleanup and reproducible installs
+- [x] P0.1 Remove leaked and leftover files (history purged 2026-11-13)
+- [x] P0.2 Dependency cleanup and reproducible installs
 - [ ] P0.3 Move tests to Vitest
 - [ ] P0.4 Playwright smoke harness
 - [ ] P0.5 Remove Google calls and base-path bugs
