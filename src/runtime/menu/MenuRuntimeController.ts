@@ -7,7 +7,7 @@
  */
 
 import { PlayerCombatState, TextureAsset } from '../types';
-import { SimulationState } from '../sim';
+import { SimulationState } from '../../sim';
 import { SoundEffects } from '../SoundEffects';
 import {
   MenuDOMRenderer,

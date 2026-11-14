@@ -48,7 +48,7 @@ import {
   recordEntityKilledInSim,
   step,
   worldUnitsToGrid,
-} from './sim';
+} from '../sim';
 import {
   RuntimeLevelSerializer,
   placedEntitiesFromLevelV3,

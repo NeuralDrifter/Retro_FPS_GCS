@@ -25,7 +25,7 @@ import {
   VerticalWorldView,
   NO_FLOOR_UNITS,
   tileColumnSpans,
-} from './sim';
+} from '../sim';
 import { ENGINE_CONFIG, VerticalLevelData } from './types';
 
 const LAYER = SIM_CONFIG.LAYER_HEIGHT_UNITS;

@@ -9,7 +9,7 @@
  */
 
 import { CampaignSettings, DEFAULT_CAMPAIGN_SETTINGS, ENGINE_CONFIG, PlayerCombatState } from '../types';
-import { SIM_CONFIG, SimulationState } from '../sim';
+import { SIM_CONFIG, SimulationState } from '../../sim';
 import { HUD_ICONS } from './icons';
 
 export interface CombatHUDStateProps {

@@ -8,9 +8,9 @@
 
 import * as THREE from 'three';
 import { ENGINE_CONFIG, PlacedEntity, VerticalLevelData } from './types';
-import { SIM_CONFIG } from './sim';
-import { getFootprintRect } from './sim/footprint';
-import { radiansToBam } from './sim/trigTable';
+import { SIM_CONFIG } from '../sim';
+import { getFootprintRect } from '../sim/footprint';
+import { radiansToBam } from '../sim/trigTable';
 import { CollisionSystem } from './CollisionSystem';
 
 const LAYER_METERS = (SIM_CONFIG.LAYER_HEIGHT_UNITS * ENGINE_CONFIG.CELL_SIZE) / SIM_CONFIG.CELL_UNITS;

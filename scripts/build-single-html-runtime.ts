@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import {
   SINGLE_HTML_RUNTIME_OUTPUT,
   buildSingleHtmlRuntime,
-} from '../src/engine/export/singleHtmlRuntimeBuild';
+} from '../src/export/singleHtmlRuntimeBuild';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outPath = path.join(projectRoot, SINGLE_HTML_RUNTIME_OUTPUT);

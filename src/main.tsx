@@ -1,7 +1,7 @@
 import {useEffect} from 'react';
 import {createRoot} from 'react-dom/client';
-import App from './App.tsx';
-import {publicFileUrl} from './engine/basePath';
+import App from './editor/App.tsx';
+import {publicFileUrl} from './editor/engine/basePath';
 import {emitDebugEvent} from './runtime/debugEvents';
 import {EntityLoader} from './runtime/EntityLoader';
 import './index.css';

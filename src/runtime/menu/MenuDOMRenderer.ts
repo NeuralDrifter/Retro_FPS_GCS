@@ -11,7 +11,7 @@
 import { AssetRegistry } from '../AssetRegistry';
 import { TextureGenerator } from '../TextureGenerator';
 import { PlayerCombatState, TextureAsset } from '../types';
-import { SimulationState } from '../sim';
+import { SimulationState } from '../../sim';
 import {
   DEFAULT_MENU_RUNTIME_SETTINGS,
   MenuAction,

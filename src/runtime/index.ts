@@ -10,7 +10,7 @@ export * from './EnemyAISystem';
 export * from './CombatSystem';
 export * from './WorldBuilder';
 export * from './SoundEffects';
-export * from './sim';
+export * from '../sim';
 export * from './hud/CombatHUD';
 export * from './hud/MinimapHUD';
 export * from './manifest';

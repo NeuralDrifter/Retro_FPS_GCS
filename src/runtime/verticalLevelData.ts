@@ -24,7 +24,7 @@ import {
   bamToRadians,
   radiansToBam,
   verticalFeaturesOf,
-} from './sim';
+} from '../sim';
 
 /** 1 cell = 4 m = 1000 units */
 export const UNITS_PER_METER = SIM_CONFIG.CELL_UNITS / ENGINE_CONFIG.CELL_SIZE;

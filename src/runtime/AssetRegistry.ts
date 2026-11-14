@@ -9,7 +9,7 @@
  *    (`tex-<hash>` / `glb-<hash>`) instead of `Date.now()` or `Math.random()`.
  */
 
-import { fnv1a64Hex } from './sim/hash';
+import { fnv1a64Hex } from '../sim/hash';
 import { Model3DAsset, TextureAsset } from './types';
 
 export const BUILTIN_TEXTURE_IDS: readonly string[] = [

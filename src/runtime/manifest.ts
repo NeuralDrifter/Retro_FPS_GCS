@@ -17,7 +17,7 @@ import {
   ManifestTextureAsset,
   TextureAsset,
 } from './types';
-import { LevelDataV3, validateLevelDataV3 } from './sim';
+import { LevelDataV3, validateLevelDataV3 } from '../sim';
 import { RuntimeLevelSerializer } from './LevelSerializer';
 import { AssetRegistry } from './AssetRegistry';
 

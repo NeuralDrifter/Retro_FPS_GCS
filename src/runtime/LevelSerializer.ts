@@ -43,7 +43,7 @@ import {
   isVerticalLevel,
   radiansToBam,
   validateLevelDataV3,
-} from './sim';
+} from '../sim';
 import { AssetRegistry } from './AssetRegistry';
 
 /**

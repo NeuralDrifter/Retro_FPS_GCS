@@ -19,7 +19,7 @@
 import {
   ActionSpec,
   LevelDataV3,
-} from './sim';
+} from '../sim';
 import {
   GameManifest,
   LevelStateData,

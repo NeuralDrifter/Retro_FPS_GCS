@@ -32,7 +32,7 @@ import {
   VerticalWorldView,
   findActorSupportUnits,
   isBlockedVertical,
-} from './sim';
+} from '../sim';
 import { VerticalNavigator } from './verticalNav';
 
 const UNITS_PER_METER = SIM_CONFIG.CELL_UNITS / ENGINE_CONFIG.CELL_SIZE;

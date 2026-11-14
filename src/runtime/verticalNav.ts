@@ -18,7 +18,7 @@ import {
   openSpansAt,
   spanForFeet,
   worldUnitsToGrid,
-} from './sim';
+} from '../sim';
 
 /** Head room an enemy needs */
 const ENEMY_BODY_UNITS = SIM_CONFIG.PLAYER_BODY_HEIGHT_UNITS;

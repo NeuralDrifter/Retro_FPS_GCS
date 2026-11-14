@@ -14,8 +14,8 @@ import type {
   RegionDefinition,
   VariableRegistrySpec,
   WalkSurfaceSpec,
-} from './sim/types';
-import { DEFAULT_MOVEMENT_SETTINGS, SIM_CONFIG } from './sim/types';
+} from '../sim/types';
+import { DEFAULT_MOVEMENT_SETTINGS, SIM_CONFIG } from '../sim/types';
 import type { MenuPackSpec } from './menu/types';
 
 export type ModelCategoryId =
