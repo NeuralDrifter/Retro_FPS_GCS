@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { createAutosaver, pickRecoverable } from '../editor/persistence/autosave';
-import { embedUploadedTextures, texturesFromUserAssets, usedTextureIds } from '../editor/persistence/projectAssets';
+import { embedUploadedTextures, importUserAssets, prepareForDownload, usedTextureIds } from '../editor/persistence/projectAssets';
 import { createInitialProject } from '../editor/store/useEditorDocument';
 import { sha256Hex } from '../shared/bytes';
 import { validateProjectV4 } from '../shared/project';
@@ -115,8 +115,29 @@ describe('uploaded textures travel with the project (P2.5)', () => {
     const result = validateProjectV4(saved);
     assert.equal(result.valid, true, JSON.stringify(result.valid ? [] : result.errors.slice(0, 3)));
 
-    const back = texturesFromUserAssets(saved);
-    assert.equal(back[0].previewUrl, upload('x').previewUrl);
     assert.equal(embedUploadedTextures(saved, catalog), saved, 'nothing new to embed');
+  });
+
+  it('opens embedded files only when they match their SHA-256 (P2.6)', async () => {
+    const doc = createInitialProject();
+    const bytes = Uint8Array.from(Buffer.from(PNG_BASE64, 'base64'));
+    doc.userAssets = [
+      { id: 'tex-aaaaaaaaaaaaaaaa', name: 'Bricks', mimeType: 'image/png', sha256: sha256Hex(bytes), size: bytes.length, license: 'CC0-1.0', data: PNG_BASE64 },
+    ];
+    const opened = await importUserAssets(doc);
+    assert.equal(opened.ok, true);
+    if (!opened.ok) return;
+    assert.equal(opened.result.textures[0].previewUrl, `data:image/png;base64,${PNG_BASE64}`);
+    assert.equal(opened.result.doc.userAssets[0].data, undefined, 'bytes leave the document');
+    assert.deepEqual(opened.result.missing, []);
+
+    // The download puts the bytes back from what the editor registered
+    const downloaded = await prepareForDownload(opened.result.doc);
+    assert.equal(downloaded.doc.userAssets[0].data, PNG_BASE64);
+
+    const tampered = structuredClone(doc);
+    tampered.userAssets[0].data = Buffer.from(bytes.map((b, i) => (i === 40 ? b ^ 1 : b))).toString('base64');
+    const refused = await importUserAssets(tampered);
+    assert.equal(refused.ok, false);
   });
 });

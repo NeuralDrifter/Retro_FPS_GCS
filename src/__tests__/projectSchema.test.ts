@@ -73,6 +73,7 @@ const EXPECTED_PATHS: Record<string, string> = {
   'asset-size-mismatch': '$.userAssets[0].data',
   'asset-cc-by-without-attribution': '$.userAssets[0].attribution',
   'asset-html-mime': '$.userAssets[0].mimeType',
+  'asset-builtin-texture-id': '$.userAssets[0].id',
   'health-as-string': '$.gameData.player.maxHealth',
   'slug-with-spaces': '$.export.slug',
   'negative-start-ammo': '$.gameData.player.startAmmo',

@@ -43,8 +43,11 @@ import { BottomStatusBar } from './components/ide/BottomStatusBar';
 import { MenuStudioWorkspace } from './components/menuStudio/MenuStudioWorkspace';
 import { FileMenu } from './components/ide/FileMenu';
 import { RecoveryDialog } from './components/dialogs/RecoveryDialog';
+import { UploadLicenseDialog } from './components/dialogs/UploadLicenseDialog';
+import { useUploadGate } from './library/useUploadGate';
 import { useProjectFiles } from './persistence/useProjectFiles';
 import { remapEntityModelIds, removeModelCopies } from './engine/modelLibrary/placement';
+import { AssetRegistry } from './engine/AssetRegistry';
 import { buildRuntimeLevel, runtimeLevelOf } from './store/levelView';
 import { campaignMenus, mapAllEntities, useEditorDocument } from './store/useEditorDocument';
 import { useAssetCatalog } from './hooks/useAssetCatalog';
@@ -73,6 +76,17 @@ export default function App() {
   useEffect(() => registerDebugProbe('projectDocument', () => store.getState().doc), [store]);
   useEffect(() => registerDebugProbe('activeLevelId', () => view.id), [view.id]);
   useEffect(() => registerDebugProbe('undoDepth', () => store.getState().past.length), [store]);
+  // Which user assets the editor can show (a texture it registered, or a model file it holds)
+  useEffect(
+    () =>
+      registerDebugProbe('userAssetStatus', () =>
+        store.getState().doc.userAssets.map((a) => ({
+          id: a.id,
+          ready: Boolean(AssetRegistry.getTexture(a.id) || AssetRegistry.getModelFile(a.id)),
+        }))
+      ),
+    [store]
+  );
 
   // --------------------------------------------------------------------------
   // EDITOR UI STATE (the project itself is in the store)
@@ -197,12 +211,15 @@ export default function App() {
     doc,
     customTextures,
     addCustomTextures: catalog.addCustomTextures,
+    addCustomModels: catalog.addCustomModels,
     setActiveLevelId,
     onProjectOpened: resetLevelUi,
     restoreLegacy: files.handleRestoreLevelState,
     setReadOnly,
     log: setEngineLog,
   });
+
+  const uploads = useUploadGate(ctx);
 
   // MapEditor2D starts a stroke (one undo step) on pointer down, then reports each cell
   const handleCellInteract = useCallback(
@@ -411,7 +428,7 @@ export default function App() {
             onOpenFile={project.openFile}
             onOpenRecent={(id) => void project.openRecent(id)}
             onSave={() => void project.save()}
-            onDownload={project.download}
+            onDownload={() => void project.download()}
             onClose={project.close}
           />
         }
@@ -633,6 +650,8 @@ export default function App() {
           targetSurface={targetSurface}
           onChangeTargetSurface={handleChangeTargetSurface}
           onAddCustomTexture={catalog.handleAddCustomTexture}
+          onRequestUploads={uploads.requestUploads}
+          onUploadAccepted={uploads.addToProject}
           onAssignCellTexture={map.handleAssignCellTextureFromInspector}
           onFillSurfaceWithTexture={map.handleFillSurfaceWithTexture}
           onSetCellType={map.handleSetCellType}
@@ -717,6 +736,15 @@ export default function App() {
           grid={view.grid}
           gridSize={view.gridSize}
           onSaveLevelData={files.handleSaveLevelDataFromEditor}
+        />
+      )}
+
+      {uploads.licenseRequest && (
+        <UploadLicenseDialog
+          kind={uploads.licenseRequest.kind}
+          names={uploads.licenseRequest.names}
+          onConfirm={uploads.resolveLicense}
+          onCancel={() => uploads.resolveLicense(null)}
         />
       )}
 

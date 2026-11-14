@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import type { UploadKind } from '../library/uploadIntake';
+import type { LicensedUpload } from '../library/useUploadGate';
 import {
   CampaignSettings,
   CellType,
@@ -38,6 +40,8 @@ export interface PropertiesInspectorProps {
   targetSurface: SurfaceTarget;
   onChangeTargetSurface: (surface: SurfaceTarget) => void;
   onAddCustomTexture: (asset: TextureAsset) => void;
+  onRequestUploads: (files: File[], kind: UploadKind) => Promise<LicensedUpload[]>;
+  onUploadAccepted: (upload: LicensedUpload, id: string, name: string) => void;
   onAssignCellTexture: (
     row: number,
     col: number,
@@ -209,6 +213,8 @@ export const PropertiesInspector: React.FC<PropertiesInspectorProps> = React.mem
 
         {activeTab === 'assets' && (
           <AssetLibraryTab
+            onRequestUploads={props.onRequestUploads}
+            onUploadAccepted={props.onUploadAccepted}
             textures={props.textures}
             recentTextureIds={props.recentTextureIds}
             selectedTextureId={props.selectedTextureId}

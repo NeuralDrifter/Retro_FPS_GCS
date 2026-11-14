@@ -109,6 +109,10 @@ export function useAssetCatalog({
     [builtInModel3DAssets, customModel3DAssets]
   );
   const [selectedModelAssetId, setSelectedModelAssetId] = useState<string>('sentinel-bot');
+  /** Models that arrived with an opened project file */
+  const addCustomModels = useCallback((models: Model3DAsset[]) => {
+    setCustomModel3DAssets((prev) => mergeById(prev, models));
+  }, []);
 
   // ------------------------------------------------------- GitHub asset library
   const [gitHubRepoInput, setGitHubRepoInput] = useState<string>(() => AssetFolderLoader.getSavedGitHubRepoInput());
@@ -275,6 +279,7 @@ export function useAssetCatalog({
     recentTextureIds,
     trackRecentTexture,
     allModel3DAssets,
+    addCustomModels,
     selectedModelAssetId,
     setSelectedModelAssetId,
     handleSelectModelAsset,

@@ -16,7 +16,7 @@ import {
   USER_ASSET_MIME_TYPES,
 } from './schema';
 import type { MultiplayerSettings, ProjectDocV4 } from './schema';
-import { SAFE_ASSET_ID_REGEX } from '../assetIds';
+import { BUILTIN_MODEL_IDS, BUILTIN_TEXTURE_IDS, SAFE_ASSET_ID_REGEX } from '../assetIds';
 
 /**
  * Accepts any well-formed asset ID. A project can reference library and uploaded assets the
@@ -283,7 +283,10 @@ function checkUserAssets(value: unknown, c: Checker): void {
     const p = `${path}[${i}]`;
     if (!c.object(a, p)) return;
     c.keys(a, p, ['id', 'name', 'mimeType', 'sha256', 'size', 'license'], ['attribution', 'data']);
-    c.string(a.id, `${p}.id`, 64, PROJECT_ID_PATTERN);
+    if (c.string(a.id, `${p}.id`, 64, PROJECT_ID_PATTERN) && (BUILTIN_TEXTURE_IDS.includes(a.id) || BUILTIN_MODEL_IDS.includes(a.id))) {
+      // An upload may not take over a built-in texture or model (audit ED-2)
+      c.error(`${p}.id`, 'reserved', `'${a.id}' is a built-in asset id`);
+    }
     c.string(a.name, `${p}.name`, PROJECT_LIMITS.MAX_SHORT_TEXT_CHARS, undefined, false);
     c.oneOf(a.mimeType, `${p}.mimeType`, USER_ASSET_MIME_TYPES);
     c.string(a.sha256, `${p}.sha256`, 64, SHA256_PATTERN);

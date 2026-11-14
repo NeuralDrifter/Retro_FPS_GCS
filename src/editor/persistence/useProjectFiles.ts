@@ -3,8 +3,7 @@
  * to browser storage, download, close; autosave and recovery; one editing tab per project.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { TextureAsset } from '../../runtime';
-import { AssetRegistry } from '../engine/AssetRegistry';
+import type { Model3DAsset, TextureAsset } from '../../runtime';
 import { LevelSerializer } from '../engine/LevelSerializer';
 import { canonicalStringify, createDefaultProject, detectProjectFormat, migrateToV4 } from '../../shared/project';
 import type { ProjectDocV4 } from '../../shared/project';
@@ -21,13 +20,15 @@ import {
 import type { ProjectLock } from './browserStorage';
 import { addAutosave, deleteAutosaves, listAutosaves, listProjects, loadProject, saveProject } from './db';
 import type { AutosaveRecord, ProjectSummary } from './db';
-import { embedUploadedTextures, texturesFromUserAssets } from './projectAssets';
+import { embedUploadedTextures, importUserAssets, prepareForDownload, prepareForStorage } from './projectAssets';
+import { MAX_PROJECT_FILE_BYTES, formatMB } from '../library/uploadIntake';
 
 export interface UseProjectFilesOptions {
   store: DocumentStore;
   doc: ProjectDocV4;
   customTextures: TextureAsset[];
   addCustomTextures: (textures: TextureAsset[]) => void;
+  addCustomModels: (models: Model3DAsset[]) => void;
   setActiveLevelId: (id: string) => void;
   /** Resets editor UI state after another project was opened */
   onProjectOpened: () => void;
@@ -67,6 +68,7 @@ export function useProjectFiles({
   doc,
   customTextures,
   addCustomTextures,
+  addCustomModels,
   setActiveLevelId,
   onProjectOpened,
   restoreLegacy,
@@ -117,7 +119,7 @@ export function useProjectFiles({
   useEffect(() => {
     const autosaver = createAutosaver({
       save: async () => {
-        await addAutosave(snapshot());
+        await addAutosave(await prepareForStorage(snapshot()));
       },
       onError: (error) => {
         setStorageOk(false);
@@ -192,19 +194,32 @@ export function useProjectFiles({
   }, [store, checkQuota]);
 
   // ------------------------------------------------------------- opening
-  /** Replaces the open project; writes pending autosaves of the old one first */
+  /**
+   * Replaces the open project; writes pending autosaves of the old one first. Embedded files are
+   * checked against their SHA-256; a mismatch leaves the open project as it was.
+   */
   const openDoc = useCallback(
-    async (next: ProjectDocV4, message: string) => {
+    async (next: ProjectDocV4, message: string): Promise<boolean> => {
+      const imported = await importUserAssets(next);
+      if (!imported.ok) {
+        logRef.current(`Error: ${imported.error}`);
+        return false;
+      }
       await autosaverRef.current?.flush();
-      const textures = texturesFromUserAssets(next);
-      for (const t of textures) AssetRegistry.registerTexture(t);
+      const { doc: opened, textures, models, missing } = imported.result;
       if (textures.length > 0) addCustomTextures(textures);
-      store.replace(next);
-      setActiveLevelId(next.levels[0].id);
+      if (models.length > 0) addCustomModels(models);
+      store.replace(opened);
+      setActiveLevelId(opened.levels[0].id);
       onProjectOpened();
-      logRef.current(message);
+      logRef.current(
+        missing.length > 0
+          ? `${message} Warning: ${missing.length} uploaded file(s) are missing (${missing.join(', ')}); the levels show stand-ins for them.`
+          : message
+      );
+      return true;
     },
-    [store, addCustomTextures, setActiveLevelId, onProjectOpened]
+    [store, addCustomTextures, addCustomModels, setActiveLevelId, onProjectOpened]
   );
 
   const newProject = useCallback(
@@ -217,6 +232,10 @@ export function useProjectFiles({
 
   const openFile = useCallback(
     (file: File) => {
+      if (file.size > MAX_PROJECT_FILE_BYTES) {
+        logRef.current(`Error: '${file.name}' is ${formatMB(file.size)}; project files can be at most ${formatMB(MAX_PROJECT_FILE_BYTES)}.`);
+        return;
+      }
       void file.text().then(async (text) => {
         let raw: unknown;
         try {
@@ -270,7 +289,7 @@ export function useProjectFiles({
       return;
     }
     try {
-      const copy = snapshot();
+      const copy = await prepareForStorage(snapshot());
       await saveProject(copy);
       autosaverRef.current?.markClean();
       await refreshRecent();
@@ -284,10 +303,14 @@ export function useProjectFiles({
     }
   }, [snapshot, refreshRecent, checkQuota]);
 
-  const download = useCallback(() => {
-    const copy = snapshot();
-    downloadText(canonicalStringify(copy), `${copy.export.slug || 'game'}.gcs.json`);
-    logRef.current(`File: Downloaded '${copy.meta.title}' as a project file.`);
+  const download = useCallback(async () => {
+    const { doc: copy, missing } = await prepareForDownload(snapshot());
+    const text = canonicalStringify(copy);
+    downloadText(text, `${copy.export.slug || 'game'}.gcs.json`);
+    const notes: string[] = [];
+    if (missing.length > 0) notes.push(`${missing.length} uploaded file(s) could not be found and were left out (${missing.join(', ')}).`);
+    if (text.length > MAX_PROJECT_FILE_BYTES) notes.push(`It is ${formatMB(text.length)}, over the ${formatMB(MAX_PROJECT_FILE_BYTES)} the editor opens; remove unused uploads.`);
+    logRef.current(`File: Downloaded '${copy.meta.title}' as a project file.${notes.length ? ` Warning: ${notes.join(' ')}` : ''}`);
   }, [snapshot]);
 
   const close = useCallback(() => {

@@ -44,7 +44,7 @@ import {
   bamToRadians,
   validateLevelDataV3,
 } from '../../sim';
-import { AssetRegistry } from '../../runtime';
+import { AssetRegistry, BUILTIN_TEXTURE_IDS } from '../../runtime';
 
 /**
  * Computes the next safe monotonic integer `nextEntityId` (>= 1) that is strictly
@@ -56,6 +56,37 @@ import {
   pickPlacementFields,
   placedEntitiesFromLevelV3,
 } from '../../runtime';
+
+const TEXTURE_DATA_URL = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+/** The asset library's host; P2.7 moves the library to a pinned Pages site */
+const LIBRARY_TEXTURE_URL = /^https:\/\/raw\.githubusercontent\.com\/[A-Za-z0-9_./-]+\.(?:png|jpe?g|webp)$/i;
+const SURFACES = new Set(['wall', 'floor', 'ceiling', 'any']);
+
+/**
+ * A custom texture from a save file, reduced to the fields the editor uses (audit ED-2). Only
+ * embedded PNG, JPEG or WebP images and asset library URLs are accepted, and an entry may not
+ * replace a built-in texture or one from the library. Returns null for anything else.
+ */
+export function sanitizeCustomTexture(raw: unknown): TextureAsset | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const t = raw as Record<string, unknown>;
+  if (typeof t.id !== 'string' || typeof t.previewUrl !== 'string') return null;
+  const previewUrl = t.previewUrl.replace(/\s+/g, '');
+  const embedded = TEXTURE_DATA_URL.test(previewUrl);
+  if (!embedded && !LIBRARY_TEXTURE_URL.test(previewUrl)) return null;
+  if (BUILTIN_TEXTURE_IDS.includes(t.id) || AssetRegistry.getTexture(t.id)?.fromProject) return null;
+  return {
+    id: t.id,
+    name: typeof t.name === 'string' && t.name.trim() ? t.name.slice(0, 200) : t.id,
+    sourceType: embedded ? 'file' : 'url',
+    previewUrl,
+    recommendedSurface:
+      typeof t.recommendedSurface === 'string' && SURFACES.has(t.recommendedSurface)
+        ? (t.recommendedSurface as TextureAsset['recommendedSurface'])
+        : 'any',
+    ...(t.hasAlpha === true ? { hasAlpha: true } : {}),
+  };
+}
 
 /** A gridSize x gridSize matrix of integers (cell tags in an editor save) */
 function isIntMatrix(m: unknown, gridSize: number): m is number[][] {
@@ -134,17 +165,11 @@ export class LegacyLevelSerializer extends RuntimeLevelSerializer {
     const customTextures: TextureAsset[] = [];
     if (Array.isArray(obj?.customTextures)) {
       for (const rawTex of obj.customTextures) {
-        if (
-          rawTex &&
-          typeof rawTex === 'object' &&
-          typeof (rawTex as TextureAsset).id === 'string' &&
-          typeof (rawTex as TextureAsset).previewUrl === 'string'
-        ) {
-          const texAsset = rawTex as TextureAsset;
-          const registered = AssetRegistry.registerTexture(texAsset);
-          idRemap.set(texAsset.id, registered.id);
-          customTextures.push(registered);
-        }
+        const texAsset = sanitizeCustomTexture(rawTex);
+        if (!texAsset) continue;
+        const registered = AssetRegistry.registerTexture(texAsset);
+        idRemap.set(texAsset.id, registered.id);
+        customTextures.push(registered);
       }
     }
 

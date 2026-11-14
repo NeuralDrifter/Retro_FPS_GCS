@@ -36,15 +36,12 @@ import { ModelFolderTree } from './modelLibrary/ModelFolderTree';
 import { ModelLibraryFilters } from './modelLibrary/ModelLibraryFilters';
 import { UsedInLevelList } from './modelLibrary/UsedInLevelList';
 import { ModelTagEditor } from './modelLibrary/ModelTagEditor';
-import {
-  AssetRegistry,
-  computeDeterministicAssetId,
-} from '../../engine/AssetRegistry';
+import { AssetRegistry } from '../../engine/AssetRegistry';
 import { Model3DThumbnailSvg } from './Model3DThumbnailSvg';
-import {
-  duplicateModelId,
-  uploadedModelId,
-} from '../../engine/modelLibrary/uploadStore';
+import { bytesToBase64 } from '../../library/uploadIntake';
+import type { UploadKind } from '../../library/uploadIntake';
+import type { LicensedUpload } from '../../library/useUploadGate';
+import { duplicateModelId } from '../../engine/modelLibrary/uploadStore';
 import {
   Check,
   Clock,
@@ -62,6 +59,10 @@ import {
 const ASSET_GRID_PAGE_SIZE = 48;
 
 interface AssetLibraryTabProps {
+  /** Checks uploads and asks for their license; resolves with the accepted files (P2.6) */
+  onRequestUploads: (files: File[], kind: UploadKind) => Promise<LicensedUpload[]>;
+  /** Records an accepted upload in the project under its library id */
+  onUploadAccepted: (upload: LicensedUpload, id: string, name: string) => void;
   textures: TextureAsset[];
   recentTextureIds?: string[];
   selectedTextureId: string;
@@ -140,6 +141,8 @@ function buildCustomModel3DAsset(params: {
 }
 
 const AssetLibraryTabView: React.FC<AssetLibraryTabProps> = ({
+  onRequestUploads,
+  onUploadAccepted,
   textures,
   recentTextureIds = [],
   selectedTextureId,
@@ -184,11 +187,9 @@ const AssetLibraryTabView: React.FC<AssetLibraryTabProps> = ({
 
   const texFileInputRef = useRef<HTMLInputElement | null>(null);
   const glbFileInputRef = useRef<HTMLInputElement | null>(null);
-  const [urlInput, setUrlInput] = useState('');
-  const [glbUrlInput, setGlbUrlInput] = useState('');
   // Uploads whose file is already in the library, waiting for "Upload anyway" or "Skip"
   const [pendingDuplicates, setPendingDuplicates] = useState<
-    { file: File; contentId: string; existingName: string }[]
+    { upload: LicensedUpload; contentId: string; existingName: string }[]
   >([]);
   // Ids taken by uploads that are not in `model3DAssets` yet (several files dropped at once)
   const claimedModelIdsRef = useRef<Set<string>>(new Set());
@@ -280,45 +281,27 @@ const AssetLibraryTabView: React.FC<AssetLibraryTabProps> = ({
     }
   };
 
-  const processUploadedImageFile = (file: File) => {
-    if (!file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== 'string') return;
+  /** Uploaded textures pass the upload checks and license prompt, then join the project */
+  const uploadTextureFiles = async (files: File[]) => {
+    for (const upload of await onRequestUploads(files, 'texture')) {
       const newAsset = AssetRegistry.registerTexture({
-        id: computeDeterministicAssetId('tex', reader.result),
-        name: sanitizeAssetLabel(file.name, 'Custom Texture'),
+        id: upload.id,
+        name: sanitizeAssetLabel(upload.name, 'Custom Texture'),
         sourceType: 'file',
-        previewUrl: reader.result,
+        previewUrl: `data:${upload.mimeType};base64,${bytesToBase64(upload.bytes)}`,
         recommendedSurface: targetSurface,
       });
+      onUploadAccepted(upload, newAsset.id, newAsset.name);
       onAddCustomTexture(newAsset);
       onSelectTexture(newAsset.id);
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   const handleTextureFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    Array.from(files).forEach(processUploadedImageFile);
+    void uploadTextureFiles(Array.from(files));
     e.target.value = '';
-  };
-
-  const handleAddTextureUrl = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = urlInput.trim();
-    if (!trimmed) return;
-    const newAsset = AssetRegistry.registerTexture({
-      id: computeDeterministicAssetId('tex', trimmed),
-      name: `URL Tex #${filterTextures(textures, 'uploaded', '').length + 1}`,
-      sourceType: 'url',
-      previewUrl: trimmed,
-      recommendedSurface: targetSurface,
-    });
-    onAddCustomTexture(newAsset);
-    onSelectTexture(newAsset.id);
-    setUrlInput('');
   };
 
   const takenModelIds = () => {
@@ -331,17 +314,17 @@ const AssetLibraryTabView: React.FC<AssetLibraryTabProps> = ({
     return ids;
   };
 
-  const processUploadedGlbFile = async (file: File) => {
-    const contentId = await uploadedModelId(await file.arrayBuffer());
-    if (takenModelIds().has(contentId)) {
-      const existing = model3DAssets.find((m) => m.id === contentId);
-      setPendingDuplicates((prev) => [
-        ...prev,
-        { file, contentId, existingName: existing?.name ?? file.name },
-      ]);
-      return;
+  /** Uploaded models pass the upload checks and license prompt, then join the project */
+  const uploadModelFiles = async (files: File[]) => {
+    for (const upload of await onRequestUploads(files, 'model')) {
+      const contentId = upload.id;
+      if (takenModelIds().has(contentId)) {
+        const existing = model3DAssets.find((m) => m.id === contentId);
+        setPendingDuplicates((prev) => [...prev, { upload, contentId, existingName: existing?.name ?? upload.name }]);
+        continue;
+      }
+      addUploadedGlbFile(upload, contentId);
     }
-    addUploadedGlbFile(file, contentId);
   };
 
   /** Keeps an identical file as a separate model with its own numbered id */
@@ -350,10 +333,11 @@ const AssetLibraryTabView: React.FC<AssetLibraryTabProps> = ({
     if (!next) return;
     setPendingDuplicates(rest);
     const id = duplicateModelId(next.contentId, takenModelIds());
-    addUploadedGlbFile(next.file, id, ` (${id.slice(next.contentId.length + 1)})`);
+    addUploadedGlbFile(next.upload, id, ` (${id.slice(next.contentId.length + 1)})`);
   };
 
-  const addUploadedGlbFile = (file: File, id: string, nameSuffix = '') => {
+  const addUploadedGlbFile = (upload: LicensedUpload, id: string, nameSuffix = '') => {
+    const file = new File([upload.file], upload.name, { type: 'model/gltf-binary' });
     claimedModelIdsRef.current.add(id);
     AssetRegistry.registerModelFile(id, file);
     const customCount = uploadedModels.length + 1;
@@ -368,33 +352,14 @@ const AssetLibraryTabView: React.FC<AssetLibraryTabProps> = ({
     );
     addModelToLibrary(newModel);
     onModelAdded(newModel, file);
+    onUploadAccepted(upload, newModel.id, newModel.name);
   };
 
   const handleGlbFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    Array.from(files).forEach((file) => void processUploadedGlbFile(file));
+    void uploadModelFiles(Array.from(files));
     e.target.value = '';
-  };
-
-  const handleApplyGlbUrl = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = glbUrlInput.trim();
-    if (!trimmed) return;
-    const customCount = uploadedModels.length + 1;
-    const newModel = AssetRegistry.registerModel(
-      buildCustomModel3DAsset({
-        id: computeDeterministicAssetId('glb', trimmed),
-        name: sanitizeAssetLabel(trimmed, `Remote .glb #${customCount}`),
-        sourceType: 'url',
-        category: uploadCategory,
-        customCount,
-        customGlbUrl: trimmed,
-      })
-    );
-    addModelToLibrary(newModel);
-    onModelAdded(newModel);
-    setGlbUrlInput('');
   };
 
   const handleTextureDragStart = (
@@ -740,7 +705,8 @@ const AssetLibraryTabView: React.FC<AssetLibraryTabProps> = ({
           <input
             ref={texFileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/png,image/jpeg,image/webp"
+            aria-label="Upload texture files"
             multiple
             onChange={handleTextureFileUpload}
             className="hidden"
@@ -757,9 +723,7 @@ const AssetLibraryTabView: React.FC<AssetLibraryTabProps> = ({
               if (e.dataTransfer.files?.length) {
                 e.preventDefault();
                 setIsTexFileDropOver(false);
-                Array.from(e.dataTransfer.files).forEach(
-                  processUploadedImageFile
-                );
+                void uploadTextureFiles(Array.from(e.dataTransfer.files));
               }
             }}
             onClick={() => texFileInputRef.current?.click()}
@@ -778,22 +742,6 @@ const AssetLibraryTabView: React.FC<AssetLibraryTabProps> = ({
             </div>
           </div>
 
-          <form onSubmit={handleAddTextureUrl} className="flex gap-1">
-            <input
-              type="url"
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              placeholder="Paste Texture URL (https://...)"
-              className="ide-input flex-1"
-            />
-            <button
-              type="submit"
-              disabled={!urlInput.trim()}
-              className="ide-btn ide-btn--primary"
-            >
-              Add
-            </button>
-          </form>
         </div>
       </div>
 
@@ -1045,7 +993,8 @@ const AssetLibraryTabView: React.FC<AssetLibraryTabProps> = ({
           <input
             ref={glbFileInputRef}
             type="file"
-            accept=".glb,.gltf"
+            accept=".glb,model/gltf-binary"
+            aria-label="Upload model files"
             multiple
             onChange={handleGlbFileUpload}
             className="hidden"
@@ -1062,9 +1011,7 @@ const AssetLibraryTabView: React.FC<AssetLibraryTabProps> = ({
               if (e.dataTransfer.files?.length) {
                 e.preventDefault();
                 setIsGlbFileDropOver(false);
-                Array.from(e.dataTransfer.files).forEach(
-                  (file) => void processUploadedGlbFile(file)
-                );
+                void uploadModelFiles(Array.from(e.dataTransfer.files));
               }
             }}
             onClick={() => glbFileInputRef.current?.click()}
@@ -1089,7 +1036,7 @@ const AssetLibraryTabView: React.FC<AssetLibraryTabProps> = ({
               className="p-2 border border-[#cca700] bg-[#352a05] rounded-[2px] text-[10px] text-[#cccccc] space-y-1.5"
             >
               <div>
-                '{pendingDuplicates[0].file.name}' is already in the library as '
+                '{pendingDuplicates[0].upload.name}' is already in the library as '
                 {pendingDuplicates[0].existingName}'. Uploading it anyway gives it a new id,
                 so the library will have two copies of the same model with different ids.
                 {pendingDuplicates.length > 1 &&
@@ -1114,22 +1061,6 @@ const AssetLibraryTabView: React.FC<AssetLibraryTabProps> = ({
             </div>
           )}
 
-          <form onSubmit={handleApplyGlbUrl} className="flex gap-1">
-            <input
-              type="url"
-              value={glbUrlInput}
-              onChange={(e) => setGlbUrlInput(e.target.value)}
-              placeholder="Paste .glb URL (https://...)"
-              className="ide-input flex-1"
-            />
-            <button
-              type="submit"
-              disabled={!glbUrlInput.trim()}
-              className="ide-btn ide-btn--primary"
-            >
-              Add
-            </button>
-          </form>
 
           <div className="flex gap-1.5">
             <button
