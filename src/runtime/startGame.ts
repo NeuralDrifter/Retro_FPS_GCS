@@ -25,6 +25,7 @@ import {
   TextureAsset,
   VerticalLevelData,
 } from './types';
+import { emitDebugEvent } from './debugEvents';
 import { migrateGameManifest } from './manifest';
 import { verticalFromLevelV3 } from './verticalLevelData';
 import {
@@ -2124,6 +2125,7 @@ export function startGame(
         syncHud();
       }
       renderer.render(scene, camera);
+      emitDebugEvent('first-frame');
 
       frameId = requestAnimationFrame(tick);
 

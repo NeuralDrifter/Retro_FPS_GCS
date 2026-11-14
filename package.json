@@ -10,12 +10,14 @@
     "dev": "npm run build:runtime && vite --port=3000 --host=0.0.0.0",
     "build": "npm run build:runtime && vite build",
     "build:runtime": "tsx scripts/build-single-html-runtime.ts",
+    "build:pages": "npm run build -- --base=/Retro_FPS_GCS/",
     "preview": "vite preview",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "npm run build:pages && playwright test"
   },
   "dependencies": {
     "jszip": "^3.10.2",
@@ -25,6 +27,7 @@
     "three": "^0.186.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.0.0",
     "@types/react": "^19.3.0",
