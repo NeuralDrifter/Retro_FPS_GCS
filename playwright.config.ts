@@ -44,7 +44,9 @@ export default defineConfig({
             name: 'firefox',
             use: {
               ...devices['Desktop Firefox'],
-              // Headless Firefox refuses software WebGL on GPU-less machines unless forced.
+              // Headless Firefox cannot create a WebGL context on GPU-less CI machines.
+              // CI runs it headed inside xvfb (E2E_FIREFOX_HEADED=1), where Mesa provides software GL.
+              headless: process.env.E2E_FIREFOX_HEADED !== '1',
               launchOptions: { firefoxUserPrefs: { 'webgl.force-enabled': true } },
             },
           },
