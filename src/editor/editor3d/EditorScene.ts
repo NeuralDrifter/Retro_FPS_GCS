@@ -30,7 +30,7 @@ import {
 import { SIM_CONFIG, WALK_SURFACE_EMPTY, WalkSurfaceSpec } from '../../sim';
 import { getFootprintRect } from '../../sim/footprint';
 import { radiansToBam } from '../../sim/trigTable';
-import { WorldBuilder } from '../../runtime';
+import { WorldBuilder, registerDebugProbe } from '../../runtime';
 import { TextureGenerator } from '../../runtime';
 import { EntityLoader } from '../../runtime';
 import { CollisionSystem } from '../../runtime';
@@ -132,6 +132,11 @@ export class EditorScene {
   private frame = 0;
   private lastTime = performance.now();
   private disposed = false;
+  /** Created once per scene; every world rebuild reuses it */
+  private doorTex: THREE.Texture | null = null;
+  private readonly envTarget: THREE.WebGLRenderTarget;
+  private readonly sun = new THREE.DirectionalLight(0xfffbeb, 1.2);
+  private readonly removeRendererProbe: () => void;
   private readonly resizeObserver: ResizeObserver;
   private readonly removeListeners: () => void;
 
@@ -157,12 +162,15 @@ export class EditorScene {
     this.applyCameraRotation();
 
     const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    const roomEnvironment = new RoomEnvironment();
+    this.envTarget = pmrem.fromScene(roomEnvironment, 0.04);
+    this.scene.environment = this.envTarget.texture;
+    roomEnvironment.dispose();
     pmrem.dispose();
     this.scene.add(new THREE.HemisphereLight(0x38bdf8, 0x0f172a, 0.75));
-    const sun = new THREE.DirectionalLight(0xfffbeb, 1.2);
-    sun.position.set(14, 28, 12);
-    this.scene.add(sun);
+    this.sun.position.set(14, 28, 12);
+    this.scene.add(this.sun);
+    this.removeRendererProbe = registerDebugProbe('editorRenderer', () => ({ ...this.renderer.info.memory }));
     this.scene.add(this.entitiesGroup);
     this.scene.add(this.helpersGroup);
 
@@ -231,7 +239,7 @@ export class EditorScene {
       level.ceilingTextures,
       level.customTextures,
       [],
-      TextureGenerator.createDoorTexture(this.renderer.capabilities.getMaxAnisotropy()),
+      (this.doorTex ??= TextureGenerator.createDoorTexture(this.renderer.capabilities.getMaxAnisotropy())),
       this.renderer.capabilities.getMaxAnisotropy(),
       {
         showCeiling: level.showCeiling,
@@ -838,7 +846,13 @@ export class EditorScene {
     this.transform.dispose();
     if (this.worldGroup) WorldBuilder.disposeWorldGroup(this.worldGroup);
     this.skyboxTex?.dispose();
+    this.doorTex?.dispose();
+    this.envTarget.dispose();
+    this.sun.dispose();
+    this.removeRendererProbe();
     this.renderer.dispose();
+    // Free the GPU context now instead of waiting for GC, so Edit and Play switches never pile up contexts
+    this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
   }
 }

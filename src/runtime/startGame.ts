@@ -24,7 +24,7 @@ import {
   TextureAsset,
   VerticalLevelData,
 } from './types';
-import { emitDebugEvent } from './debugEvents';
+import { emitDebugEvent, registerDebugProbe } from './debugEvents';
 import { verticalFromLevelV3 } from './verticalLevelData';
 import {
   LevelDataV3,
@@ -435,6 +435,8 @@ export function startGame(
   let combatSystem: CombatSystem | null = null;
   let doorTex: THREE.Texture | null = null;
   let skyboxTex: THREE.CanvasTexture | null = null;
+  let envTarget: THREE.WebGLRenderTarget | null = null;
+  let removeRendererProbe: () => void = () => {};
 
   const keysPressed: Record<string, boolean> = {};
   const euler = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -1377,11 +1379,13 @@ export function startGame(
       }
 
       const pmremGenerator = new THREE.PMREMGenerator(renderer);
-      scene.environment = pmremGenerator.fromScene(
-        new RoomEnvironment(),
-        0.04
-      ).texture;
+      const roomEnvironment = new RoomEnvironment();
+      envTarget = pmremGenerator.fromScene(roomEnvironment, 0.04);
+      scene.environment = envTarget.texture;
+      roomEnvironment.dispose();
       pmremGenerator.dispose();
+      const probedRenderer = renderer;
+      removeRendererProbe = registerDebugProbe('runtimeRenderer', () => ({ ...probedRenderer.info.memory }));
 
       hemiLight = new THREE.HemisphereLight(0x38bdf8, 0x0f172a, 0.65);
       scene.add(hemiLight);
@@ -2150,7 +2154,19 @@ export function startGame(
     combatSystem = null;
     WorldBuilder.disposeWorldGroup(worldGroup);
     worldGroup = null;
-    renderer?.dispose();
+    controls?.dispose();
+    controls = null;
+    envTarget?.dispose();
+    envTarget = null;
+    dirLight?.dispose();
+    dirLight = null;
+    removeRendererProbe();
+    if (renderer) {
+      renderer.dispose();
+      // Free the GPU context now instead of waiting for GC, so Edit and Play switches never pile up contexts
+      renderer.forceContextLoss();
+      if (!(canvasOrContainer instanceof HTMLCanvasElement)) renderer.domElement.remove();
+    }
     renderer = null;
   }
 

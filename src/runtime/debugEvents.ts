@@ -16,7 +16,19 @@ export type GcsDebugEventName =
 declare global {
   interface Window {
     __GCS_DEBUG__?: boolean;
+    /** Read-only probes the e2e suite calls in debug runs (see registerDebugProbe). */
+    __gcsProbes?: Record<string, () => unknown>;
   }
+}
+
+/** In debug runs, exposes `probe` as `window.__gcsProbes[name]`; returns a function that removes it. */
+export function registerDebugProbe(name: string, probe: () => unknown): () => void {
+  if (typeof window === 'undefined' || window.__GCS_DEBUG__ !== true) return () => {};
+  const probes = (window.__gcsProbes ??= {});
+  probes[name] = probe;
+  return () => {
+    if (probes[name] === probe) delete probes[name];
+  };
 }
 
 export function emitDebugEvent(name: GcsDebugEventName): void {
