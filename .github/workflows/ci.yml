@@ -37,10 +37,11 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
-      - name: Lint
-        run: npm run lint
+      # Boundaries first: its report names the broken rule; Oxlint's GitHub annotations do not
       - name: Boundaries
         run: npm run check:boundaries
+      - name: Lint
+        run: npm run lint
       - name: Unit tests
         run: npm test
       - name: Build for GitHub Pages
