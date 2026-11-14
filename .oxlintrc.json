@@ -278,8 +278,9 @@
             "patterns": [
               {
                 "group": [
-                  "**/runtime/*",
-                  "!**/runtime/index"
+                  "**/runtime/**",
+                  "!**/runtime/index",
+                  "!**/runtime/index.ts"
                 ],
                 "message": "the editor imports the runtime only through src/runtime/index.ts (boundary: editor)"
               },
