@@ -65,9 +65,10 @@ const RULES: Rule[] = [
   },
   {
     name: 'shared-is-the-base',
-    applies: (from) => from === 'shared',
+    // src/shared/project (the project document) validates levels with the sim; it is still pure
+    applies: (from, file) => from === 'shared' && !file.startsWith('src/shared/project/'),
     breaks: (t) => isArea(t, ['sim', 'net-protocol']),
-    why: 'shared is the bottom layer; the sim depends on it, not the other way round',
+    why: 'shared is the bottom layer; the sim depends on it, not the other way round (src/shared/project excepted)',
   },
   {
     name: 'runtime-no-react',

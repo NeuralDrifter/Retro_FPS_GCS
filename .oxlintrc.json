@@ -181,6 +181,77 @@
         ]
       }
     },
+    // src/shared/project validates levels with the sim; otherwise the same rules as shared
+    {
+      "files": [
+        "src/shared/project/**"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "react",
+                "message": "shared must not import React (boundary: shared)"
+              },
+              {
+                "name": "react-dom",
+                "message": "shared must not import React (boundary: shared)"
+              },
+              {
+                "name": "lucide-react",
+                "message": "shared must not import UI icons (boundary: shared)"
+              },
+              {
+                "name": "three",
+                "message": "shared must not import Three.js (boundary: shared)"
+              },
+              {
+                "name": "jszip",
+                "message": "shared must not import jszip (boundary: shared)"
+              }
+            ],
+            "patterns": [
+              {
+                "group": [
+                  "node:*"
+                ],
+                "message": "shared must not import Node modules (boundary: shared)"
+              },
+              {
+                "group": [
+                  "**/runtime",
+                  "**/runtime/**"
+                ],
+                "message": "shared must not import the runtime, which needs the DOM (boundary: shared)"
+              },
+              {
+                "group": [
+                  "**/editor/**",
+                  "**/main"
+                ],
+                "message": "shared must not import the editor (boundary: shared)"
+              },
+              {
+                "group": [
+                  "**/export",
+                  "**/export/**"
+                ],
+                "message": "shared must not import the export pipeline (boundary: shared)"
+              },
+              {
+                "group": [
+                  "**/net/client",
+                  "**/net/client/**"
+                ],
+                "message": "Only src/runtime/entries/mp.ts may import src/net/client (boundary: net-client)"
+              }
+            ]
+          }
+        ]
+      }
+    },
     {
       "files": [
         "src/runtime/**"
