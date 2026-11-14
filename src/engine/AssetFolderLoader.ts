@@ -22,6 +22,7 @@ import { AssetRegistry } from './AssetRegistry';
 import bundledGitHubIndex from './bundledGitHubAssetsIndex.json';
 import { isModelCategoryId } from './modelLibrary/categories';
 import { diskModelId, parseModelDiskPath } from './modelLibrary/diskPaths';
+import { publicFileUrl } from './basePath';
 import { parseTextureDiskPath } from './textureLibrary';
 import {
   DEFAULT_GITHUB_ASSETS_BRANCH,
@@ -226,7 +227,7 @@ export class AssetFolderLoader {
     models: Model3DAsset[];
   }> {
     try {
-      const response = await fetch('/assets/manifest.json', {
+      const response = await fetch(publicFileUrl('assets/manifest.json'), {
         cache: 'no-store',
       });
       if (!response.ok) {
@@ -242,7 +243,7 @@ export class AssetFolderLoader {
           id: item.id || `pub-tex-${slugifyPath(item.file)}`,
           name: item.name || formatFilenameToLabel(item.file),
           sourceType: 'file',
-          previewUrl: item.file,
+          previewUrl: publicFileUrl(item.file),
           recommendedSurface: 'wall',
           fromProject: true,
         }));
@@ -255,7 +256,7 @@ export class AssetFolderLoader {
           createDiscoveredModelAsset({
             id: item.id || `pub-glb-${slugifyPath(item.file)}`,
             name: item.name || `${formatFilenameToLabel(item.file)} (.glb)`,
-            url: item.file,
+            url: publicFileUrl(item.file),
             category: isModelCategoryId(item.category)
               ? item.category
               : item.isEnemy === false

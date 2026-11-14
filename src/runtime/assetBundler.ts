@@ -618,7 +618,8 @@ export async function loadBundledDracoFiles(): Promise<BundledDracoFiles> {
     }
   } else if (typeof fetch === 'function') {
     for (const name of fileNames) {
-      const res = await fetch(`/draco/${name}`);
+      // Relative to the page, so it resolves under the editor's base path (e.g. /Retro_FPS_GCS/draco/)
+      const res = await fetch(`draco/${name}`);
       if (res.ok) {
         const ab = await res.arrayBuffer();
         result[name] = new Uint8Array(ab);

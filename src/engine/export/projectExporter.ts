@@ -126,6 +126,8 @@ export function generateExportViteConfig(): string {
   return `import { defineConfig } from 'vite';
 
 export default defineConfig({
+  // Relative URLs, so dist/ works from any folder: a domain root, a GitHub project page or itch.io
+  base: './',
   server: {
     port: 3000,
     open: true,
@@ -264,7 +266,7 @@ export function generateExportIndexHtml(meta: {
 }
 
 export function generateExportMainJs(hasDraco = true): string {
-  const dracoPath = hasDraco ? '/draco/' : '';
+  const dracoPathExpression = hasDraco ? "import.meta.env.BASE_URL + 'draco/'" : "''";
   return `/**
  * Standalone Game Launcher
  * Fetches manifest.json and launches the ForgeCore game runtime.
@@ -275,9 +277,9 @@ async function launch() {
   const container = document.getElementById('game-container');
   const overlay = document.getElementById('click-to-play');
 
-  const res = await fetch('/manifest.json');
+  const res = await fetch(import.meta.env.BASE_URL + 'manifest.json');
   if (!res.ok) {
-    throw new Error('Failed to load /manifest.json (status: ' + res.status + ')');
+    throw new Error('Failed to load manifest.json (status: ' + res.status + ')');
   }
   const manifest = await res.json();
 
@@ -291,7 +293,7 @@ async function launch() {
     hudRoot: container,
     autoLockPointerOnClick: !hasCustomMainMenu,
     assetBaseUrl: '',
-    dracoDecoderPath: '${dracoPath}',
+    dracoDecoderPath: ${dracoPathExpression},
   });
 
   if (overlay) {
@@ -362,7 +364,7 @@ npm run preview
 \`\`\`
 
 ### ⚠️ Important Notice on \`file://\` Usage
-Opening \`dist/index.html\` directly from your file system (\`file://...\`) **will not work**. Modern web browsers enforce Cross-Origin Resource Sharing (CORS) and ES Module security policies that block \`fetch('/manifest.json')\` and module scripts over the \`file://\` protocol.
+Opening \`dist/index.html\` directly from your file system (\`file://...\`) **will not work**. Modern web browsers enforce Cross-Origin Resource Sharing (CORS) and ES Module security policies that block \`fetch()\` of \`manifest.json\` and module scripts over the \`file://\` protocol.
 
 To play the build:
 - Use \`npm run preview\`

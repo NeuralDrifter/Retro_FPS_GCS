@@ -22,6 +22,7 @@ import {
   LevelStateData,
   slugify,
 } from '../../runtime';
+import { publicFileUrl } from '../basePath';
 import { assertExportPayloadIsSafe } from './safetyScanner';
 
 export interface SingleHtmlExportResult {
@@ -77,15 +78,15 @@ export async function loadSingleHtmlRuntimeBundle(): Promise<string> {
     }
   }
 
-  // 2. In browser environment, fetch static /single-html-runtime.js
+  // 2. In the browser, fetch public/single-html-runtime.js from the editor's base path
   if (typeof fetch === 'function') {
     try {
-      const res = await fetch('/single-html-runtime.js');
+      const res = await fetch(publicFileUrl('single-html-runtime.js'));
       if (res.ok) {
         return await res.text();
       }
     } catch (err) {
-      console.warn('Failed to fetch /single-html-runtime.js in browser:', err);
+      console.warn('Failed to fetch single-html-runtime.js in browser:', err);
     }
   }
 
@@ -162,10 +163,9 @@ export async function exportSingleHtml(
     },
   };
 
-  // 2. Load the inlined runtime JS bundle and ensure zero external CDN/gstatic references
-  let runtimeJs =
+  // 2. Load the inlined runtime JS bundle (it contains no CDN URLs)
+  const runtimeJs =
     options.customRuntimeJs || (await loadSingleHtmlRuntimeBundle());
-  runtimeJs = runtimeJs.replace(/https?:\/\/[a-z0-9_.-]*gstatic\.com\/[^\s"']*/gi, '');
 
   const escapedTitle = escapeHtml(baseManifest.meta.title || 'GridForge 3D Game');
   const escapedDesc = escapeHtml(

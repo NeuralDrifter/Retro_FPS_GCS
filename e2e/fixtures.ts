@@ -15,17 +15,6 @@ const ALLOWED_EXTERNAL_ORIGINS: readonly string[] = [
   'https://raw.githubusercontent.com',
 ];
 
-/**
- * Known problems that P0.5 fixes. P0.5 deletes this block; nothing else may be added to it.
- * - Google Fonts load from index.html.
- * - AssetFolderLoader fetches '/assets/manifest.json', which misses the Pages base path.
- */
-const UNTIL_P0_5_ORIGINS: readonly string[] = [
-  'https://fonts.googleapis.com',
-  'https://fonts.gstatic.com',
-];
-const UNTIL_P0_5_PROBLEMS: readonly RegExp[] = [/^HTTP 404: https?:\/\/[^/]+\/assets\/manifest\.json$/];
-
 type GcsEventName = 'first-frame' | 'editor-ready';
 
 declare global {
@@ -42,7 +31,6 @@ export const test = base.extend<{ page: Page }>({
     const allowedOrigins = new Set([
       new URL(baseURL!).origin,
       ...ALLOWED_EXTERNAL_ORIGINS,
-      ...UNTIL_P0_5_ORIGINS,
     ]);
 
     page.on('console', (message) => {
@@ -83,8 +71,7 @@ export const test = base.extend<{ page: Page }>({
       .evaluate(() => window.__gcsCspViolations ?? [])
       .catch(() => [] as string[]);
     problems.push(...cspViolations.map((violation) => `CSP violation: ${violation}`));
-    const unexpected = problems.filter((problem) => !UNTIL_P0_5_PROBLEMS.some((known) => known.test(problem)));
-    expect(unexpected, 'browser problems recorded during the test').toEqual([]);
+    expect(problems, 'browser problems recorded during the test').toEqual([]);
   },
 });
 

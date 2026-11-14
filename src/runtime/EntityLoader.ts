@@ -64,8 +64,9 @@ const SHARED_HITBOX_MATERIAL = new THREE.MeshBasicMaterial({
 export class EntityLoader {
   private static gltfLoader: GLTFLoader | null = null;
   private static dracoLoader: DRACOLoader | null = null;
-  private static dracoDecoderPath =
-    'https://www.gstatic.com/draco/versioned/decoders/1.5.6/';
+  // Relative to the page, so a game finds the decoder in its own draco/ folder.
+  // The editor sets its base path explicitly at startup (src/main.tsx).
+  private static dracoDecoderPath = 'draco/';
   private static assetBaseUrl = '';
   // Models the current world uses; WorldBuilder frees the rest on every build
   private static assetCache = new ModelCache<CachedGltfAsset>((asset) =>

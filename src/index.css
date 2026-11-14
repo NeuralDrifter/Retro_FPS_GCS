@@ -29,8 +29,8 @@
   --ide-warning: #ce9178;
 
   /* Typography */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
   --ide-text: #cccccc;
   --ide-text-bright: #ffffff;
   --ide-text-muted: #858585;

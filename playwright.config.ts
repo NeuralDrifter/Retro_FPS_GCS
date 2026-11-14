@@ -19,6 +19,9 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 20_000 },
   fullyParallel: true,
+  // Each worker renders WebGL in software (SwiftShader), which is CPU-bound;
+  // more than two workers slows every test instead of finishing sooner.
+  workers: 2,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
