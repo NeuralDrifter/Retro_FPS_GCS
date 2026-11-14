@@ -8,7 +8,6 @@ import {
   resizeSquareMatrix,
 } from '../editor/types/engine';
 import { CollisionSystem } from '../runtime/CollisionSystem';
-import { HistoryManager } from '../editor/engine/HistoryManager';
 import {
   LevelSerializer,
   computeNextEntityId,
@@ -98,26 +97,6 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
       ),
       false
     );
-  });
-
-  it('HistoryManager deep-clones snapshots without shared references and detects equality', () => {
-    const preset = MAP_PRESETS[0];
-    const original = {
-      grid: preset.grid.map((r) => [...r]),
-      wallTextures: createUniformTextureMatrix('default-grid', ENGINE_CONFIG.GRID_SIZE),
-      floorTextures: createUniformTextureMatrix('floor-obsidian', ENGINE_CONFIG.GRID_SIZE),
-      ceilingTextures: createUniformTextureMatrix('ceiling-coffer', ENGINE_CONFIG.GRID_SIZE),
-      entities: preset.entities ? preset.entities.map((e) => ({ ...e })) : [],
-      spawn: { ...preset.spawn },
-      actionLabel: 'Initial Snapshot',
-    };
-
-    const cloned = HistoryManager.cloneSnapshot(original);
-    assert.equal(HistoryManager.areSnapshotsEqual(original, cloned), true);
-
-    cloned.grid[0][0] = CellType.EMPTY;
-    assert.equal(HistoryManager.areSnapshotsEqual(original, cloned), false);
-    assert.equal(original.grid[0][0], CellType.WALL);
   });
 
   it('LevelSerializer round-trips level state through JSON and upgrades to validated v3', () => {
@@ -2040,28 +2019,6 @@ describe('GridForge 3D Engine Characterization & Phase 0 Event/Trigger System Te
     ]);
     assert.deepEqual(resizeSquareMatrix(m, 1, 0), [[1]]);
 
-    // A grown map whose top-left corner matches the old one is still a different snapshot
-    const preset = MAP_PRESETS[0];
-    const size = preset.grid.length;
-    const small = {
-      grid: preset.grid.map((r) => [...r]),
-      wallTextures: createUniformTextureMatrix('default-grid', size),
-      floorTextures: createUniformTextureMatrix('floor-obsidian', size),
-      ceilingTextures: createUniformTextureMatrix('ceiling-coffer', size),
-      entities: [],
-      spawn: { ...preset.spawn },
-      actionLabel: 'Small',
-    };
-    const grown = {
-      ...small,
-      grid: resizeSquareMatrix(small.grid, 64, CellType.EMPTY as number),
-      wallTextures: resizeSquareMatrix(small.wallTextures, 64, 'default-grid'),
-      floorTextures: resizeSquareMatrix(small.floorTextures, 64, 'floor-obsidian'),
-      ceilingTextures: resizeSquareMatrix(small.ceilingTextures, 64, 'ceiling-coffer'),
-      actionLabel: 'Grown',
-    };
-    assert.equal(HistoryManager.areSnapshotsEqual(small, grown), false);
-    assert.equal(HistoryManager.areSnapshotsEqual(grown, small), false);
     assert.deepEqual(m, [
       [1, 2],
       [3, 4],

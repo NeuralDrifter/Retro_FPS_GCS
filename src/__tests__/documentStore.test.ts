@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { canonicalStringify, createBlankLevelV3, createDefaultGameData, createDefaultProject } from '../shared/project';
 import type { ProjectDocV4 } from '../shared/project';
 import { HISTORY_LIMIT, createDocumentStore } from '../editor/store/documentStore';
+import { mapAllEntities } from '../editor/store/useEditorDocument';
 import { reduceDocument } from '../editor/store/documentActions';
 import type { DocumentAction, DocumentActionType } from '../editor/store/documentActions';
 import type { LevelLayerV3 } from '../sim';
@@ -20,11 +21,13 @@ function exampleActions(doc: ProjectDocV4): Record<DocumentActionType, DocumentA
     'level/remove': { type: 'level/remove', levelId: 'level-2' },
     'level/move': { type: 'level/move', levelId: 'level-2', toIndex: 0 },
     'level/rename': { type: 'level/rename', levelId, title: 'Entrance' },
+    'level/setData': { type: 'level/setData', levelId, data: createBlankLevelV3(20, 'Bigger'), title: 'Bigger' },
     'cells/set': { type: 'cells/set', levelId, changes: [{ row: 3, col: 3, cell: 1, wall: 'techbase-panel' }] },
     'cellTags/set': { type: 'cellTags/set', levelId, changes: [{ row: 2, col: 2, tag: 7 }] },
     'spawn/set': { type: 'spawn/set', levelId, spawn: { row: 4, col: 5, yawBam: 16384 } },
     'entity/add': { type: 'entity/add', levelId, entity: { id: 'e1', row: 5, col: 5, blueprintId: 'supply-crate' } },
     'entity/update': { type: 'entity/update', levelId, entityId: 'e1', patch: { row: 6 } },
+    'entity/set': { type: 'entity/set', levelId, entity: { id: 'e1', row: 7, col: 2, blueprintId: 'sentinel-bot' } },
     'entity/remove': { type: 'entity/remove', levelId, entityId: 'e1' },
     'events/set': {
       type: 'events/set',
@@ -47,6 +50,13 @@ function exampleActions(doc: ProjectDocV4): Record<DocumentActionType, DocumentA
     },
     'userAsset/remove': { type: 'userAsset/remove', assetId: 'tex-a' },
     'export/setSlug': { type: 'export/setSlug', slug: 'store-test-2' },
+    batch: {
+      type: 'batch',
+      actions: [
+        { type: 'level/rename', levelId, title: 'Batched' },
+        { type: 'cells/set', levelId, changes: [{ row: 4, col: 4, cell: 2 }] },
+      ],
+    },
     'multiplayer/set': {
       type: 'multiplayer/set',
       multiplayer: {
@@ -68,6 +78,7 @@ const PREREQUISITES: Partial<Record<DocumentActionType, DocumentActionType[]>> =
   'level/remove': ['level/add'],
   'level/move': ['level/add'],
   'entity/update': ['entity/add'],
+  'entity/set': ['entity/add'],
   'entity/remove': ['entity/add'],
   'userAsset/remove': ['userAsset/add'],
 };
@@ -184,5 +195,58 @@ describe('document store and undo (P2.3)', () => {
     const fullCopy = 8 * 6 * size * size * 8; // 8 layers x 6 matrices x cells x 8 bytes
     assert.ok(bytes < 50 * 1024 * 1024, `history retains ${(bytes / 1024 / 1024).toFixed(1)} MB`);
     assert.ok(bytes < fullCopy * 3, `rows are shared: ${(bytes / 1024 / 1024).toFixed(1)} MB vs ${((fullCopy * 200) / 1024 / 1024).toFixed(0)} MB copied`);
+  });
+
+  it('joins dispatches with the same stroke option into one step, whatever their type', () => {
+    const store = createDocumentStore(project());
+    store.dispatch({ type: 'cells/set', levelId: 'level-1', changes: [{ row: 4, col: 4, cell: 1 }] }, 'Spawn tool', { stroke: 'k' });
+    store.dispatch({ type: 'spawn/set', levelId: 'level-1', spawn: { row: 4, col: 4, yawBam: 0 } }, 'Spawn tool', { stroke: 'k' });
+    assert.equal(store.getState().past.length, 1);
+    assert.equal(store.getState().past[0].label, 'Spawn tool');
+  });
+
+  it('applies edits made with record: false without an undo step, keeping redo', () => {
+    const store = createDocumentStore(project());
+    store.dispatch({ type: 'entity/add', levelId: 'level-1', entity: { id: 'ent-1', row: 5, col: 5, blueprintId: 'supply-crate' } });
+    store.dispatch({ type: 'meta/update', patch: { description: 'x' } });
+    store.undo();
+    store.dispatch(
+      { type: 'entity/set', levelId: 'level-1', entity: { id: 'ent-1', row: 5, col: 5, blueprintId: 'supply-crate', modelTopUnits: 900, modelBottomUnits: 0 } },
+      'Measure',
+      { record: false }
+    );
+    const state = store.getState();
+    assert.equal(state.past.length, 1);
+    assert.equal(state.future.length, 1);
+    assert.equal(state.doc.levels[0].data.entities[0].modelTopUnits, 900);
+  });
+
+  it('keeps the entity id counter past every added id', () => {
+    const store = createDocumentStore(project());
+    store.dispatch({ type: 'entity/add', levelId: 'level-1', entity: { id: 'ent-41', row: 5, col: 5, blueprintId: 'supply-crate' } });
+    assert.equal(store.getState().doc.levels[0].data.nextEntityId, 42);
+  });
+
+  it('removes fields that world and vertical edits set to undefined, and ignores repeats', () => {
+    const store = createDocumentStore(project());
+    store.dispatch({ type: 'world/update', levelId: 'level-1', patch: { classicMovement: true } });
+    assert.equal(store.getState().doc.levels[0].data.classicMovement, true);
+    store.dispatch({ type: 'world/update', levelId: 'level-1', patch: { classicMovement: true } });
+    assert.equal(store.getState().past.length, 1, 'a repeated setting adds no step');
+    store.dispatch({ type: 'world/update', levelId: 'level-1', patch: { classicMovement: undefined } });
+    assert.equal('classicMovement' in store.getState().doc.levels[0].data, false);
+  });
+
+  it('rewrites the document and every history step with rewriteAll', () => {
+    const store = createDocumentStore(project());
+    const crate = (id: string) => ({ id, row: 5, col: 5, blueprintId: 'custom-glb' as const, modelAssetId: 'model-x' });
+    store.dispatch({ type: 'entity/add', levelId: 'level-1', entity: crate('ent-1') });
+    store.dispatch({ type: 'entity/add', levelId: 'level-1', entity: crate('ent-2') });
+    store.undo();
+    store.rewriteAll((d) => mapAllEntities(d, (list) => list.filter((e) => e.modelAssetId !== 'model-x')));
+    const state = store.getState();
+    for (const d of [state.doc, ...state.past.map((p) => p.doc), ...state.future.map((f) => f.doc)]) {
+      assert.equal(d.levels[0].data.entities.length, 0);
+    }
   });
 });

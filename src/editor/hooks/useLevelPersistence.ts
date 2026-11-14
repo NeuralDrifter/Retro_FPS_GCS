@@ -1,470 +1,223 @@
-import React, { useCallback } from 'react';
-import {
-  CampaignSettings,
-  CellType,
-  ENGINE_CONFIG,
-  LevelStateData,
-  MAP_PRESETS,
-  PlacedEntity,
-  SkyboxThemeId,
-  TextureAsset,
-  collectMenuTextureIds,
-  createUniformTextureMatrix,
-  resizeSquareMatrix,
-} from '../types/engine';
-import {
-  LevelSerializer,
-  computeNextEntityId,
-} from '../engine/LevelSerializer';
-import {
-  EventDefinition,
-  RegionDefinition,
-  SimulationState,
-  VariableRegistrySpec,
-  createInitialSimulationState,
-} from '../../sim';
-import {
-  VerticalLevelData,
-  createDefaultVerticalData,
-  resizeVerticalData,
-} from '../../runtime';
-import { entitiesFittingGrid } from '../engine/modelLibrary/placement';
-import { SpawnPoint } from './useEditorHistory';
+/**
+ * Presets, save files, and the level's events: loading a preset into the level, saving and
+ * opening editor save files, the Visual Triggers editor's save, and the level exit shortcut.
+ * Works on the project store (release plan P2.4). Save files keep the editor save format
+ * (LevelStateData) until P2.5 adds project files.
+ */
+import { useCallback } from 'react';
+import { CellType, LevelStateData, MAP_PRESETS, TextureAsset, collectMenuTextureIds } from '../types/engine';
+import type { EventDefinition, RegionDefinition, VariableRegistrySpec } from '../../sim';
+import { LevelSerializer } from '../engine/LevelSerializer';
+import type { ProjectDocV4, ProjectLevel } from '../../shared/project';
+import { levelStateOf, levelView, storedLevelFromState } from '../store/levelView';
+import { campaignMenus, presetLevelData } from '../store/useEditorDocument';
+import type { DocContext } from '../store/useEditorDocument';
 
 export interface UseLevelPersistenceProps {
-  grid: number[][];
-  setGrid: React.Dispatch<React.SetStateAction<number[][]>>;
-  wallTextures: string[][];
-  setWallTextures: React.Dispatch<React.SetStateAction<string[][]>>;
-  floorTextures: string[][];
-  setFloorTextures: React.Dispatch<React.SetStateAction<string[][]>>;
-  ceilingTextures: string[][];
-  setCeilingTextures: React.Dispatch<React.SetStateAction<string[][]>>;
+  ctx: DocContext;
   customTextures: TextureAsset[];
-  entities: PlacedEntity[];
-  setEntities: React.Dispatch<React.SetStateAction<PlacedEntity[]>>;
-  nextEntityId: number;
-  setNextEntityId: React.Dispatch<React.SetStateAction<number>>;
-  spawn: SpawnPoint;
-  setSpawn: React.Dispatch<React.SetStateAction<SpawnPoint>>;
-  vertical: VerticalLevelData;
-  setVertical: React.Dispatch<React.SetStateAction<VerticalLevelData>>;
-  setActiveLayer: React.Dispatch<React.SetStateAction<number>>;
-  setSelectedEntityId: React.Dispatch<React.SetStateAction<string | null>>;
-  skyboxTheme: SkyboxThemeId;
-  skyboxSeed: number;
-  showCeiling: boolean;
-  minimapEnabled: boolean;
-  levelTitle: string;
-  setLevelTitle: React.Dispatch<React.SetStateAction<string>>;
-  campaignSettings: CampaignSettings;
-  setCampaignSettings: React.Dispatch<React.SetStateAction<CampaignSettings>>;
-  activeLevelIndex: number;
-  setCampaignLevels: React.Dispatch<React.SetStateAction<LevelStateData[]>>;
-  getSyncedCampaignLevels: (titleOverride?: string) => LevelStateData[];
-  buildActiveSingleLevelState: (titleOverride?: string) => LevelStateData;
-  applySingleLevelToEditor: (
-    state: LevelStateData,
-    targetIndex: number,
-    options?: {
-      preserveSimState?: SimulationState;
-      resetUndoStacks?: boolean;
+  addCustomTextures: (textures: TextureAsset[]) => void;
+  setActiveLevelId: (id: string) => void;
+  selectedCell: { row: number; col: number };
+  activeLayer: number;
+  /** Resets per-level editor state (layer, selection, playtest) after the level was replaced */
+  onLevelReplaced: () => void;
+  onEventsSaved: () => void;
+}
+
+/** Every texture id the project's levels and menus use */
+function usedTextureIds(doc: ProjectDocV4): Set<string> {
+  const ids = new Set<string>();
+  const add = (m: string[][]) => {
+    for (const row of m) for (const id of row) ids.add(id);
+  };
+  for (const level of doc.levels) {
+    const d = level.data;
+    add(d.wallTextures);
+    add(d.floorTextures);
+    add(d.ceilingTextures);
+    for (const layer of d.layers ?? []) {
+      add(layer.wallTextures);
+      add(layer.floorTextures);
+      add(layer.ceilingTextures);
     }
-  ) => void;
-  recordHistorySnapshot: (actionLabel: string) => void;
-  setEngineLog: (msg: string) => void;
-  setResetSignal: React.Dispatch<React.SetStateAction<number>>;
-  setSimState: React.Dispatch<React.SetStateAction<SimulationState>>;
-  setIsEventEditorOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setActiveGrid: (fn: (prev: number[][]) => number[][]) => void;
+  }
+  const menus = campaignMenus(doc);
+  if (menus) for (const id of collectMenuTextureIds(menus)) ids.add(id);
+  return ids;
+}
+
+/** The whole project in the editor save format: the active level at the root, every level in `levels` */
+export function buildSaveState(doc: ProjectDocV4, activeIndex: number, customTextures: TextureAsset[]): LevelStateData {
+  const used = usedTextureIds(doc);
+  const textures = customTextures.filter((t) => !t.fromProject || used.has(t.id));
+  const levels = doc.levels.map((level) => levelStateOf(level, textures));
+  const active = levels[activeIndex] ?? levels[0];
+  const menus = campaignMenus(doc);
+  return {
+    ...active,
+    customTextures: textures,
+    levels,
+    activeLevelIndex: activeIndex,
+    campaign: {
+      carryOverHealth: doc.campaign.carryOverHealth,
+      carryOverAmmo: doc.campaign.carryOverAmmo,
+      ...(menus ? { menus } : {}),
+    },
+  };
 }
 
 export function useLevelPersistence({
-  grid,
-  setGrid,
-  wallTextures,
-  setWallTextures,
-  floorTextures,
-  setFloorTextures,
-  ceilingTextures,
-  setCeilingTextures,
+  ctx,
   customTextures,
-  entities,
-  setEntities,
-  nextEntityId,
-  setNextEntityId,
-  spawn,
-  setSpawn,
-  vertical,
-  setVertical,
-  setActiveLayer,
-  setSelectedEntityId,
-  skyboxTheme,
-  skyboxSeed,
-  showCeiling,
-  minimapEnabled,
-  levelTitle,
-  setLevelTitle,
-  campaignSettings,
-  setCampaignSettings,
-  activeLevelIndex,
-  setCampaignLevels,
-  getSyncedCampaignLevels,
-  buildActiveSingleLevelState,
-  applySingleLevelToEditor,
-  recordHistorySnapshot,
-  setEngineLog,
-  setResetSignal,
-  setSimState,
-  setIsEventEditorOpen,
-  setActiveGrid,
+  addCustomTextures,
+  setActiveLevelId,
+  selectedCell,
+  activeLayer,
+  onLevelReplaced,
+  onEventsSaved,
 }: UseLevelPersistenceProps) {
+  const { log } = ctx;
+
   const handleLoadPreset = useCallback(
     (presetId: string) => {
       const found = MAP_PRESETS.find((p) => p.id === presetId);
       if (!found) return;
-      recordHistorySnapshot(`Load Preset '${found.name}'`);
-      const nextGrid = found.grid.map((r) => [...r]);
-      const nextWallTex = createUniformTextureMatrix(
-        found.defaultWallTex || 'default-grid',
-        nextGrid.length
-      );
-      const nextFloorTex = createUniformTextureMatrix(
-        'floor-obsidian',
-        nextGrid.length
-      );
-      const nextCeilTex = createUniformTextureMatrix(
-        'ceiling-coffer',
-        nextGrid.length
-      );
-      const nextEnts = found.entities
-        ? found.entities.map((e) => ({ ...e }))
-        : [];
-      setLevelTitle(found.name);
-      setGrid(nextGrid);
-      setWallTextures(nextWallTex);
-      setFloorTextures(nextFloorTex);
-      setCeilingTextures(nextCeilTex);
-      setEntities(nextEnts);
-      setNextEntityId((prev) =>
-        computeNextEntityId(nextEnts, Math.max(prev, found.nextEntityId ?? 1))
-      );
-      setSpawn({ ...found.spawn });
-      setVertical(createDefaultVerticalData(nextGrid.length));
-      setActiveLayer(0);
-      setSelectedEntityId(null);
-      const presetV3 = LevelSerializer.serializeLevelV3({
-        title: found.name,
-        grid: nextGrid,
-        wallTextures: nextWallTex,
-        floorTextures: nextFloorTex,
-        ceilingTextures: nextCeilTex,
-        entities: nextEnts,
-        spawn: found.spawn,
-        skyboxTheme,
-        skyboxSeed,
-        showCeiling,
-        minimapEnabled,
-        cellTags: found.cellTags,
-        events: found.events || [],
-        regions: found.regions || [],
-        variables: found.variables,
-      });
-      setSimState(createInitialSimulationState(presetV3, [0]));
-      setResetSignal((n) => n + 1);
-      setEngineLog(
-        `Preset: Loaded '${found.name}' into Level ${activeLevelIndex + 1}.`
-      );
+      const level = ctx.level();
+      const view = levelView(level);
+      const data = presetLevelData(found, view, view.nextEntityId);
+      ctx.edit({ type: 'level/setData', levelId: level.id, data, title: found.name }, `Load Preset '${found.name}'`);
+      onLevelReplaced();
+      const index = ctx.store.getState().doc.levels.findIndex((l) => l.id === level.id);
+      log(`Preset: Loaded '${found.name}' into Level ${index + 1}.`);
     },
-    [
-      recordHistorySnapshot,
-      setLevelTitle,
-      setGrid,
-      setWallTextures,
-      setFloorTextures,
-      setCeilingTextures,
-      setEntities,
-      setNextEntityId,
-      setSpawn,
-      setVertical,
-      setActiveLayer,
-      setSelectedEntityId,
-      skyboxTheme,
-      skyboxSeed,
-      showCeiling,
-      minimapEnabled,
-      setSimState,
-      setResetSignal,
-      setEngineLog,
-      activeLevelIndex,
-    ]
+    [ctx, onLevelReplaced, log]
   );
 
+  /** Opens an editor save file (one level, or a campaign): replaces the project's levels and clears history */
   const handleRestoreLevelState = useCallback(
     (state: LevelStateData) => {
-      recordHistorySnapshot('Import Level JSON');
-      if (state.campaign) {
-        setCampaignSettings({
-          carryOverHealth: state.campaign.carryOverHealth !== false,
-          carryOverAmmo: state.campaign.carryOverAmmo !== false,
-          ...(state.campaign.menus ? { menus: state.campaign.menus } : {}),
-        });
-      }
-      if (Array.isArray(state.levels) && state.levels.length > 0) {
-        const targetIdx =
-          typeof state.activeLevelIndex === 'number' &&
-          state.activeLevelIndex >= 0 &&
-          state.activeLevelIndex < state.levels.length
-            ? state.activeLevelIndex
-            : 0;
-        setCampaignLevels(state.levels);
-        applySingleLevelToEditor(state.levels[targetIdx], targetIdx, {
-          resetUndoStacks: true,
-        });
-        setEngineLog(
-          `File: Loaded Campaign JSON (${state.levels.length} Gameplay Levels, active Level ${
-            targetIdx + 1
-          }).`
+      const isCampaign = Array.isArray(state.levels) && state.levels.length > 0;
+      const sources = isCampaign ? state.levels! : [{ ...state, title: state.title || 'Level 1' }];
+      const levels: ProjectLevel[] = sources.map((source, i) => ({
+        id: `level-${i + 1}`,
+        title: source.title || `Level ${i + 1}`,
+        data: storedLevelFromState(source),
+      }));
+      addCustomTextures([...state.customTextures, ...sources.flatMap((s) => s.customTextures ?? [])]);
+      const doc = ctx.store.getState().doc;
+      const campaign = state.campaign
+        ? {
+            carryOverHealth: state.campaign.carryOverHealth !== false,
+            carryOverAmmo: state.campaign.carryOverAmmo !== false,
+            ...(state.campaign.menus ? { menus: state.campaign.menus as unknown as Record<string, unknown> } : {}),
+          }
+        : doc.campaign;
+      ctx.store.replace({ ...doc, levels, campaign });
+      const target =
+        typeof state.activeLevelIndex === 'number' && state.activeLevelIndex >= 0 && state.activeLevelIndex < levels.length
+          ? state.activeLevelIndex
+          : 0;
+      setActiveLevelId(levels[target].id);
+      onLevelReplaced();
+      if (isCampaign) {
+        log(`File: Loaded Campaign JSON (${levels.length} Gameplay Levels, active Level ${target + 1}).`);
+      } else {
+        log(
+          state.missingModelWarnings?.length
+            ? `Warning: ${state.missingModelWarnings.join(' ')}`
+            : `File: Loaded Level JSON (${state.entities.length} Entities, ${state.customTextures.length} Custom Textures).`
         );
-        return;
       }
-
-      const singleSnap: LevelStateData = {
-        ...state,
-        title: state.title || 'Level 1',
-      };
-      setCampaignLevels([singleSnap]);
-      applySingleLevelToEditor(singleSnap, 0, { resetUndoStacks: true });
-      setEngineLog(
-        state.missingModelWarnings?.length
-          ? `Warning: ${state.missingModelWarnings.join(' ')}`
-          : `File: Loaded Level JSON (${state.entities.length} Entities, ${state.customTextures.length} Custom Textures).`
-      );
     },
-    [recordHistorySnapshot, setCampaignSettings, setCampaignLevels, applySingleLevelToEditor, setEngineLog]
+    [ctx, addCustomTextures, setActiveLevelId, onLevelReplaced, log]
   );
 
   const handleSaveLevelDataFromEditor = useCallback(
-    (updated: {
-      events: EventDefinition[];
-      regions: RegionDefinition[];
-      variables: VariableRegistrySpec;
-    }) => {
-      recordHistorySnapshot('Edit Visual Triggers & Events');
-      const updatedV3 = LevelSerializer.serializeLevelV3({
-        title: levelTitle,
-        grid,
-        wallTextures,
-        floorTextures,
-        ceilingTextures,
-        customTextures,
-        entities,
-        nextEntityId,
-        spawn,
-        skyboxTheme,
-        skyboxSeed,
-        showCeiling,
-        minimapEnabled,
-        cellTags: grid.map((r) => r.map(() => 0)),
-        events: updated.events,
-        regions: updated.regions,
-        variables: updated.variables,
-        vertical,
-      });
-      setSimState(createInitialSimulationState(updatedV3, [0]));
-      setResetSignal((n) => n + 1);
-      setIsEventEditorOpen(false);
-      setEngineLog(
-        `Visual Triggers: Updated ${updated.events.length} events, ${updated.regions.length} regions.`
+    (updated: { events: EventDefinition[]; regions: RegionDefinition[]; variables: VariableRegistrySpec }) => {
+      const levelId = ctx.level().id;
+      ctx.edit(
+        {
+          type: 'batch',
+          actions: [
+            { type: 'events/set', levelId, events: updated.events },
+            { type: 'regions/set', levelId, regions: updated.regions },
+            { type: 'variables/set', levelId, variables: updated.variables },
+          ],
+        },
+        'Edit Visual Triggers & Events'
       );
+      onEventsSaved();
+      log(`Visual Triggers: Updated ${updated.events.length} events, ${updated.regions.length} regions.`);
     },
-    [
-      recordHistorySnapshot,
-      levelTitle,
-      grid,
-      wallTextures,
-      floorTextures,
-      ceilingTextures,
-      customTextures,
-      entities,
-      nextEntityId,
-      spawn,
-      skyboxTheme,
-      skyboxSeed,
-      showCeiling,
-      minimapEnabled,
-      vertical,
-      setSimState,
-      setResetSignal,
-      setIsEventEditorOpen,
-      setEngineLog,
-    ]
+    [ctx, onEventsSaved, log]
   );
 
   const buildCurrentLevelState = useCallback(() => {
-    const syncedLevels = getSyncedCampaignLevels();
-    const activeSingle = syncedLevels[activeLevelIndex] || buildActiveSingleLevelState();
-
-    const usedTexIds = new Set<string>();
-    for (const lvl of syncedLevels) {
-      for (const row of lvl.wallTextures) for (const id of row) usedTexIds.add(id);
-      for (const row of lvl.floorTextures) for (const id of row) usedTexIds.add(id);
-      for (const row of lvl.ceilingTextures) for (const id of row) usedTexIds.add(id);
-      if (lvl.vertical) {
-        for (const layer of lvl.vertical.layers) {
-          for (const m of [
-            layer.wallTextures,
-            layer.floorTextures,
-            layer.ceilingTextures,
-          ]) {
-            for (const row of m) for (const id of row) usedTexIds.add(id);
-          }
-        }
-      }
-    }
-    if (campaignSettings.menus) {
-      for (const id of collectMenuTextureIds(campaignSettings.menus)) {
-        usedTexIds.add(id);
-      }
-    }
-    const allUsedCustomTextures = customTextures.filter(
-      (t) => !t.fromProject || usedTexIds.has(t.id)
-    );
-
-    return LevelSerializer.serializeLevel({
-      title: activeSingle.title || levelTitle,
-      grid: activeSingle.grid,
-      wallTextures: activeSingle.wallTextures,
-      floorTextures: activeSingle.floorTextures,
-      ceilingTextures: activeSingle.ceilingTextures,
-      customTextures: allUsedCustomTextures,
-      entities: activeSingle.entities,
-      nextEntityId: activeSingle.nextEntityId,
-      spawn: activeSingle.spawn,
-      skyboxTheme: activeSingle.skybox.theme,
-      skyboxSeed: activeSingle.skybox.seed,
-      showCeiling: activeSingle.skybox.showCeiling,
-      minimapEnabled: activeSingle.minimapEnabled ?? true,
-      events: activeSingle.events,
-      regions: activeSingle.regions,
-      variables: activeSingle.variables,
-      vertical: activeSingle.vertical,
-      levels: syncedLevels,
-      activeLevelIndex,
-      campaign: campaignSettings,
-    });
-  }, [
-    getSyncedCampaignLevels,
-    activeLevelIndex,
-    buildActiveSingleLevelState,
-    customTextures,
-    levelTitle,
-    campaignSettings,
-  ]);
+    const doc = ctx.store.getState().doc;
+    const index = Math.max(0, doc.levels.findIndex((l) => l.id === ctx.level().id));
+    return buildSaveState(doc, index, customTextures);
+  }, [ctx, customTextures]);
 
   const handleSaveMap = useCallback(() => {
     LevelSerializer.downloadLevelJson(buildCurrentLevelState());
-    setEngineLog('File: Exported level state to downloadable .json file.');
-  }, [buildCurrentLevelState, setEngineLog]);
+    log('File: Exported level state to downloadable .json file.');
+  }, [buildCurrentLevelState, log]);
 
   const handleLoadMapFile = useCallback(
     (file: File) => {
       const reader = new FileReader();
       reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          try {
-            const parsed = LevelSerializer.parseLevelJson(reader.result);
-            handleRestoreLevelState(parsed);
-          } catch (err) {
-            setEngineLog(
-              err instanceof Error
-                ? `Error: ${err.message}`
-                : 'Error: Failed to parse uploaded JSON map file.'
-            );
-          }
+        if (typeof reader.result !== 'string') return;
+        try {
+          handleRestoreLevelState(LevelSerializer.parseLevelJson(reader.result));
+        } catch (err) {
+          log(err instanceof Error ? `Error: ${err.message}` : 'Error: Failed to parse uploaded JSON map file.');
         }
       };
       reader.readAsText(file);
     },
-    [handleRestoreLevelState, setEngineLog]
+    [handleRestoreLevelState, log]
   );
 
-  const handleClearGrid = useCallback(() => {
-    recordHistorySnapshot('Clear Grid');
-    setGrid((prev) => prev.map((row) => row.map(() => CellType.EMPTY)));
-    setEntities([]);
-    setVertical((v) => ({ ...createDefaultVerticalData(v.floorHeights.length), movement: v.movement }));
-    setActiveLayer(0);
-    setResetSignal((n) => n + 1);
-    setEngineLog('Editor: Cleared grid and removed all entities.');
-  }, [recordHistorySnapshot, setGrid, setEntities, setVertical, setActiveLayer, setResetSignal, setEngineLog]);
-
-  const handleResizeMap = useCallback(
-    (requestedSize: number) => {
-      const size = Math.max(
-        ENGINE_CONFIG.MIN_GRID_SIZE,
-        Math.min(ENGINE_CONFIG.MAX_GRID_SIZE, Math.trunc(requestedSize))
-      );
-      if (!Number.isFinite(size) || size === grid.length) return;
-      recordHistorySnapshot(`Resize Map to ${size}x${size}`);
-      const maxIdx = size - 1;
-      setGrid((prev) => resizeSquareMatrix(prev, size, CellType.EMPTY as number));
-      setWallTextures((prev) => resizeSquareMatrix(prev, size, 'default-grid'));
-      setFloorTextures((prev) =>
-        resizeSquareMatrix(prev, size, 'floor-obsidian')
-      );
-      setCeilingTextures((prev) =>
-        resizeSquareMatrix(prev, size, 'ceiling-coffer')
-      );
-      setEntities((prev) => entitiesFittingGrid(prev, size));
-      setVertical((v) => resizeVerticalData(v, size));
-      setSpawn((prev) => ({
-        ...prev,
-        row: Math.min(prev.row, maxIdx),
-        col: Math.min(prev.col, maxIdx),
-      }));
-      setResetSignal((n) => n + 1);
-      setEngineLog(`Editor: Resized map to ${size}x${size}.`);
-    },
-    [
-      grid.length,
-      recordHistorySnapshot,
-      setGrid,
-      setWallTextures,
-      setFloorTextures,
-      setCeilingTextures,
-      setEntities,
-      setVertical,
-      setSpawn,
-      setResetSignal,
-      setEngineLog,
-    ]
-  );
-
-  const handleBorderWalls = useCallback(() => {
-    recordHistorySnapshot('Build Perimeter Walls');
-    setActiveGrid((prev) =>
-      prev.map((row, rIdx) =>
-        row.map((val, cIdx) => {
-          const isEdge =
-            rIdx === 0 ||
-            rIdx === prev.length - 1 ||
-            cIdx === 0 ||
-            cIdx === prev.length - 1;
-          return isEdge ? CellType.WALL : val;
-        })
-      )
+  /** Makes the selected cell the level exit: an event that ends the level when the player steps on it */
+  const handlePlaceExitOnSelectedCell = useCallback(() => {
+    const { row, col } = selectedCell;
+    const level = ctx.level();
+    const exitEventId = `evt_exit_${row}_${col}`;
+    const exitEvent: EventDefinition = {
+      id: exitEventId,
+      name: `Level Exit at [X:${col}, Z:${row}]`,
+      enabled: true,
+      trigger: { type: 'enter_cell', row, col, who: 'player' },
+      conditions: [],
+      actions: [{ type: 'exit_level' }],
+      options: { once: true, fire: 'once' },
+    };
+    const others = level.data.events.filter(
+      (ev) =>
+        ev.id !== exitEventId &&
+        !(
+          ev.trigger.type === 'enter_cell' &&
+          ev.trigger.row === row &&
+          ev.trigger.col === col &&
+          ev.actions.some((a) => a.type === 'exit_level')
+        )
     );
-    setEngineLog('Editor: Generated perimeter walls around map boundary.');
-  }, [recordHistorySnapshot, setActiveGrid, setEngineLog]);
-
-  const handleRotateSpawn = useCallback(() => {
-    recordHistorySnapshot('Rotate Player Spawn Yaw');
-    setSpawn((prev) => ({
-      ...prev,
-      yaw: (prev.yaw + Math.PI / 2) % (Math.PI * 2),
-    }));
-  }, [recordHistorySnapshot, setSpawn]);
+    ctx.edit(
+      {
+        type: 'batch',
+        actions: [
+          // The exit tile must be walkable
+          { type: 'cells/set', levelId: level.id, layer: activeLayer, changes: [{ row, col, cell: CellType.EMPTY }] },
+          { type: 'events/set', levelId: level.id, events: [...others, exitEvent] },
+        ],
+      },
+      `Set Level Exit at [X:${col}, Z:${row}]`
+    );
+    const index = ctx.store.getState().doc.levels.findIndex((l) => l.id === level.id);
+    log(`Campaign Exit: Added 'exit_level' trigger on cell [X:${col}, Z:${row}]. Stepping on this cell finishes Level ${index + 1}.`);
+  }, [ctx, selectedCell, activeLayer, log]);
 
   return {
     handleLoadPreset,
@@ -473,9 +226,6 @@ export function useLevelPersistence({
     buildCurrentLevelState,
     handleSaveMap,
     handleLoadMapFile,
-    handleClearGrid,
-    handleResizeMap,
-    handleBorderWalls,
-    handleRotateSpawn,
+    handlePlaceExitOnSelectedCell,
   };
 }

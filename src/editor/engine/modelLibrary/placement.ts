@@ -77,7 +77,7 @@ export function entitiesFittingGrid(
 }
 
 /** Every placed copy except those of `modelId`; returns `entities` itself when none match */
-export function removeModelCopies(entities: PlacedEntity[], modelId: string): PlacedEntity[] {
+export function removeModelCopies<T extends { modelAssetId?: string }>(entities: T[], modelId: string): T[] {
   const kept = entities.filter((e) => e.modelAssetId !== modelId);
   return kept.length === entities.length ? entities : kept;
 }
@@ -86,10 +86,10 @@ export function removeModelCopies(entities: PlacedEntity[], modelId: string): Pl
  * Points placed copies at their model's new id (`renamed` maps old id to new).
  * Returns `entities` itself when no copy uses a renamed model.
  */
-export function remapEntityModelIds(
-  entities: PlacedEntity[],
+export function remapEntityModelIds<T extends { modelAssetId?: string }>(
+  entities: T[],
   renamed: Record<string, string>
-): PlacedEntity[] {
+): T[] {
   let changed = false;
   const next = entities.map((e) => {
     const newId = e.modelAssetId ? renamed[e.modelAssetId] : undefined;

@@ -26,15 +26,30 @@ export interface DocumentState {
   future: readonly HistoryStep[];
 }
 
+export interface DispatchOptions {
+  /** Consecutive dispatches with the same stroke (one drag, one click of a tool) form one undo step */
+  stroke?: string;
+  /**
+   * False applies the edit without an undo step and keeps the redo list: for values the editor
+   * measures itself (model bounds, baked walk surfaces) rather than edits the creator made
+   */
+  record?: boolean;
+}
+
 export interface DocumentStore {
   getState(): DocumentState;
   subscribe(listener: () => void): () => void;
   /** Applies an edit; `label` names it in the undo menu */
-  dispatch(action: DocumentAction, label?: string): void;
+  dispatch(action: DocumentAction, label?: string, options?: DispatchOptions): void;
   undo(): boolean;
   redo(): boolean;
   /** Replaces the whole document (open, new, recover) and clears history */
   replace(doc: ProjectDocV4): void;
+  /**
+   * Rewrites the document and every undo and redo step with `fn`, recording nothing. For changes
+   * that must reach history too, such as removing every copy of a model deleted from the library.
+   */
+  rewriteAll(fn: (doc: ProjectDocV4) => ProjectDocV4): void;
 }
 
 const STROKE_ACTIONS = new Set(['cells/set', 'entity/update']);
@@ -56,10 +71,14 @@ export function createDocumentStore(initial: ProjectDocV4): DocumentStore {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    dispatch(action, label = action.type) {
+    dispatch(action, label = action.type, options = {}) {
       const doc = reduceDocument(state.doc, action);
       if (doc === state.doc) return;
-      const stroke = strokeOf(action);
+      if (options.record === false) {
+        publish({ doc, past: state.past, future: state.future });
+        return;
+      }
+      const stroke = options.stroke ?? strokeOf(action);
       // The rest of a stroke changes the document but not the undo step its first action opened
       if (stroke !== undefined && stroke === lastStroke && state.past.length > 0) {
         publish({ doc, past: state.past, future: [] });
@@ -96,6 +115,18 @@ export function createDocumentStore(initial: ProjectDocV4): DocumentStore {
       lastStroke = undefined;
       publish({ doc, past: [], future: [] });
     },
+    rewriteAll(fn) {
+      const step = (s: HistoryStep): HistoryStep => {
+        const doc = fn(s.doc);
+        return doc === s.doc ? s : { ...s, doc };
+      };
+      const doc = fn(state.doc);
+      const past = state.past.map(step);
+      const future = state.future.map(step);
+      const same = <T,>(a: readonly T[], b: readonly T[]) => a.every((x, i) => x === b[i]);
+      if (doc === state.doc && same(past, state.past) && same(future, state.future)) return;
+      publish({ doc, past, future });
+    },
   };
 }
 
@@ -106,9 +137,14 @@ export function useDocumentSelector<T>(store: DocumentStore, select: (state: Doc
 
 /**
  * Ctrl+Z undoes, Ctrl+Y and Ctrl+Shift+Z redo (Cmd on macOS), except while typing in a field.
- * Returns a function that removes the listener.
+ * `history` is the store itself or wrappers around its undo and redo. Returns a function that
+ * removes the listener.
  */
-export function bindHistoryShortcuts(store: DocumentStore, target: Window = window): () => void {
+export function bindHistoryShortcuts(
+  history: { undo(): boolean; redo(): boolean },
+  target: Window = window
+): () => void {
+  const store = history;
   const onKeyDown = (e: KeyboardEvent) => {
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
     const el = e.target as HTMLElement | null;

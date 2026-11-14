@@ -1,128 +1,97 @@
-import React, { useCallback, useMemo } from 'react';
-import {
-  EditorToolMode,
-  PlacedEntity,
-} from '../types/engine';
-import {
-  VerticalLevelData,
-  createSolidLayer,
-} from '../../runtime';
-import {
-  MovementSettingsSpec,
-  SIM_CONFIG,
-} from '../../sim';
-import { editorVerticalFeatures } from '../../runtime';
+/**
+ * Stacked layers and movement settings of the level being edited. Each command dispatches to
+ * the project store (release plan P2.4).
+ */
+import { useCallback, useMemo } from 'react';
+import { EditorToolMode } from '../types/engine';
+import { createSolidLayer, editorVerticalFeatures } from '../../runtime';
+import { SIM_CONFIG } from '../../sim';
+import type { MovementSettingsSpec } from '../../sim';
+import type { DocumentAction } from '../store/documentActions';
+import { spawnToStored, verticalToStored } from '../store/levelView';
+import type { EditorLevelView } from '../store/levelView';
+import type { DocContext } from '../store/useEditorDocument';
 
 export interface UseLayerManagerProps {
-  grid: number[][];
-  vertical: VerticalLevelData;
-  setVertical: React.Dispatch<React.SetStateAction<VerticalLevelData>>;
-  activeLayer: number;
+  ctx: DocContext;
+  /** The active level, for the vertical features in use */
+  view: EditorLevelView;
   setActiveLayer: React.Dispatch<React.SetStateAction<number>>;
-  classicRef: React.RefObject<boolean>;
-  entities: PlacedEntity[];
-  setEntities: React.Dispatch<React.SetStateAction<PlacedEntity[]>>;
   setToolMode: React.Dispatch<React.SetStateAction<EditorToolMode>>;
-  recordHistorySnapshot: (actionLabel: string) => void;
-  setEngineLog: (msg: string) => void;
 }
 
-export function useLayerManager({
-  grid,
-  vertical,
-  setVertical,
-  setActiveLayer,
-  classicRef,
-  entities,
-  setEntities,
-  setToolMode,
-  recordHistorySnapshot,
-  setEngineLog,
-}: UseLayerManagerProps) {
+export function useLayerManager({ ctx, view, setActiveLayer, setToolMode }: UseLayerManagerProps) {
+  const { log } = ctx;
+
   const handleAddLayer = useCallback(() => {
-    if (classicRef.current) {
-      setEngineLog('Classic retro movement keeps one floor (World tab).');
+    const current = ctx.view();
+    if (current.vertical.classic) {
+      log('Classic retro movement keeps one floor (World tab).');
       return;
     }
-    if (vertical.layers.length >= SIM_CONFIG.MAX_LAYERS - 1) {
-      setEngineLog(`Layers: A level can have at most ${SIM_CONFIG.MAX_LAYERS} layers.`);
+    const layers = current.vertical.layers;
+    if (layers.length >= SIM_CONFIG.MAX_LAYERS - 1) {
+      log(`Layers: A level can have at most ${SIM_CONFIG.MAX_LAYERS} layers.`);
       return;
     }
-    recordHistorySnapshot('Add Layer');
-    const newIndex = vertical.layers.length + 1;
-    setVertical((v) => ({
-      ...v,
-      layers: [
-        ...v.layers,
-        createSolidLayer(grid.length, {
-          wall: 'default-grid',
-          floor: 'floor-obsidian',
-          ceiling: 'ceiling-coffer',
-        }),
-      ],
-    }));
+    const newIndex = layers.length + 1;
+    const layer = createSolidLayer(current.gridSize, { wall: 'default-grid', floor: 'floor-obsidian', ceiling: 'ceiling-coffer' });
+    ctx.edit({ type: 'vertical/set', levelId: current.id, vertical: { layers: [...layers, layer] } }, 'Add Layer');
     setActiveLayer(newIndex);
-    setEngineLog(
-      `Layers: Added layer ${newIndex} (solid; carve rooms into it, and use the Hole tool to open floors).`
-    );
-  }, [grid.length, recordHistorySnapshot, vertical.layers.length, setVertical, setActiveLayer, setEngineLog, classicRef]);
+    log(`Layers: Added layer ${newIndex} (solid; carve rooms into it, and use the Hole tool to open floors).`);
+  }, [ctx, setActiveLayer, log]);
 
   const handleRemoveTopLayer = useCallback(() => {
-    const top = vertical.layers.length;
+    const current = ctx.view();
+    const top = current.vertical.layers.length;
     if (top === 0) return;
-    recordHistorySnapshot(`Remove Layer ${top}`);
-    setVertical((v) => ({
-      ...v,
-      layers: v.layers.slice(0, -1),
-      spawnLayer: Math.min(v.spawnLayer, top - 1),
-    }));
-    setEntities((prev) => prev.filter((e) => (e.layer ?? 0) < top));
+    const remaining = current.vertical.layers.slice(0, -1);
+    const actions: DocumentAction[] = [
+      { type: 'vertical/set', levelId: current.id, vertical: { layers: verticalToStored({ ...current.vertical, layers: remaining }).layers } },
+      ...current.entities
+        .filter((e) => (e.layer ?? 0) >= top)
+        .map((e): DocumentAction => ({ type: 'entity/remove', levelId: current.id, entityId: e.id })),
+    ];
+    if (current.vertical.spawnLayer > top - 1) {
+      actions.push({ type: 'spawn/set', levelId: current.id, spawn: spawnToStored(current.spawn, top - 1) });
+    }
+    ctx.edit({ type: 'batch', actions }, `Remove Layer ${top}`);
     setActiveLayer((l) => Math.min(l, top - 1));
-    setEngineLog(`Layers: Removed layer ${top} and the models on it.`);
-  }, [recordHistorySnapshot, vertical.layers.length, setVertical, setEntities, setActiveLayer, setEngineLog]);
+    log(`Layers: Removed layer ${top} and the models on it.`);
+  }, [ctx, setActiveLayer, log]);
 
   /** Vertical features in use; classic retro movement can only be switched on without them */
   const verticalFeatures = useMemo(
-    () => editorVerticalFeatures(grid, vertical, entities),
-    [grid, vertical, entities]
+    () => editorVerticalFeatures(view.grid, view.vertical, view.entities),
+    [view.grid, view.vertical, view.entities]
   );
 
   const handleToggleClassic = useCallback(
     (on: boolean) => {
       if (on && verticalFeatures.length > 0) return;
-      recordHistorySnapshot(on ? 'Use Classic Retro Movement' : 'Use Full 3D Movement');
-      setVertical((v) => {
-        const next = { ...v };
-        if (on) next.classic = true;
-        else delete next.classic;
-        return next;
-      });
+      ctx.edit(
+        { type: 'world/update', levelId: ctx.level().id, patch: { classicMovement: on ? true : undefined } },
+        on ? 'Use Classic Retro Movement' : 'Use Full 3D Movement'
+      );
       if (on) {
         setActiveLayer(0);
         setToolMode((mode) => (mode === 'height' || mode === 'slope' || mode === 'hole' ? 'toggle' : mode));
       }
-      setEngineLog(
+      log(
         on
           ? 'Movement: Classic retro (one flat floor; layer, height, slope and hole tools are off).'
           : 'Movement: Full 3D (layers, heights, slopes, jumping and crouching are available).'
       );
     },
-    [recordHistorySnapshot, verticalFeatures.length, setVertical, setActiveLayer, setToolMode, setEngineLog]
+    [ctx, verticalFeatures.length, setActiveLayer, setToolMode, log]
   );
 
   const handleUpdateMovement = useCallback(
     (movement: MovementSettingsSpec) => {
-      recordHistorySnapshot('Edit Movement Settings');
-      setVertical((v) => ({ ...v, movement }));
+      ctx.edit({ type: 'world/update', levelId: ctx.level().id, patch: { movement } }, 'Edit Movement Settings');
     },
-    [recordHistorySnapshot, setVertical]
+    [ctx]
   );
 
-  return {
-    verticalFeatures,
-    handleAddLayer,
-    handleRemoveTopLayer,
-    handleToggleClassic,
-    handleUpdateMovement,
-  };
+  return { verticalFeatures, handleAddLayer, handleRemoveTopLayer, handleToggleClassic, handleUpdateMovement };
 }

@@ -42,16 +42,21 @@ export type DocumentAction =
   | { type: 'level/remove'; levelId: string }
   | { type: 'level/move'; levelId: string; toIndex: number }
   | { type: 'level/rename'; levelId: string; title: string }
+  /** Replaces a level's data wholesale (resize, clear, preset load) */
+  | { type: 'level/setData'; levelId: string; data: LevelDataV3; title?: string }
   /** `layer` 0 is the ground layer; 1 and up index `data.layers`. `stroke` merges a drag into one undo step. */
   | { type: 'cells/set'; levelId: string; layer?: number; changes: CellChange[]; stroke?: string }
   | { type: 'cellTags/set'; levelId: string; changes: { row: number; col: number; tag: number }[] }
   | { type: 'spawn/set'; levelId: string; spawn: LevelDataV3['spawn'] }
   | { type: 'entity/add'; levelId: string; entity: SimPlacedEntityV3 }
   | { type: 'entity/update'; levelId: string; entityId: string; patch: Partial<SimPlacedEntityV3>; stroke?: string }
+  /** Replaces one entity whole (fields it leaves out are removed) */
+  | { type: 'entity/set'; levelId: string; entity: SimPlacedEntityV3 }
   | { type: 'entity/remove'; levelId: string; entityId: string }
   | { type: 'events/set'; levelId: string; events: EventDefinition[] }
   | { type: 'regions/set'; levelId: string; regions: RegionDefinition[] }
   | { type: 'variables/set'; levelId: string; variables: VariableRegistrySpec }
+  /** Fields set to `undefined` are removed from the level */
   | {
       type: 'world/update';
       levelId: string;
@@ -59,20 +64,28 @@ export type DocumentAction =
         skybox?: LevelDataV3['skybox'];
         minimapEnabled?: boolean;
         movement?: MovementSettingsSpec;
-        classicMovement?: boolean;
+        classicMovement?: boolean | undefined;
       };
     }
+  /** Fields set to `undefined` are removed from the level (a flat level stores no heights) */
   | {
       type: 'vertical/set';
       levelId: string;
-      vertical: { layers?: LevelLayerV3[]; floorHeights?: number[][]; ceilingHeights?: number[][]; slopes?: FloorSlopeSpec[] };
+      vertical: {
+        layers?: LevelLayerV3[] | undefined;
+        floorHeights?: number[][] | undefined;
+        ceilingHeights?: number[][] | undefined;
+        slopes?: FloorSlopeSpec[] | undefined;
+      };
     }
   | { type: 'campaign/update'; patch: Partial<ProjectCampaign> }
   | { type: 'gameData/set'; gameData: GameData }
   | { type: 'userAsset/add'; asset: UserAsset }
   | { type: 'userAsset/remove'; assetId: string }
   | { type: 'export/setSlug'; slug: string }
-  | { type: 'multiplayer/set'; multiplayer: MultiplayerSettings | undefined };
+  | { type: 'multiplayer/set'; multiplayer: MultiplayerSettings | undefined }
+  /** Several edits applied as one undo step */
+  | { type: 'batch'; actions: DocumentAction[] };
 
 export type DocumentActionType = DocumentAction['type'];
 
@@ -90,6 +103,22 @@ const withData = (level: ProjectLevel, patch: Partial<LevelDataV3>): ProjectLeve
   ...level,
   data: { ...level.data, ...patch },
 });
+
+/**
+ * Applies a patch whose `undefined` values remove the field. Returns the level itself when every
+ * value is already in place, so a repeated setting adds no undo step.
+ */
+function patchData(level: ProjectLevel, patch: Partial<LevelDataV3>): ProjectLevel {
+  const current = level.data as unknown as Record<string, unknown>;
+  const entries = Object.entries(patch);
+  if (entries.every(([key, value]) => (value === undefined ? !(key in current) : current[key] === value))) return level;
+  const data: Record<string, unknown> = { ...current };
+  for (const [key, value] of entries) {
+    if (value === undefined) delete data[key];
+    else data[key] = value;
+  }
+  return { ...level, data: data as unknown as LevelDataV3 };
+}
 
 /** Writes values into a matrix, copying each touched row once; returns the input when nothing changed */
 function writeCells<T>(matrix: T[][] | undefined, edits: { row: number; col: number; value: T | undefined }[]): T[][] | undefined {
@@ -147,6 +176,12 @@ function applyCells<S extends CellSurface>(surface: S, changes: CellChange[]): S
   };
 }
 
+/** The number at the end of an entity id (`ent-12` is 12), or 0 */
+function idNumber(id: string): number {
+  const match = /(\d+)$/.exec(id);
+  return match ? Number.parseInt(match[1], 10) : 0;
+}
+
 /** Applies one action; returns the same document object when the action changes nothing */
 export function reduceDocument(doc: ProjectDocV4, action: DocumentAction): ProjectDocV4 {
   switch (action.type) {
@@ -172,6 +207,12 @@ export function reduceDocument(doc: ProjectDocV4, action: DocumentAction): Proje
     }
     case 'level/rename':
       return mapLevel(doc, action.levelId, (l) => (l.title === action.title ? l : { ...l, title: action.title }));
+    case 'level/setData':
+      return mapLevel(doc, action.levelId, (l) =>
+        l.data === action.data && (action.title === undefined || action.title === l.title)
+          ? l
+          : { ...l, data: action.data, ...(action.title !== undefined ? { title: action.title } : {}) }
+      );
     case 'cells/set':
       return mapLevel(doc, action.levelId, (level) => {
         const layer = action.layer ?? 0;
@@ -198,13 +239,27 @@ export function reduceDocument(doc: ProjectDocV4, action: DocumentAction): Proje
     case 'spawn/set':
       return mapLevel(doc, action.levelId, (l) => withData(l, { spawn: { ...action.spawn } }));
     case 'entity/add':
-      return mapLevel(doc, action.levelId, (l) => withData(l, { entities: [...l.data.entities, action.entity] }));
+      return mapLevel(doc, action.levelId, (l) =>
+        withData(l, {
+          entities: [...l.data.entities, action.entity],
+          // Keep the id counter past every numbered id, so a later add never reuses one
+          nextEntityId: Math.max(l.data.nextEntityId, idNumber(action.entity.id) + 1),
+        })
+      );
     case 'entity/update':
       return mapLevel(doc, action.levelId, (l) => {
         const i = l.data.entities.findIndex((e) => e.id === action.entityId);
         if (i < 0) return l;
         const entities = l.data.entities.slice();
         entities[i] = { ...entities[i], ...action.patch, id: action.entityId };
+        return withData(l, { entities });
+      });
+    case 'entity/set':
+      return mapLevel(doc, action.levelId, (l) => {
+        const i = l.data.entities.findIndex((e) => e.id === action.entity.id);
+        if (i < 0) return l;
+        const entities = l.data.entities.slice();
+        entities[i] = action.entity;
         return withData(l, { entities });
       });
     case 'entity/remove':
@@ -219,9 +274,9 @@ export function reduceDocument(doc: ProjectDocV4, action: DocumentAction): Proje
     case 'variables/set':
       return mapLevel(doc, action.levelId, (l) => withData(l, { variables: action.variables }));
     case 'world/update':
-      return mapLevel(doc, action.levelId, (l) => withData(l, action.patch));
+      return mapLevel(doc, action.levelId, (l) => patchData(l, action.patch));
     case 'vertical/set':
-      return mapLevel(doc, action.levelId, (l) => withData(l, action.vertical));
+      return mapLevel(doc, action.levelId, (l) => patchData(l, action.vertical));
     case 'campaign/update':
       return { ...doc, campaign: { ...doc.campaign, ...action.patch } };
     case 'gameData/set':
@@ -234,6 +289,8 @@ export function reduceDocument(doc: ProjectDocV4, action: DocumentAction): Proje
       return { ...doc, userAssets: doc.userAssets.filter((a) => a.id !== action.assetId) };
     case 'export/setSlug':
       return doc.export.slug === action.slug ? doc : { ...doc, export: { slug: action.slug } };
+    case 'batch':
+      return action.actions.reduce(reduceDocument, doc);
     case 'multiplayer/set': {
       if (action.multiplayer === undefined) {
         if (!doc.multiplayer) return doc;
