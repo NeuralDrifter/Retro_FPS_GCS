@@ -1,6 +1,6 @@
 # Retro FPS GCS: Audit and Release Plan
 
-Prepared 2026-11-12 against commit `514e578` on `main`. That commit was `a5f61d2` until the history rewrite of 2026-11-13 (P0.1, Q1) changed every hash. It covers two products: the GCS editor (React, Tailwind and Three.js, hosted on GitHub Pages) and the web games the editor exports.
+Prepared 2026-11-12 against commit `cf7bd9e` on `main`. That commit was `a5f61d2` until the history rewrites of 2026-11-13 (P0.1, Q1) changed every hash. It covers two products: the GCS editor (React, Tailwind and Three.js, hosted on GitHub Pages) and the web games the editor exports.
 
 ## How to use this document
 
@@ -1021,7 +1021,7 @@ The low end assumes one session per task. The high end adds a second session for
 
 ---
 
-## Appendix A: Evidence log (2026-11-12, commit `514e578`)
+## Appendix A: Evidence log (2026-11-12, commit `cf7bd9e`)
 
 | Check | Result |
 |---|---|
@@ -1042,7 +1042,7 @@ The low end assumes one session per task. The high end adds a second session for
 
 Sources for the external facts: [itch.io HTML5 creator docs](https://itch.io/docs/creators/html5), [GitHub Pages limits](https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits), [Node.js release schedule announcement](https://nodejs.org/en/blog/announcements/evolving-the-nodejs-release-schedule), [endoflife.date: Node.js](https://endoflife.date/node), [WebTransport baseline report (webrtc.ventures)](https://webrtc.ventures/2026/04/webtransport-is-now-baseline-what-it-means-for-real-time-media/), [caniuse: WebTransport](https://caniuse.com/webtransport).
 
-## Appendix B: Import graph (non-test source, commit `514e578`)
+## Appendix B: Import graph (non-test source, commit `cf7bd9e`)
 
 Counts are import statements from one area to another. Edges into the root area through `../../runtime` are imports of `src/runtime/index.ts`.
 
@@ -1071,7 +1071,7 @@ cross-area edges                              external packages
 - [x] P0.4 Playwright smoke harness
 - [x] P0.5 Remove Google calls and base-path bugs
 - [x] P0.6 CI pipeline and lint
-- [ ] P0.7 Baseline metrics, LICENSE, README stub
+- [ ] P0.7 Baseline metrics, LICENSE, README stub (metrics and README done; LICENSE waits for Q2)
 - [ ] P1.1 Explicit compiler settings
 - [ ] P1.2 Restructure folders
 - [ ] P1.3 Move authoring code out of the runtime
