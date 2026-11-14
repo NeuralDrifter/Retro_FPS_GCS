@@ -48,7 +48,6 @@ export async function loadRuntimeSourceFiles(): Promise<
   // 1. Vite environment: MUST use literal `import.meta.glob(...)` so Vite's
   // compile-time AST transform replaces it with an eager map of raw strings.
   try {
-    // @ts-ignore - Vite compile-time macro
     const modules = import.meta.glob('/src/runtime/**/*', {
       query: '?raw',
       import: 'default',

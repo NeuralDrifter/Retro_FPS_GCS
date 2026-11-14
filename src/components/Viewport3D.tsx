@@ -181,7 +181,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       handle.dispose();
       runtimeRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount the runtime once; the effects below push later prop changes into it
   }, []);
 
   useEffect(() => {

@@ -179,8 +179,6 @@ export class MenuDOMRenderer {
   private stageEl: HTMLDivElement;
   private toastEl: HTMLDivElement;
   private callbacks: MenuDOMRendererCallbacks;
-  private currentScreen: MenuScreenSpec | null = null;
-  private currentContext: MenuRenderRuntimeContext = {};
   private editorMode = false;
 
   constructor(
@@ -247,8 +245,6 @@ export class MenuDOMRenderer {
     screen: MenuScreenSpec | null,
     context: MenuRenderRuntimeContext = {}
   ): void {
-    this.currentScreen = screen;
-    this.currentContext = context;
 
     if (!screen) {
       this.setVisible(false);

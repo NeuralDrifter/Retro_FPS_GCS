@@ -224,7 +224,7 @@ export const MenuCanvasEditor: React.FC<MenuCanvasEditorProps> = ({
       renderer.dispose();
       rendererRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recreate the preview renderer only when the preview mode changes
   }, [isInteractivePreview]);
 
   useEffect(() => {
@@ -321,7 +321,7 @@ export const MenuCanvasEditor: React.FC<MenuCanvasEditorProps> = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rebind the window drag listeners only when a drag starts, ends or snapping changes
   }, [dragState, snapToGrid]);
 
   const selectedWidget: MenuWidgetSpec | null =
