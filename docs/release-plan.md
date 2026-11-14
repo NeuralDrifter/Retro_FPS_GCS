@@ -1072,7 +1072,7 @@ cross-area edges                              external packages
 - [x] P0.5 Remove Google calls and base-path bugs
 - [x] P0.6 CI pipeline and lint
 - [ ] P0.7 Baseline metrics, LICENSE, README stub (metrics and README done; LICENSE waits for Q2)
-- [ ] P1.1 Explicit compiler settings
+- [x] P1.1 Explicit compiler settings
 - [ ] P1.2 Restructure folders
 - [ ] P1.3 Move authoring code out of the runtime
 - [ ] P1.4 Split startGame into core and playtest adapter
