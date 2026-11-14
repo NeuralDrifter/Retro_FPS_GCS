@@ -1082,7 +1082,7 @@ cross-area edges                              external packages
 - [x] P1.8 Disposal and WebGL context hygiene
 - [x] P2.1 Project schema v4
 - [x] P2.2 Migrations to v4
-- [ ] P2.3 Document store and complete undo
+- [x] P2.3 Document store and complete undo (HistoryManager is deleted when App moves onto the store in P2.4)
 - [ ] P2.4 Move App onto the store
 - [ ] P2.5 Local persistence and project management
 - [ ] P2.6 Portable user assets and import hardening
