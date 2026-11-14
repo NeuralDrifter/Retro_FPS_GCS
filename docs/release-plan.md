@@ -1075,7 +1075,7 @@ cross-area edges                              external packages
 - [x] P1.1 Explicit compiler settings
 - [x] P1.2 Restructure folders
 - [x] P1.3 Move authoring code out of the runtime (legacy formats went to src/editor/project/legacy.ts, not src/shared: the migration registers assets in the runtime AssetRegistry)
-- [ ] P1.4 Split startGame into core and playtest adapter
+- [x] P1.4 Split startGame into core and playtest adapter (editor controls live in src/runtime/debug/editorControls.ts, not src/editor: they need the runtime core)
 - [x] P1.5 Enforce boundaries
 - [x] P1.6 Sim hot path (runtime hashing fixed: p95 27x lower; sim state-shape items moved to P4, see commit)
 - [x] P1.7 Decouple playtest from editor state (long-task budget deferred to P7.4: SwiftShader frames take ~100 ms)
