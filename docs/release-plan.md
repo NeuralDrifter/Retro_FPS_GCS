@@ -1078,7 +1078,7 @@ cross-area edges                              external packages
 - [ ] P1.4 Split startGame into core and playtest adapter
 - [x] P1.5 Enforce boundaries
 - [x] P1.6 Sim hot path (runtime hashing fixed: p95 27x lower; sim state-shape items moved to P4, see commit)
-- [ ] P1.7 Decouple playtest from editor state
+- [x] P1.7 Decouple playtest from editor state (long-task budget deferred to P7.4: SwiftShader frames take ~100 ms)
 - [x] P1.8 Disposal and WebGL context hygiene
 - [ ] P2.1 Project schema v4
 - [ ] P2.2 Migrations to v4
