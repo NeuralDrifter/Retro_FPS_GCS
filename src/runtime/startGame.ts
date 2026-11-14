@@ -91,6 +91,12 @@ export interface StartGameOptions {
   recordInputs?: boolean;
   deterministicSimOnly?: boolean;
   onTickHash?: (tick: number, hash: string, state: SimulationState) => void;
+  /**
+   * Hash the full sim state every tick and keep the hashes (getTickHashes). Hashing costs about
+   * 1 ms per tick on a 64x64 level, so live play leaves it off. It is on when this is true, when
+   * recordInputs or onTickHash is set, and in headless runs (no canvas), which replay tests use.
+   */
+  recordTickHashes?: boolean;
   // Multi-level campaign options
   levels?: LevelDataV3[];
   currentLevelIndex?: number;
@@ -350,6 +356,9 @@ export function startGame(
   const isReplayOrDeterministic =
     Boolean(inputReader) || Boolean(options.deterministicSimOnly);
   const recordInputs = Boolean(options.recordInputs);
+  const hashEveryTick = Boolean(
+    options.recordTickHashes ?? (recordInputs || options.onTickHash || !canvasOrContainer)
+  );
   const recordedInputs: PlayerTickInput[] = [];
   const tickHashes: string[] = [];
 
@@ -1130,9 +1139,11 @@ export function startGame(
     }
 
     currSimState = nextSim;
-    const tickHash = hashSimulationState(currSimState);
-    tickHashes.push(tickHash);
-    options.onTickHash?.(currSimState.tick, tickHash, currSimState);
+    if (hashEveryTick) {
+      const tickHash = hashSimulationState(currSimState);
+      tickHashes.push(tickHash);
+      options.onTickHash?.(currSimState.tick, tickHash, currSimState);
+    }
 
     return true;
   }

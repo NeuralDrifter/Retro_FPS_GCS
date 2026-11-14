@@ -21,7 +21,8 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "npm run build:pages && playwright test",
     "metrics": "tsx scripts/report-metrics.ts",
-    "check:boundaries": "tsx scripts/check-boundaries.ts"
+    "check:boundaries": "tsx scripts/check-boundaries.ts",
+    "bench": "tsx scripts/bench-sim.ts"
   },
   "dependencies": {
     "jszip": "^3.10.2",
