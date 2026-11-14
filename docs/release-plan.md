@@ -1069,7 +1069,7 @@ cross-area edges                              external packages
 - [x] P0.2 Dependency cleanup and reproducible installs
 - [x] P0.3 Move tests to Vitest
 - [x] P0.4 Playwright smoke harness
-- [ ] P0.5 Remove Google calls and base-path bugs
+- [x] P0.5 Remove Google calls and base-path bugs
 - [ ] P0.6 CI pipeline and lint
 - [ ] P0.7 Baseline metrics, LICENSE, README stub
 - [ ] P1.1 Explicit compiler settings
