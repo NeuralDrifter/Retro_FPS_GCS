@@ -1079,7 +1079,7 @@ cross-area edges                              external packages
 - [x] P1.5 Enforce boundaries
 - [x] P1.6 Sim hot path (runtime hashing fixed: p95 27x lower; sim state-shape items moved to P4, see commit)
 - [ ] P1.7 Decouple playtest from editor state
-- [ ] P1.8 Disposal and WebGL context hygiene
+- [x] P1.8 Disposal and WebGL context hygiene
 - [ ] P2.1 Project schema v4
 - [ ] P2.2 Migrations to v4
 - [ ] P2.3 Document store and complete undo
