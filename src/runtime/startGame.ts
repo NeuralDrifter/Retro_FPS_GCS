@@ -9,7 +9,6 @@
 
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import {
   AmmoLootSnapshot,
   CampaignSettings,
@@ -26,6 +25,7 @@ import {
 } from './types';
 import { emitDebugEvent, registerDebugProbe } from './debugEvents';
 import { InputState, NO_FRAME_INPUT, bindInputListeners } from './core/InputController';
+import { RenderSystem, createRenderSystem } from './core/RenderSystem';
 import { verticalFromLevelV3 } from './verticalLevelData';
 import {
   LevelDataV3,
@@ -436,7 +436,7 @@ export function startGame(
   let combatSystem: CombatSystem | null = null;
   let doorTex: THREE.Texture | null = null;
   let skyboxTex: THREE.CanvasTexture | null = null;
-  let envTarget: THREE.WebGLRenderTarget | null = null;
+  let renderSystem: RenderSystem | null = null;
   let removeRendererProbe: () => void = () => {};
   let removeWorldBuildProbe: () => void = () => {};
   let worldBuildCount = 0;
@@ -1317,91 +1317,16 @@ export function startGame(
   // Initialize Three.js WebGL scene if a canvas or container element is provided in a browser environment
   if (canvasOrContainer && typeof document !== 'undefined') {
     try {
-      const isSoftwareGl = (() => {
-        const probeCanvas = document.createElement('canvas');
-        const gl = probeCanvas.getContext('webgl2');
-        if (!gl) return true;
-        const ext = gl.getExtension('WEBGL_debug_renderer_info');
-        const param = ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER;
-        const gpu = String(gl.getParameter(param));
-        gl.getExtension('WEBGL_lose_context')?.loseContext();
-        return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
-      })();
-
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x090c12);
-      scene.fog = new THREE.FogExp2(0x090c12, 0.025);
-
-      const mountEl =
-        canvasOrContainer instanceof HTMLCanvasElement
-          ? canvasOrContainer.parentElement ?? canvasOrContainer
-          : canvasOrContainer;
-
-      const width = mountEl.clientWidth || 800;
-      const height = mountEl.clientHeight || 600;
-      camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 120);
-
-      renderer = new THREE.WebGLRenderer({
-        canvas:
-          canvasOrContainer instanceof HTMLCanvasElement
-            ? canvasOrContainer
-            : undefined,
-        antialias: !isSoftwareGl,
-        powerPreference: 'high-performance',
-      });
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.12;
-      renderer.setPixelRatio(
-        isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2)
-      );
-      renderer.setSize(width, height);
-      renderer.shadowMap.enabled = !isSoftwareGl;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-      if (!(canvasOrContainer instanceof HTMLCanvasElement)) {
-        const existingCanvases = canvasOrContainer.querySelectorAll(
-          'canvas[data-forgecore-canvas="true"]'
-        );
-        existingCanvases.forEach((c) => c.remove());
-        renderer.domElement.setAttribute('data-forgecore-canvas', 'true');
-        canvasOrContainer.insertBefore(
-          renderer.domElement,
-          canvasOrContainer.firstChild
-        );
-      }
-
-      const pmremGenerator = new THREE.PMREMGenerator(renderer);
-      const roomEnvironment = new RoomEnvironment();
-      envTarget = pmremGenerator.fromScene(roomEnvironment, 0.04);
-      scene.environment = envTarget.texture;
-      roomEnvironment.dispose();
-      pmremGenerator.dispose();
+      renderSystem = createRenderSystem(canvasOrContainer);
+      const { isSoftwareGl, mountEl } = renderSystem;
+      scene = renderSystem.scene;
+      camera = renderSystem.camera;
+      renderer = renderSystem.renderer;
+      hemiLight = renderSystem.hemiLight;
+      dirLight = renderSystem.dirLight;
       const probedRenderer = renderer;
       removeRendererProbe = registerDebugProbe('runtimeRenderer', () => ({ ...probedRenderer.info.memory }));
       removeWorldBuildProbe = registerDebugProbe('runtimeWorldBuilds', () => worldBuildCount);
-
-      hemiLight = new THREE.HemisphereLight(0x38bdf8, 0x0f172a, 0.65);
-      scene.add(hemiLight);
-
-      dirLight = new THREE.DirectionalLight(0xfffbeb, 1.35);
-      dirLight.position.set(14, 28, 12);
-      dirLight.castShadow = !isSoftwareGl;
-      dirLight.shadow.mapSize.width = 1024;
-      dirLight.shadow.mapSize.height = 1024;
-      dirLight.shadow.camera.near = 1;
-      dirLight.shadow.camera.far = 65;
-      const d = 24;
-      dirLight.shadow.camera.left = -d;
-      dirLight.shadow.camera.right = d;
-      dirLight.shadow.camera.top = d;
-      dirLight.shadow.camera.bottom = -d;
-      dirLight.shadow.bias = -0.0005;
-      dirLight.shadow.normalBias = 0.02;
-      scene.add(dirLight);
-
-      const playerTorch = new THREE.PointLight(0xf59e0b, 2.2, 16, 1.6);
-      camera.add(playerTorch);
 
       combatSystem = new CombatSystem(camera, scene);
       scene.add(camera);
@@ -1448,20 +1373,6 @@ export function startGame(
         },
       });
 
-      const resizeObserver =
-        typeof ResizeObserver !== 'undefined'
-          ? new ResizeObserver((entries) => {
-              for (const entry of entries) {
-                const { width: w, height: h } = entry.contentRect;
-                if (w > 0 && h > 0 && camera && renderer) {
-                  camera.aspect = w / h;
-                  camera.updateProjectionMatrix();
-                  renderer.setSize(w, h);
-                }
-              }
-            })
-          : null;
-      resizeObserver?.observe(mountEl);
 
       camera.position.set(
         initialWorld.x,
@@ -1975,7 +1886,6 @@ export function startGame(
       frameId = requestAnimationFrame(tick);
 
       cleanupDomListeners = () => {
-        resizeObserver?.disconnect();
         document.removeEventListener('visibilitychange', onVisibilityChange);
         controls?.removeEventListener('lock', onLock);
         controls?.removeEventListener('unlock', onUnlock);
@@ -2021,19 +1931,13 @@ export function startGame(
     worldGroup = null;
     controls?.dispose();
     controls = null;
-    envTarget?.dispose();
-    envTarget = null;
-    dirLight?.dispose();
-    dirLight = null;
     removeRendererProbe();
     removeWorldBuildProbe();
-    if (renderer) {
-      renderer.dispose();
-      // Free the GPU context now instead of waiting for GC, so Edit and Play switches never pile up contexts
-      renderer.forceContextLoss();
-      if (!(canvasOrContainer instanceof HTMLCanvasElement)) renderer.domElement.remove();
-    }
+    // Releases the renderer, its WebGL context, the environment map and the shadow map
+    renderSystem?.dispose();
+    renderSystem = null;
     renderer = null;
+    dirLight = null;
   }
 
   return {
