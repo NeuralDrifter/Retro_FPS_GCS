@@ -245,6 +245,75 @@ function createInputReader(
   return null;
 }
 
+/** Mutable state of one running game (see startGame). */
+export interface RuntimeState {
+  campaignLevels: LevelDataV3[];
+  currentLevelIndex: number;
+  campaignSettings: CampaignSettings;
+  currentLevelV3: LevelDataV3;
+  customTextures: TextureAsset[];
+  grid: number[][];
+  wallTextures: string[][];
+  floorTextures: string[][];
+  ceilingTextures: string[][];
+  entities: PlacedEntity[];
+  spawn: { row: number; col: number; yaw: number };
+  skyboxTheme: SkyboxThemeId;
+  skyboxSeed: number;
+  showCeiling: boolean;
+  showWireframe: boolean;
+  collisionEnabled: boolean;
+  minimapEnabled: boolean;
+  vertical: VerticalLevelData | undefined;
+  updateLayeredHeights: ((floors: number[][], ceilings: number[][]) => void) | null;
+  prevSimState: SimulationState;
+  currSimState: SimulationState;
+  lastLogCount: number;
+  lastSoundCount: number;
+  aiEnemiesLoaded: boolean;
+  levelEntryState: { health: number; ammo: number };
+  combatState: PlayerCombatState;
+  isMuzzleFlashing: boolean;
+  isHitMarkerActive: boolean;
+  isPlayerHurtFlashing: boolean;
+  enemySnapshots: EnemyTelemetrySnapshot[];
+  ammoDrops: AmmoLootSnapshot[];
+  muzzleFlashTimeout: number;
+  hitMarkerTimeout: number;
+  hurtFlashTimeout: number;
+  scene: THREE.Scene | null;
+  camera: THREE.PerspectiveCamera | null;
+  renderer: THREE.WebGLRenderer | null;
+  controls: PointerLockControls | null;
+  hemiLight: THREE.HemisphereLight | null;
+  dirLight: THREE.DirectionalLight | null;
+  worldGroup: THREE.Group | null;
+  wallMeshes: THREE.Object3D[];
+  getWallBlockGroup: (cellKey: string) => THREE.Group | undefined;
+  doorMeshes: Map<string, THREE.Group>;
+  keyMeshes: Map<string, THREE.Group>;
+  floorLayer: InstancedCellLayer | null;
+  ceilingLayer: InstancedCellLayer | null;
+  enemyAI: EnemyAISystem | null;
+  combatSystem: CombatSystem | null;
+  doorTex: THREE.Texture | null;
+  skyboxTex: THREE.CanvasTexture | null;
+  renderSystem: RenderSystem | null;
+  removeRendererProbe: () => void;
+  removeWorldBuildProbe: () => void;
+  worldBuildCount: number;
+  playerTransform: PlayerTransform;
+  combatHud: CombatHUDController | null;
+  minimapHud: MinimapHUDController | null;
+  menuController: MenuRuntimeController | null;
+  runtimeSettings: MenuRuntimeSettings;
+  elapsedSec: number;
+  frameId: number;
+  stopped: boolean;
+  disposed: boolean;
+  cleanupDomListeners: (() => void) | null;
+}
+
 /**
  * Starts the game runtime on a validated GameManifest. Load untrusted manifest JSON with
  * `loadGameManifest` first; the editor builds manifests with `createGameManifestFromEditor`.
@@ -254,6 +323,8 @@ export function startGame(
   canvasOrContainer: HTMLCanvasElement | HTMLElement | null,
   options: StartGameOptions = {}
 ): GameRuntimeHandle {
+  // All mutable state of one running game; subsystems in ./core receive it (P1.4)
+  const rt = {} as RuntimeState;
   if (options.assetBaseUrl !== undefined) {
     TextureGenerator.setAssetBaseUrl(options.assetBaseUrl);
     EntityLoader.setAssetBaseUrl(options.assetBaseUrl);
@@ -264,29 +335,27 @@ export function startGame(
 
   const activeManifest: GameManifest = manifest;
 
-  let campaignLevels: LevelDataV3[] =
-    options.levels && options.levels.length > 0
+  rt.campaignLevels = options.levels && options.levels.length > 0
       ? options.levels.map((l) => JSON.parse(JSON.stringify(l)))
       : activeManifest.levels && activeManifest.levels.length > 0
       ? activeManifest.levels.map((l) => JSON.parse(JSON.stringify(l)))
       : [activeManifest.level];
 
-  let currentLevelIndex: number = Math.max(
+  rt.currentLevelIndex = Math.max(
     0,
     Math.min(
-      campaignLevels.length - 1,
+      rt.campaignLevels.length - 1,
       options.currentLevelIndex ?? 0
     )
   );
 
-  let campaignSettings: CampaignSettings = {
+  rt.campaignSettings = {
     ...(options.campaign ??
       activeManifest.campaign ??
       DEFAULT_CAMPAIGN_SETTINGS),
   };
 
-  let currentLevelV3: LevelDataV3 =
-    campaignLevels[currentLevelIndex] ?? activeManifest.level;
+  rt.currentLevelV3 = rt.campaignLevels[rt.currentLevelIndex] ?? activeManifest.level;
 
   if (activeManifest.assets?.textures) {
     for (const tex of activeManifest.assets.textures) {
@@ -322,36 +391,33 @@ export function startGame(
     }
   }
 
-  let customTextures: TextureAsset[] =
-    options.customTextures ?? [];
+  rt.customTextures = options.customTextures ?? [];
 
-  let grid: number[][] = currentLevelV3.grid.map((r) => [...r]);
-  let wallTextures: string[][] = currentLevelV3.wallTextures.map((r) => [...r]);
-  let floorTextures: string[][] = currentLevelV3.floorTextures.map((r) => [
+  rt.grid = rt.currentLevelV3.grid.map((r) => [...r]);
+  rt.wallTextures = rt.currentLevelV3.wallTextures.map((r) => [...r]);
+  rt.floorTextures = rt.currentLevelV3.floorTextures.map((r) => [
     ...r,
   ]);
-  let ceilingTextures: string[][] = currentLevelV3.ceilingTextures.map((r) => [
+  rt.ceilingTextures = rt.currentLevelV3.ceilingTextures.map((r) => [
     ...r,
   ]);
-  let entities: PlacedEntity[] = placedEntitiesFromLevelV3(currentLevelV3);
-  let spawn: { row: number; col: number; yaw: number } = {
-    row: currentLevelV3.spawn.row,
-    col: currentLevelV3.spawn.col,
-    yaw: bamToRadians(currentLevelV3.spawn.yawBam),
+  rt.entities = placedEntitiesFromLevelV3(rt.currentLevelV3);
+  rt.spawn = {
+    row: rt.currentLevelV3.spawn.row,
+    col: rt.currentLevelV3.spawn.col,
+    yaw: bamToRadians(rt.currentLevelV3.spawn.yawBam),
   };
-  let skyboxTheme: SkyboxThemeId = currentLevelV3.skybox.theme;
-  let skyboxSeed: number = currentLevelV3.skybox.seed;
-  let showCeiling: boolean =
-    options.showCeiling ?? currentLevelV3.skybox.showCeiling ?? true;
-  let showWireframe: boolean = options.showWireframe ?? false;
-  let collisionEnabled: boolean = options.collisionEnabled ?? true;
-  let minimapEnabled: boolean =
-    options.minimapEnabled ?? currentLevelV3.minimapEnabled ?? true;
+  rt.skyboxTheme = rt.currentLevelV3.skybox.theme;
+  rt.skyboxSeed = rt.currentLevelV3.skybox.seed;
+  rt.showCeiling = options.showCeiling ?? rt.currentLevelV3.skybox.showCeiling ?? true;
+  rt.showWireframe = options.showWireframe ?? false;
+  rt.collisionEnabled = options.collisionEnabled ?? true;
+  rt.minimapEnabled = options.minimapEnabled ?? rt.currentLevelV3.minimapEnabled ?? true;
   // Flat levels (classic retro ones included) draw with the flat world builder
-  let vertical: VerticalLevelData | undefined = isVerticalLevel(currentLevelV3)
-    ? verticalFromLevelV3(currentLevelV3)
+  rt.vertical = isVerticalLevel(rt.currentLevelV3)
+    ? verticalFromLevelV3(rt.currentLevelV3)
     : undefined;
-  let updateLayeredHeights: ((floors: number[][], ceilings: number[][]) => void) | null = null;
+  rt.updateLayeredHeights = null;
 
   const inputReader = createInputReader(options.inputSource);
   const isReplayOrDeterministic =
@@ -364,41 +430,41 @@ export function startGame(
   const tickHashes: string[] = [];
 
   const initialSim =
-    options.initialSimState ?? createInitialSimulationState(currentLevelV3, [0]);
-  let prevSimState: SimulationState = initialSim;
-  let currSimState: SimulationState = initialSim;
-  let lastLogCount = currSimState.logs.length;
-  let lastSoundCount = currSimState.soundsPlayed.length;
+    options.initialSimState ?? createInitialSimulationState(rt.currentLevelV3, [0]);
+  rt.prevSimState = initialSim;
+  rt.currSimState = initialSim;
+  rt.lastLogCount = rt.currSimState.logs.length;
+  rt.lastSoundCount = rt.currSimState.soundsPlayed.length;
 
   const countLevelEnemies = () =>
-    entities.filter(
+    rt.entities.filter(
       (e) => e.isEnemy !== false && e.blueprintId !== 'supply-crate'
     ).length;
 
   // Enemy models load asynchronously, so the AI reports 0 enemies at first.
   // Keep the level's count on the HUD until the AI has registered at least that many.
-  let aiEnemiesLoaded = false;
+  rt.aiEnemiesLoaded = false;
   function hudEnemyTotals(snapshot: { kills: number; totalEnemies: number }): {
     kills: number;
     totalEnemies: number;
   } {
-    if (!aiEnemiesLoaded && snapshot.totalEnemies < combatState.totalEnemies) {
-      return { kills: snapshot.kills, totalEnemies: combatState.totalEnemies };
+    if (!rt.aiEnemiesLoaded && snapshot.totalEnemies < rt.combatState.totalEnemies) {
+      return { kills: snapshot.kills, totalEnemies: rt.combatState.totalEnemies };
     }
-    aiEnemiesLoaded = true;
+    rt.aiEnemiesLoaded = true;
     return { kills: snapshot.kills, totalEnemies: snapshot.totalEnemies };
   }
 
-  let levelEntryState: { health: number; ammo: number } = {
+  rt.levelEntryState = {
     health:
       initialSim.players[0]?.health ?? ENGINE_CONFIG.PLAYER_MAX_HEALTH,
     ammo: initialSim.players[0]?.ammo ?? ENGINE_CONFIG.PLAYER_START_AMMO,
   };
 
-  let combatState: PlayerCombatState = {
-    health: levelEntryState.health,
+  rt.combatState = {
+    health: rt.levelEntryState.health,
     maxHealth: ENGINE_CONFIG.PLAYER_MAX_HEALTH,
-    ammo: levelEntryState.ammo,
+    ammo: rt.levelEntryState.ammo,
     maxAmmo: ENGINE_CONFIG.PLAYER_MAX_AMMO,
     kills: 0,
     totalEnemies: countLevelEnemies(),
@@ -408,104 +474,104 @@ export function startGame(
     lastHitEnemyMaxHealth: null,
   };
 
-  let isMuzzleFlashing = false;
-  let isHitMarkerActive = false;
-  let isPlayerHurtFlashing = false;
-  let enemySnapshots: EnemyTelemetrySnapshot[] = [];
-  let ammoDrops: AmmoLootSnapshot[] = [];
+  rt.isMuzzleFlashing = false;
+  rt.isHitMarkerActive = false;
+  rt.isPlayerHurtFlashing = false;
+  rt.enemySnapshots = [];
+  rt.ammoDrops = [];
 
-  let muzzleFlashTimeout = 0;
-  let hitMarkerTimeout = 0;
-  let hurtFlashTimeout = 0;
+  rt.muzzleFlashTimeout = 0;
+  rt.hitMarkerTimeout = 0;
+  rt.hurtFlashTimeout = 0;
 
-  let scene: THREE.Scene | null = null;
-  let camera: THREE.PerspectiveCamera | null = null;
-  let renderer: THREE.WebGLRenderer | null = null;
-  let controls: PointerLockControls | null = null;
-  let hemiLight: THREE.HemisphereLight | null = null;
-  let dirLight: THREE.DirectionalLight | null = null;
-  let worldGroup: THREE.Group | null = null;
-  let wallMeshes: THREE.Object3D[] = [];
-  let getWallBlockGroup: (cellKey: string) => THREE.Group | undefined = () =>
+  rt.scene = null;
+  rt.camera = null;
+  rt.renderer = null;
+  rt.controls = null;
+  rt.hemiLight = null;
+  rt.dirLight = null;
+  rt.worldGroup = null;
+  rt.wallMeshes = [];
+  rt.getWallBlockGroup = () =>
     undefined;
-  let doorMeshes: Map<string, THREE.Group> = new Map();
-  let keyMeshes: Map<string, THREE.Group> = new Map();
-  let floorLayer: InstancedCellLayer | null = null;
-  let ceilingLayer: InstancedCellLayer | null = null;
-  let enemyAI: EnemyAISystem | null = null;
-  let combatSystem: CombatSystem | null = null;
-  let doorTex: THREE.Texture | null = null;
-  let skyboxTex: THREE.CanvasTexture | null = null;
-  let renderSystem: RenderSystem | null = null;
-  let removeRendererProbe: () => void = () => {};
-  let removeWorldBuildProbe: () => void = () => {};
-  let worldBuildCount = 0;
+  rt.doorMeshes = new Map();
+  rt.keyMeshes = new Map();
+  rt.floorLayer = null;
+  rt.ceilingLayer = null;
+  rt.enemyAI = null;
+  rt.combatSystem = null;
+  rt.doorTex = null;
+  rt.skyboxTex = null;
+  rt.renderSystem = null;
+  rt.removeRendererProbe = () => {};
+  rt.removeWorldBuildProbe = () => {};
+  rt.worldBuildCount = 0;
 
   const input = new InputState();
   const euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
   const initialWorld = CollisionSystem.gridToWorld(
-    spawn.row,
-    spawn.col,
-    grid.length
+    rt.spawn.row,
+    rt.spawn.col,
+    rt.grid.length
   );
-  let playerTransform: PlayerTransform = {
+  rt.playerTransform = {
     x: initialWorld.x,
     y: ENGINE_CONFIG.PLAYER_EYE_HEIGHT,
     z: initialWorld.z,
-    yaw: spawn.yaw,
+    yaw: rt.spawn.yaw,
     pitch: 0,
-    gridRow: spawn.row,
-    gridCol: spawn.col,
+    gridRow: rt.spawn.row,
+    gridCol: rt.spawn.col,
     speed: 0,
   };
 
-  let combatHud: CombatHUDController | null = null;
-  let minimapHud: MinimapHUDController | null = null;
-  let menuController: MenuRuntimeController | null = null;
-  let runtimeSettings: MenuRuntimeSettings = {
+  rt.combatHud = null;
+  rt.minimapHud = null;
+  rt.menuController = null;
+  rt.runtimeSettings = {
     ...DEFAULT_MENU_RUNTIME_SETTINGS,
   };
-  let elapsedSec = 0;
+  rt.elapsedSec = 0;
 
   function syncHud(): void {
-    const hideHudForMenu = Boolean(menuController?.shouldHideCombatHud());
-    if (combatHud) {
-      combatHud.setVisible(!hideHudForMenu);
+    const hideHudForMenu = Boolean(rt.menuController?.shouldHideCombatHud());
+    if (rt.combatHud) {
+      rt.combatHud.setVisible(!hideHudForMenu);
       const currentTitle =
-        campaignLevels[currentLevelIndex]?.metadata?.title ||
-        `Level ${currentLevelIndex + 1}`;
+        rt.campaignLevels[rt.currentLevelIndex]?.metadata?.title ||
+        `Level ${rt.currentLevelIndex + 1}`;
       const nextTitle =
-        currentLevelIndex + 1 < campaignLevels.length
-          ? campaignLevels[currentLevelIndex + 1]?.metadata?.title ||
-            `Level ${currentLevelIndex + 2}`
+        rt.currentLevelIndex + 1 < rt.campaignLevels.length
+          ? rt.campaignLevels[rt.currentLevelIndex + 1]?.metadata?.title ||
+            `Level ${rt.currentLevelIndex + 2}`
           : undefined;
-      combatHud.update({
-        combatState,
-        simState: currSimState,
-        isMuzzleFlashing,
-        isHitMarkerActive,
-        isPlayerHurtFlashing,
-        currentLevelIndex,
-        totalLevels: campaignLevels.length,
+      rt.combatHud.update({
+        combatState: rt.combatState,
+        simState: rt.currSimState,
+        isMuzzleFlashing: rt.isMuzzleFlashing,
+        isHitMarkerActive: rt.isHitMarkerActive,
+        isPlayerHurtFlashing: rt.isPlayerHurtFlashing,
+        currentLevelIndex: rt.currentLevelIndex,
+        totalLevels: rt.campaignLevels.length,
         currentLevelTitle: currentTitle,
         nextLevelTitle: nextTitle,
-        campaign: campaignSettings,
+        campaign: rt.campaignSettings,
       });
     }
-    if (minimapHud) {
-      minimapHud.update({
-        visible: minimapEnabled && !hideHudForMenu,
-        grid,
-        entities,
-        enemySnapshots,
-        ammoDrops,
-        playerTransform,
-        collectedKeys: getCollectedKeysSetFromSim(currSimState),
-        openDoors: getOpenDoorsSetFromSim(currSimState),
+    if (rt.minimapHud) {
+      rt.minimapHud.update({
+        visible: rt.minimapEnabled && !hideHudForMenu,
+        grid: rt.grid,
+        entities: rt.entities,
+        enemySnapshots: rt.enemySnapshots,
+        ammoDrops: rt.ammoDrops,
+        playerTransform: rt.playerTransform,
+        collectedKeys: getCollectedKeysSetFromSim(rt.currSimState),
+        openDoors: getOpenDoorsSetFromSim(rt.currSimState),
       });
     }
-    menuController?.syncView();
+    rt.menuController?.syncView();
   }
 
   function emitLog(message: string): void {
@@ -513,9 +579,9 @@ export function startGame(
   }
 
   function getActiveOccluderMeshes(): THREE.Object3D[] {
-    const occluders = [...wallMeshes];
-    const openDoors = getOpenDoorsSetFromSim(currSimState);
-    doorMeshes.forEach((doorGroup, cellKey) => {
+    const occluders = [...rt.wallMeshes];
+    const openDoors = getOpenDoorsSetFromSim(rt.currSimState);
+    rt.doorMeshes.forEach((doorGroup, cellKey) => {
       if (!openDoors.has(cellKey)) {
         occluders.push(doorGroup);
       }
@@ -524,9 +590,9 @@ export function startGame(
   }
 
   function handleFireWeapon(): void {
-    if (!camera || !combatSystem || !enemyAI || combatState.isDead) return;
+    if (!rt.camera || !rt.combatSystem || !rt.enemyAI || rt.combatState.isDead) return;
 
-    if (combatState.ammo <= 0) {
+    if (rt.combatState.ammo <= 0) {
       input.pendingShoot = true;
       emitLog(
         'Combat: Out of Plasma Ammo — Press [R] to Reload or collect dropped Ammo Crates.'
@@ -536,68 +602,68 @@ export function startGame(
 
     const occluders = getActiveOccluderMeshes();
     // Auto-aim (a per-game setting): tilt the shot up or down toward an enemy in front
-    const savedAim = camera.quaternion.clone();
-    if (currSimState.vertical?.movement.aim === 'auto') {
-      applyAutoAim(camera, enemyAI, occluders);
+    const savedAim = rt.camera.quaternion.clone();
+    if (rt.currSimState.vertical?.movement.aim === 'auto') {
+      applyAutoAim(rt.camera, rt.enemyAI, occluders);
     }
-    const shot = combatSystem.fireWeapon(
-      camera,
-      combatState.ammo,
-      combatState.isDead,
-      enemyAI,
+    const shot = rt.combatSystem.fireWeapon(
+      rt.camera,
+      rt.combatState.ammo,
+      rt.combatState.isDead,
+      rt.enemyAI,
       occluders
     );
-    camera.quaternion.copy(savedAim);
+    rt.camera.quaternion.copy(savedAim);
 
     if (!shot.fired) return;
 
     if (!shot.hitEnemy) {
       input.pendingShoot = true;
     } else if (shot.killedEnemy && shot.hitEntityId && !isReplayOrDeterministic) {
-      currSimState = recordEntityKilledInSim(
-        currSimState,
+      rt.currSimState = recordEntityKilledInSim(
+        rt.currSimState,
         shot.hitEntityId,
         0
       );
     }
 
-    isMuzzleFlashing = true;
+    rt.isMuzzleFlashing = true;
     if (typeof window !== 'undefined') {
-      window.clearTimeout(muzzleFlashTimeout);
-      muzzleFlashTimeout = window.setTimeout(() => {
-        isMuzzleFlashing = false;
+      window.clearTimeout(rt.muzzleFlashTimeout);
+      rt.muzzleFlashTimeout = window.setTimeout(() => {
+        rt.isMuzzleFlashing = false;
         syncHud();
       }, 90);
     }
 
     if (shot.hitEnemy) {
-      isHitMarkerActive = true;
+      rt.isHitMarkerActive = true;
       if (typeof window !== 'undefined') {
-        window.clearTimeout(hitMarkerTimeout);
-        hitMarkerTimeout = window.setTimeout(() => {
-          isHitMarkerActive = false;
+        window.clearTimeout(rt.hitMarkerTimeout);
+        rt.hitMarkerTimeout = window.setTimeout(() => {
+          rt.isHitMarkerActive = false;
           syncHud();
         }, 150);
       }
     }
 
-    const snapshots = enemyAI.getTelemetrySnapshots();
-    enemySnapshots = snapshots.enemies;
-    ammoDrops = snapshots.ammoDrops;
+    const snapshots = rt.enemyAI.getTelemetrySnapshots();
+    rt.enemySnapshots = snapshots.enemies;
+    rt.ammoDrops = snapshots.ammoDrops;
 
-    combatState = {
-      ...combatState,
-      ammo: Math.max(0, combatState.ammo - 1),
+    rt.combatState = {
+      ...rt.combatState,
+      ammo: Math.max(0, rt.combatState.ammo - 1),
       ...hudEnemyTotals(snapshots),
       lastHitEnemyName: shot.hitEnemy
         ? shot.enemyName
-        : combatState.lastHitEnemyName,
+        : rt.combatState.lastHitEnemyName,
       lastHitEnemyHealth: shot.hitEnemy
         ? shot.enemyRemainingHealth
-        : combatState.lastHitEnemyHealth,
+        : rt.combatState.lastHitEnemyHealth,
       lastHitEnemyMaxHealth: shot.hitEnemy
         ? shot.enemyMaxHealth
-        : combatState.lastHitEnemyMaxHealth,
+        : rt.combatState.lastHitEnemyMaxHealth,
     };
 
     syncHud();
@@ -614,13 +680,13 @@ export function startGame(
   }
 
   function handleReloadAmmo(): void {
-    if (combatState.isDead) return;
+    if (rt.combatState.isDead) return;
     const nextAmmo = Math.min(
-      combatState.maxAmmo,
-      Math.max(combatState.ammo + 24, ENGINE_CONFIG.PLAYER_START_AMMO)
+      rt.combatState.maxAmmo,
+      Math.max(rt.combatState.ammo + 24, ENGINE_CONFIG.PLAYER_START_AMMO)
     );
-    combatState = {
-      ...combatState,
+    rt.combatState = {
+      ...rt.combatState,
       ammo: nextAmmo,
     };
     syncHud();
@@ -628,130 +694,130 @@ export function startGame(
   }
 
   function updateSkybox(): void {
-    if (!scene) return;
-    skyboxTex?.dispose();
+    if (!rt.scene) return;
+    rt.skyboxTex?.dispose();
     const generated = TextureGenerator.createSkyboxTexture(
-      skyboxTheme,
-      skyboxSeed
+      rt.skyboxTheme,
+      rt.skyboxSeed
     );
-    skyboxTex = generated.texture;
-    scene.background = generated.texture;
-    scene.fog = new THREE.FogExp2(generated.fogColor, 0.025);
-    if (hemiLight) {
-      hemiLight.color.setHex(generated.hemiSkyColor);
-      hemiLight.groundColor.setHex(generated.hemiGroundColor);
+    rt.skyboxTex = generated.texture;
+    rt.scene.background = generated.texture;
+    rt.scene.fog = new THREE.FogExp2(generated.fogColor, 0.025);
+    if (rt.hemiLight) {
+      rt.hemiLight.color.setHex(generated.hemiSkyColor);
+      rt.hemiLight.groundColor.setHex(generated.hemiGroundColor);
     }
   }
 
   function rebuild3DWorld(): void {
-    if (!scene || !renderer) return;
-    worldBuildCount++;
+    if (!rt.scene || !rt.renderer) return;
+    rt.worldBuildCount++;
 
-    const maxAniso = renderer.capabilities.getMaxAnisotropy();
+    const maxAniso = rt.renderer.capabilities.getMaxAnisotropy();
 
-    if (!doorTex) {
-      doorTex = TextureGenerator.createDoorTexture(maxAniso);
+    if (!rt.doorTex) {
+      rt.doorTex = TextureGenerator.createDoorTexture(maxAniso);
     }
 
-    if (worldGroup) {
-      scene.remove(worldGroup);
-      WorldBuilder.disposeWorldGroup(worldGroup);
+    if (rt.worldGroup) {
+      rt.scene.remove(rt.worldGroup);
+      WorldBuilder.disposeWorldGroup(rt.worldGroup);
     }
 
-    const collectedKeysSet = getCollectedKeysSetFromSim(currSimState);
-    const openDoorsSet = getOpenDoorsSetFromSim(currSimState);
+    const collectedKeysSet = getCollectedKeysSetFromSim(rt.currSimState);
+    const openDoorsSet = getOpenDoorsSetFromSim(rt.currSimState);
 
     const built = WorldBuilder.buildWorldFromGrid(
-      grid,
-      wallTextures,
-      floorTextures,
-      ceilingTextures,
-      customTextures,
-      entities,
-      doorTex,
+      rt.grid,
+      rt.wallTextures,
+      rt.floorTextures,
+      rt.ceilingTextures,
+      rt.customTextures,
+      rt.entities,
+      rt.doorTex,
       maxAniso,
       {
-        showCeiling,
-        showWireframe,
-        spawn,
+        showCeiling: rt.showCeiling,
+        showWireframe: rt.showWireframe,
+        spawn: rt.spawn,
         collectedKeys: collectedKeysSet,
         openDoors: openDoorsSet,
-        vertical,
+        vertical: rt.vertical,
       }
     );
 
-    worldGroup = built.worldGroup;
-    updateLayeredHeights = built.updateLayeredHeights ?? null;
-    wallMeshes = built.wallMeshes;
-    getWallBlockGroup = built.getWallBlockGroup;
-    doorMeshes = built.doorMeshes;
-    keyMeshes = built.keyMeshes;
-    floorLayer = built.floorLayer;
-    ceilingLayer = built.ceilingLayer;
-    enemyAI = built.enemyAI;
-    aiEnemiesLoaded = false;
-    scene.add(built.worldGroup);
+    rt.worldGroup = built.worldGroup;
+    rt.updateLayeredHeights = built.updateLayeredHeights ?? null;
+    rt.wallMeshes = built.wallMeshes;
+    rt.getWallBlockGroup = built.getWallBlockGroup;
+    rt.doorMeshes = built.doorMeshes;
+    rt.keyMeshes = built.keyMeshes;
+    rt.floorLayer = built.floorLayer;
+    rt.ceilingLayer = built.ceilingLayer;
+    rt.enemyAI = built.enemyAI;
+    rt.aiEnemiesLoaded = false;
+    rt.scene.add(built.worldGroup);
   }
 
   function teleportToSpawn(): void {
     const levelV3 = RuntimeLevelSerializer.serializeLevelV3({
-      grid,
-      wallTextures,
-      floorTextures,
-      ceilingTextures,
-      entities,
-      spawn,
-      skyboxTheme,
-      skyboxSeed,
-      showCeiling,
-      minimapEnabled,
-      cellTags: currSimState.cellTags,
-      events: currSimState.events,
-      regions: currSimState.regions,
+      grid: rt.grid,
+      wallTextures: rt.wallTextures,
+      floorTextures: rt.floorTextures,
+      ceilingTextures: rt.ceilingTextures,
+      entities: rt.entities,
+      spawn: rt.spawn,
+      skyboxTheme: rt.skyboxTheme,
+      skyboxSeed: rt.skyboxSeed,
+      showCeiling: rt.showCeiling,
+      minimapEnabled: rt.minimapEnabled,
+      cellTags: rt.currSimState.cellTags,
+      events: rt.currSimState.events,
+      regions: rt.currSimState.regions,
       variables: {
-        flags: currSimState.flags,
-        counters: currSimState.counters,
-        timers: Object.keys(currSimState.timers),
+        flags: rt.currSimState.flags,
+        counters: rt.currSimState.counters,
+        timers: Object.keys(rt.currSimState.timers),
       },
-      vertical,
+      vertical: rt.vertical,
     });
     const freshSim = createInitialSimulationState(levelV3, [0]);
     const spawnEyeY = freshSim.vertical
       ? (freshSim.players[0]?.yUnits ?? 0) * UNITS_TO_METERS
       : ENGINE_CONFIG.PLAYER_EYE_HEIGHT;
-    prevSimState = freshSim;
-    currSimState = freshSim;
-    lastLogCount = freshSim.logs.length;
-    lastSoundCount = freshSim.soundsPlayed.length;
+    rt.prevSimState = freshSim;
+    rt.currSimState = freshSim;
+    rt.lastLogCount = freshSim.logs.length;
+    rt.lastSoundCount = freshSim.soundsPlayed.length;
     options.onSimStateChange?.(freshSim);
 
     const { x, z } = CollisionSystem.gridToWorld(
-      spawn.row,
-      spawn.col,
-      grid.length
+      rt.spawn.row,
+      rt.spawn.col,
+      rt.grid.length
     );
-    if (camera) {
-      camera.position.set(x, spawnEyeY, z);
-      euler.set(0, spawn.yaw, 0, 'YXZ');
-      camera.quaternion.setFromEuler(euler);
+    if (rt.camera) {
+      rt.camera.position.set(x, spawnEyeY, z);
+      euler.set(0, rt.spawn.yaw, 0, 'YXZ');
+      rt.camera.quaternion.setFromEuler(euler);
     }
 
-    playerTransform = {
+    rt.playerTransform = {
       x,
       y: spawnEyeY,
       z,
-      yaw: spawn.yaw,
+      yaw: rt.spawn.yaw,
       pitch: 0,
-      gridRow: spawn.row,
-      gridCol: spawn.col,
+      gridRow: rt.spawn.row,
+      gridCol: rt.spawn.col,
       speed: 0,
     };
-    options.onPlayerMove?.(playerTransform);
+    options.onPlayerMove?.(rt.playerTransform);
 
-    combatState = {
-      ...combatState,
+    rt.combatState = {
+      ...rt.combatState,
       health: ENGINE_CONFIG.PLAYER_MAX_HEALTH,
-      ammo: Math.max(combatState.ammo, ENGINE_CONFIG.PLAYER_START_AMMO),
+      ammo: Math.max(rt.combatState.ammo, ENGINE_CONFIG.PLAYER_START_AMMO),
       isDead: false,
       lastHitEnemyName: null,
       lastHitEnemyHealth: null,
@@ -772,30 +838,30 @@ export function startGame(
     targetIdx: number,
     entryStats?: { health?: number; ammo?: number }
   ): void {
-    if (campaignLevels.length === 0) return;
+    if (rt.campaignLevels.length === 0) return;
     const clampedIdx = Math.max(
       0,
-      Math.min(campaignLevels.length - 1, Math.trunc(targetIdx))
+      Math.min(rt.campaignLevels.length - 1, Math.trunc(targetIdx))
     );
-    currentLevelIndex = clampedIdx;
-    currentLevelV3 = campaignLevels[clampedIdx];
+    rt.currentLevelIndex = clampedIdx;
+    rt.currentLevelV3 = rt.campaignLevels[clampedIdx];
 
-    grid = currentLevelV3.grid.map((r) => [...r]);
-    wallTextures = currentLevelV3.wallTextures.map((r) => [...r]);
-    floorTextures = currentLevelV3.floorTextures.map((r) => [...r]);
-    ceilingTextures = currentLevelV3.ceilingTextures.map((r) => [...r]);
-    entities = placedEntitiesFromLevelV3(currentLevelV3);
-    spawn = {
-      row: currentLevelV3.spawn.row,
-      col: currentLevelV3.spawn.col,
-      yaw: bamToRadians(currentLevelV3.spawn.yawBam),
+    rt.grid = rt.currentLevelV3.grid.map((r) => [...r]);
+    rt.wallTextures = rt.currentLevelV3.wallTextures.map((r) => [...r]);
+    rt.floorTextures = rt.currentLevelV3.floorTextures.map((r) => [...r]);
+    rt.ceilingTextures = rt.currentLevelV3.ceilingTextures.map((r) => [...r]);
+    rt.entities = placedEntitiesFromLevelV3(rt.currentLevelV3);
+    rt.spawn = {
+      row: rt.currentLevelV3.spawn.row,
+      col: rt.currentLevelV3.spawn.col,
+      yaw: bamToRadians(rt.currentLevelV3.spawn.yawBam),
     };
-    skyboxTheme = currentLevelV3.skybox.theme;
-    skyboxSeed = currentLevelV3.skybox.seed;
-    showCeiling = currentLevelV3.skybox.showCeiling ?? showCeiling;
-    minimapEnabled = currentLevelV3.minimapEnabled ?? minimapEnabled;
-    vertical = isVerticalLevel(currentLevelV3)
-      ? verticalFromLevelV3(currentLevelV3)
+    rt.skyboxTheme = rt.currentLevelV3.skybox.theme;
+    rt.skyboxSeed = rt.currentLevelV3.skybox.seed;
+    rt.showCeiling = rt.currentLevelV3.skybox.showCeiling ?? rt.showCeiling;
+    rt.minimapEnabled = rt.currentLevelV3.minimapEnabled ?? rt.minimapEnabled;
+    rt.vertical = isVerticalLevel(rt.currentLevelV3)
+      ? verticalFromLevelV3(rt.currentLevelV3)
       : undefined;
 
     const startHealth =
@@ -813,22 +879,22 @@ export function startGame(
           )
         : ENGINE_CONFIG.PLAYER_START_AMMO;
 
-    levelEntryState = { health: startHealth, ammo: startAmmo };
+    rt.levelEntryState = { health: startHealth, ammo: startAmmo };
 
-    const freshSim = createInitialSimulationState(currentLevelV3, [0]);
+    const freshSim = createInitialSimulationState(rt.currentLevelV3, [0]);
     if (freshSim.players[0]) {
       freshSim.players[0].health = startHealth;
       freshSim.players[0].ammo = startAmmo;
     }
 
-    prevSimState = freshSim;
-    currSimState = freshSim;
-    lastLogCount = freshSim.logs.length;
-    lastSoundCount = freshSim.soundsPlayed.length;
+    rt.prevSimState = freshSim;
+    rt.currSimState = freshSim;
+    rt.lastLogCount = freshSim.logs.length;
+    rt.lastSoundCount = freshSim.soundsPlayed.length;
 
-    enemySnapshots = [];
-    ammoDrops = [];
-    combatState = {
+    rt.enemySnapshots = [];
+    rt.ammoDrops = [];
+    rt.combatState = {
       health: startHealth,
       maxHealth: ENGINE_CONFIG.PLAYER_MAX_HEALTH,
       ammo: startAmmo,
@@ -845,73 +911,73 @@ export function startGame(
       ? (freshSim.players[0]?.yUnits ?? 0) * UNITS_TO_METERS
       : ENGINE_CONFIG.PLAYER_EYE_HEIGHT;
     const { x, z } = CollisionSystem.gridToWorld(
-      spawn.row,
-      spawn.col,
-      grid.length
+      rt.spawn.row,
+      rt.spawn.col,
+      rt.grid.length
     );
-    if (camera) {
-      camera.position.set(x, spawnEyeY, z);
-      euler.set(0, spawn.yaw, 0, 'YXZ');
-      camera.quaternion.setFromEuler(euler);
+    if (rt.camera) {
+      rt.camera.position.set(x, spawnEyeY, z);
+      euler.set(0, rt.spawn.yaw, 0, 'YXZ');
+      rt.camera.quaternion.setFromEuler(euler);
     }
 
-    playerTransform = {
+    rt.playerTransform = {
       x,
       y: spawnEyeY,
       z,
-      yaw: spawn.yaw,
+      yaw: rt.spawn.yaw,
       pitch: 0,
-      gridRow: spawn.row,
-      gridCol: spawn.col,
+      gridRow: rt.spawn.row,
+      gridCol: rt.spawn.col,
       speed: 0,
     };
-    options.onPlayerMove?.(playerTransform);
+    options.onPlayerMove?.(rt.playerTransform);
 
     updateSkybox();
     rebuild3DWorld();
 
-    if (!inputReader && currSimState.tick === 0) {
+    if (!inputReader && rt.currSimState.tick === 0) {
       runSingleSimTick(0);
     }
 
-    options.onSimStateChange?.(currSimState);
+    options.onSimStateChange?.(rt.currSimState);
     options.onLevelChange?.(
-      currentLevelIndex,
+      rt.currentLevelIndex,
       { health: startHealth, ammo: startAmmo },
-      currSimState
+      rt.currSimState
     );
     syncHud();
   }
 
   function handleAdvanceToNextLevel(): void {
-    if (currentLevelIndex + 1 >= campaignLevels.length) {
+    if (rt.currentLevelIndex + 1 >= rt.campaignLevels.length) {
       return;
     }
     const rawHealth =
-      combatState.health !== levelEntryState.health
-        ? combatState.health
-        : currSimState.players[0]?.health ?? combatState.health;
+      rt.combatState.health !== rt.levelEntryState.health
+        ? rt.combatState.health
+        : rt.currSimState.players[0]?.health ?? rt.combatState.health;
     const rawAmmo =
-      combatState.ammo !== levelEntryState.ammo
-        ? combatState.ammo
-        : currSimState.players[0]?.ammo ?? combatState.ammo;
+      rt.combatState.ammo !== rt.levelEntryState.ammo
+        ? rt.combatState.ammo
+        : rt.currSimState.players[0]?.ammo ?? rt.combatState.ammo;
 
-    const nextHealth = campaignSettings.carryOverHealth
-      ? Math.max(1, Math.min(combatState.maxHealth, Math.round(rawHealth)))
+    const nextHealth = rt.campaignSettings.carryOverHealth
+      ? Math.max(1, Math.min(rt.combatState.maxHealth, Math.round(rawHealth)))
       : ENGINE_CONFIG.PLAYER_MAX_HEALTH;
-    const nextAmmo = campaignSettings.carryOverAmmo
-      ? Math.max(0, Math.min(combatState.maxAmmo, Math.round(rawAmmo)))
+    const nextAmmo = rt.campaignSettings.carryOverAmmo
+      ? Math.max(0, Math.min(rt.combatState.maxAmmo, Math.round(rawAmmo)))
       : ENGINE_CONFIG.PLAYER_START_AMMO;
 
-    const nextIdx = currentLevelIndex + 1;
+    const nextIdx = rt.currentLevelIndex + 1;
     const nextTitle =
-      campaignLevels[nextIdx]?.metadata?.title || `Level ${nextIdx + 1}`;
+      rt.campaignLevels[nextIdx]?.metadata?.title || `Level ${nextIdx + 1}`;
     loadCampaignLevel(nextIdx, { health: nextHealth, ammo: nextAmmo });
     emitLog(
-      `Campaign: Advanced to Level ${nextIdx + 1}/${campaignLevels.length} ('${nextTitle}') — Health: ${nextHealth} HP (${
-        campaignSettings.carryOverHealth ? 'Carried Over' : 'Reset'
+      `Campaign: Advanced to Level ${nextIdx + 1}/${rt.campaignLevels.length} ('${nextTitle}') — Health: ${nextHealth} HP (${
+        rt.campaignSettings.carryOverHealth ? 'Carried Over' : 'Reset'
       }), Ammo: ${nextAmmo} (${
-        campaignSettings.carryOverAmmo ? 'Carried Over' : 'Reset'
+        rt.campaignSettings.carryOverAmmo ? 'Carried Over' : 'Reset'
       }).`
     );
   }
@@ -922,26 +988,26 @@ export function startGame(
       ammo: ENGINE_CONFIG.PLAYER_START_AMMO,
     });
     emitLog(
-      `Campaign: Restarted campaign at Level 1/${campaignLevels.length} with full Health & Ammo.`
+      `Campaign: Restarted campaign at Level 1/${rt.campaignLevels.length} with full Health & Ammo.`
     );
   }
 
   function runSingleSimTick(tickIdxInFrame: number): boolean {
-    prevSimState = currSimState;
+    rt.prevSimState = rt.currSimState;
 
-    const preSim = currSimState;
+    const preSim = rt.currSimState;
     const preP0 = preSim.players[0];
     const healthBeforeStep = isReplayOrDeterministic
       ? preP0?.health ?? ENGINE_CONFIG.PLAYER_MAX_HEALTH
-      : Math.round(combatState.health);
+      : Math.round(rt.combatState.health);
 
     if (!isReplayOrDeterministic) {
       if (preP0) {
         preP0.health = healthBeforeStep;
-        preP0.isDead = combatState.isDead;
+        preP0.isDead = rt.combatState.isDead;
       }
-      if (preSim.entities && enemyAI) {
-        const agents = enemyAI.getAgents();
+      if (preSim.entities && rt.enemyAI) {
+        const agents = rt.enemyAI.getAgents();
         agents.forEach((agent, entId) => {
           const simEnt = preSim.entities?.[entId];
           if (!simEnt) return;
@@ -971,7 +1037,7 @@ export function startGame(
     let playerInput: PlayerTickInput;
 
     if (inputReader) {
-      const fed = inputReader(currSimState.tick);
+      const fed = inputReader(rt.currSimState.tick);
       playerInput = fed ?? {
         moveForward: 0,
         moveRight: 0,
@@ -983,7 +1049,7 @@ export function startGame(
         noclip: false,
       };
     } else {
-      const isPlayerDead = combatState.isDead;
+      const isPlayerDead = rt.combatState.isDead;
       const moveForward = (
         Number(Boolean(input.keys['KeyW'] || input.keys['ArrowUp'])) -
         Number(Boolean(input.keys['KeyS'] || input.keys['ArrowDown']))
@@ -1009,7 +1075,7 @@ export function startGame(
             pitchDeltaBam: 0,
             use: false,
             shoot: false,
-            noclip: !collisionEnabled,
+            noclip: !rt.collisionEnabled,
           }
         : {
             moveForward,
@@ -1023,11 +1089,11 @@ export function startGame(
             pitchDeltaBam,
             use: useTriggered,
             shoot: shootTriggered,
-            noclip: !collisionEnabled,
-            ...(currSimState.vertical?.movement.jump
+            noclip: !rt.collisionEnabled,
+            ...(rt.currSimState.vertical?.movement.jump
               ? { jump: Boolean(input.keys['Space']) }
               : {}),
-            ...(currSimState.vertical?.movement.crouch
+            ...(rt.currSimState.vertical?.movement.crouch
               ? {
                   crouch: Boolean(
                     input.keys['KeyC'] || input.keys['ControlLeft'] || input.keys['ControlRight']
@@ -1041,35 +1107,35 @@ export function startGame(
       recordedInputs.push({ ...playerInput });
     }
 
-    const nextSim = step(currSimState, { 0: playerInput });
+    const nextSim = step(rt.currSimState, { 0: playerInput });
 
     const postP0 = nextSim.players[0];
     if (postP0 && postP0.health !== healthBeforeStep) {
       const updatedHealth = Math.max(0, postP0.health);
       const nowDead = updatedHealth <= 0;
       if (updatedHealth < healthBeforeStep && typeof window !== 'undefined') {
-        isPlayerHurtFlashing = true;
-        window.clearTimeout(hurtFlashTimeout);
-        hurtFlashTimeout = window.setTimeout(() => {
-          isPlayerHurtFlashing = false;
+        rt.isPlayerHurtFlashing = true;
+        window.clearTimeout(rt.hurtFlashTimeout);
+        rt.hurtFlashTimeout = window.setTimeout(() => {
+          rt.isPlayerHurtFlashing = false;
           syncHud();
         }, 180);
       }
-      combatState = {
-        ...combatState,
+      rt.combatState = {
+        ...rt.combatState,
         health: updatedHealth,
         isDead: nowDead,
       };
     }
 
     if (!isReplayOrDeterministic) {
-      if (nextSim.entities && enemyAI) {
-        const agents = enemyAI.getAgents();
+      if (nextSim.entities && rt.enemyAI) {
+        const agents = rt.enemyAI.getAgents();
         for (const [entId, simEnt] of Object.entries(nextSim.entities)) {
           const agent = agents.get(entId);
           if (!agent || agent.state === 'Dead') continue;
           if (simEnt.state === 'dead' || (simEnt.health !== undefined && simEnt.health <= 0)) {
-            enemyAI.damageEntity(entId, agent.health + 999);
+            rt.enemyAI.damageEntity(entId, agent.health + 999);
           } else if (simEnt.state === 'chase') {
             agent.state = 'Chase';
             agent.memoryTimer = Math.max(agent.memoryTimer, 5.0);
@@ -1077,17 +1143,17 @@ export function startGame(
         }
       }
 
-      if (enemyAI && collisionEnabled && !combatState.isDead) {
+      if (rt.enemyAI && rt.collisionEnabled && !rt.combatState.isDead) {
         const p0 = nextSim.players[0];
         if (p0) {
           const worldX = p0.xUnits * UNITS_TO_METERS;
           const worldZ = p0.zUnits * UNITS_TO_METERS;
           const openDoorsForTick = getOpenDoorsSetFromSim(nextSim);
           const feetUnits = p0.feetUnits ?? 0;
-          const entResolved = enemyAI.resolvePlayerEntityCollision(
+          const entResolved = rt.enemyAI.resolvePlayerEntityCollision(
             worldX,
             worldZ,
-            collisionEnabled,
+            rt.collisionEnabled,
             nextSim.grid,
             openDoorsForTick,
             nextSim.solidFootprint,
@@ -1134,11 +1200,11 @@ export function startGame(
       }
     }
 
-    currSimState = nextSim;
+    rt.currSimState = nextSim;
     if (hashEveryTick) {
-      const tickHash = hashSimulationState(currSimState);
+      const tickHash = hashSimulationState(rt.currSimState);
       tickHashes.push(tickHash);
-      options.onTickHash?.(currSimState.tick, tickHash, currSimState);
+      options.onTickHash?.(rt.currSimState.tick, tickHash, rt.currSimState);
     }
 
     return true;
@@ -1158,7 +1224,7 @@ export function startGame(
   // (e.g. clicking again within ~1 s of pressing Esc) surfaced as an uncaught rejection.
   // Request the lock on the controls' own element instead; the controls still see the change.
   const requestPointerLockSafely = () => {
-    const el = controls?.domElement as HTMLElement | undefined;
+    const el = rt.controls?.domElement as HTMLElement | undefined;
     if (!el?.requestPointerLock) return;
     input.pointerLockRequested = true;
     const onRefused = () => {
@@ -1175,7 +1241,7 @@ export function startGame(
 
   // Mount vanilla HUDs if hudRoot is provided or defaulted to container
   if (resolvedHudRoot) {
-    combatHud = new CombatHUDController(resolvedHudRoot, {
+    rt.combatHud = new CombatHUDController(resolvedHudRoot, {
       onFireWeapon: handleFireWeapon,
       onReloadAmmo: handleReloadAmmo,
       onUseAction: () => {
@@ -1185,11 +1251,11 @@ export function startGame(
       onNextLevel: handleAdvanceToNextLevel,
       onRestartCampaign: handleRestartCampaign,
     });
-    minimapHud = new MinimapHUDController(resolvedHudRoot, () => {
+    rt.minimapHud = new MinimapHUDController(resolvedHudRoot, () => {
       if (options.onMinimapToggleRequest) {
         options.onMinimapToggleRequest();
       } else {
-        minimapEnabled = false;
+        rt.minimapEnabled = false;
         syncHud();
       }
     });
@@ -1199,27 +1265,27 @@ export function startGame(
         options.startInMainMenu !== undefined
           ? options.startInMainMenu
           : Boolean(
-              campaignSettings.menus?.enableMainMenuOnBoot &&
+              rt.campaignSettings.menus?.enableMainMenuOnBoot &&
                 !options.initialSimState
             );
 
-      menuController = new MenuRuntimeController(
+      rt.menuController = new MenuRuntimeController(
         resolvedHudRoot,
-        campaignSettings.menus,
+        rt.campaignSettings.menus,
         {
           getGameTitle: () =>
             activeManifest.meta?.title ||
-            campaignLevels[0]?.metadata?.title ||
+            rt.campaignLevels[0]?.metadata?.title ||
             'GridForge Game',
-          getCombatState: () => combatState,
-          getSimState: () => currSimState,
-          getCurrentLevelIndex: () => currentLevelIndex,
-          getTotalLevels: () => campaignLevels.length,
+          getCombatState: () => rt.combatState,
+          getSimState: () => rt.currSimState,
+          getCurrentLevelIndex: () => rt.currentLevelIndex,
+          getTotalLevels: () => rt.campaignLevels.length,
           getCurrentLevelTitle: () =>
-            campaignLevels[currentLevelIndex]?.metadata?.title ||
-            `Level ${currentLevelIndex + 1}`,
-          getElapsedSeconds: () => elapsedSec,
-          getCustomTextures: () => customTextures,
+            rt.campaignLevels[rt.currentLevelIndex]?.metadata?.title ||
+            `Level ${rt.currentLevelIndex + 1}`,
+          getElapsedSeconds: () => rt.elapsedSec,
+          getCustomTextures: () => rt.customTextures,
           onStartNewGame: (startIdx) => {
             loadCampaignLevel(startIdx, {
               health: ENGINE_CONFIG.PLAYER_MAX_HEALTH,
@@ -1228,7 +1294,7 @@ export function startGame(
             syncHud();
             requestPointerLockSafely();
             emitLog(
-              `Menu System: Launched campaign at Level ${startIdx + 1}/${campaignLevels.length}.`
+              `Menu System: Launched campaign at Level ${startIdx + 1}/${rt.campaignLevels.length}.`
             );
           },
           onResumeGame: () => {
@@ -1244,34 +1310,34 @@ export function startGame(
               health: payload.combatState.health,
               ammo: payload.combatState.ammo,
             });
-            currSimState = payload.simState;
-            prevSimState = payload.simState;
-            combatState = { ...payload.combatState };
+            rt.currSimState = payload.simState;
+            rt.prevSimState = payload.simState;
+            rt.combatState = { ...payload.combatState };
             rebuild3DWorld();
             syncHud();
             requestPointerLockSafely();
           },
           onFireSimEvent: (action) => {
             if (action.flagName) {
-              currSimState = {
-                ...currSimState,
+              rt.currSimState = {
+                ...rt.currSimState,
                 flags: {
-                  ...currSimState.flags,
+                  ...rt.currSimState.flags,
                   [action.flagName]: action.flagValue ?? true,
                 },
               };
             }
             if (action.counterName) {
-              const prevVal = currSimState.counters[action.counterName] ?? 0;
-              currSimState = {
-                ...currSimState,
+              const prevVal = rt.currSimState.counters[action.counterName] ?? 0;
+              rt.currSimState = {
+                ...rt.currSimState,
                 counters: {
-                  ...currSimState.counters,
+                  ...rt.currSimState.counters,
                   [action.counterName]: prevVal + (action.counterDelta ?? 1),
                 },
               };
             }
-            options.onSimStateChange?.(currSimState);
+            options.onSimStateChange?.(rt.currSimState);
             syncHud();
           },
           onQuitToMainMenu: () => {
@@ -1285,12 +1351,12 @@ export function startGame(
             syncHud();
           },
           onApplySettings: (nextSettings) => {
-            runtimeSettings = { ...nextSettings };
+            rt.runtimeSettings = { ...nextSettings };
             SoundEffects.setMasterVolume(nextSettings.masterVolume);
-            minimapEnabled = nextSettings.minimapEnabled;
-            if (camera) {
-              camera.fov = nextSettings.fov;
-              camera.updateProjectionMatrix();
+            rt.minimapEnabled = nextSettings.minimapEnabled;
+            if (rt.camera) {
+              rt.camera.fov = nextSettings.fov;
+              rt.camera.updateProjectionMatrix();
             }
             syncHud();
           },
@@ -1302,36 +1368,36 @@ export function startGame(
         },
         { startInMainMenu: bootInMainMenu }
       );
-      runtimeSettings = { ...menuController.getSettings() };
-      SoundEffects.setMasterVolume(runtimeSettings.masterVolume);
+      rt.runtimeSettings = { ...rt.menuController.getSettings() };
+      SoundEffects.setMasterVolume(rt.runtimeSettings.masterVolume);
     }
 
     syncHud();
   }
 
-  let frameId = 0;
-  let stopped = false;
-  let disposed = false;
-  let cleanupDomListeners: (() => void) | null = null;
+  rt.frameId = 0;
+  rt.stopped = false;
+  rt.disposed = false;
+  rt.cleanupDomListeners = null;
 
   // Initialize Three.js WebGL scene if a canvas or container element is provided in a browser environment
   if (canvasOrContainer && typeof document !== 'undefined') {
     try {
-      renderSystem = createRenderSystem(canvasOrContainer);
-      const { isSoftwareGl, mountEl } = renderSystem;
-      scene = renderSystem.scene;
-      camera = renderSystem.camera;
-      renderer = renderSystem.renderer;
-      hemiLight = renderSystem.hemiLight;
-      dirLight = renderSystem.dirLight;
-      const probedRenderer = renderer;
-      removeRendererProbe = registerDebugProbe('runtimeRenderer', () => ({ ...probedRenderer.info.memory }));
-      removeWorldBuildProbe = registerDebugProbe('runtimeWorldBuilds', () => worldBuildCount);
+      rt.renderSystem = createRenderSystem(canvasOrContainer);
+      const { isSoftwareGl, mountEl } = rt.renderSystem;
+      rt.scene = rt.renderSystem.scene;
+      rt.camera = rt.renderSystem.camera;
+      rt.renderer = rt.renderSystem.renderer;
+      rt.hemiLight = rt.renderSystem.hemiLight;
+      rt.dirLight = rt.renderSystem.dirLight;
+      const probedRenderer = rt.renderer;
+      rt.removeRendererProbe = registerDebugProbe('runtimeRenderer', () => ({ ...probedRenderer.info.memory }));
+      rt.removeWorldBuildProbe = registerDebugProbe('runtimeWorldBuilds', () => rt.worldBuildCount);
 
-      combatSystem = new CombatSystem(camera, scene);
-      scene.add(camera);
+      rt.combatSystem = new CombatSystem(rt.camera, rt.scene);
+      rt.scene.add(rt.camera);
 
-      controls = new PointerLockControls(camera, renderer.domElement);
+      rt.controls = new PointerLockControls(rt.camera, rt.renderer.domElement);
       const onLock = () => {
         input.pointerLockRequested = true;
         options.onPointerLockChange?.(true);
@@ -1340,49 +1406,49 @@ export function startGame(
         input.pointerLockRequested = false;
         options.onPointerLockChange?.(false);
         if (
-          menuController &&
-          menuController.getAppState() === 'ACTIVE_GAMEPLAY' &&
-          campaignSettings.menus?.enablePauseOverlay
+          rt.menuController &&
+          rt.menuController.getAppState() === 'ACTIVE_GAMEPLAY' &&
+          rt.campaignSettings.menus?.enablePauseOverlay
         ) {
-          menuController.openInGameOverlay();
+          rt.menuController.openInGameOverlay();
         }
       };
-      controls.addEventListener('lock', onLock);
-      controls.addEventListener('unlock', onUnlock);
+      rt.controls.addEventListener('lock', onLock);
+      rt.controls.addEventListener('unlock', onUnlock);
 
-      const domCanvas = renderer.domElement;
+      const domCanvas = rt.renderer.domElement;
       const unbindInput = bindInputListeners(input, {
         domCanvas,
         mountEl,
         isReplaying: () => Boolean(inputReader),
-        isGameplayActive: () => !menuController || menuController.getAppState() === 'ACTIVE_GAMEPLAY',
-        menuHandlesKey: (code) => Boolean(menuController && menuController.handleKeyDown(code)),
-        lookSettings: () => runtimeSettings,
+        isGameplayActive: () => !rt.menuController || rt.menuController.getAppState() === 'ACTIVE_GAMEPLAY',
+        menuHandlesKey: (code) => Boolean(rt.menuController && rt.menuController.handleKeyDown(code)),
+        lookSettings: () => rt.runtimeSettings,
         autoLockPointerOnClick: Boolean(options.autoLockPointerOnClick),
         requestPointerLock: requestPointerLockSafely,
-        spaceJumps: () => Boolean(currSimState.vertical?.movement.jump),
+        spaceJumps: () => Boolean(rt.currSimState.vertical?.movement.jump),
         fire: handleFireWeapon,
         reload: handleReloadAmmo,
         toggleMinimap: () => {
           if (options.onMinimapToggleRequest) {
             options.onMinimapToggleRequest();
           } else {
-            minimapEnabled = !minimapEnabled;
+            rt.minimapEnabled = !rt.minimapEnabled;
             syncHud();
           }
         },
       });
 
 
-      camera.position.set(
+      rt.camera.position.set(
         initialWorld.x,
-        currSimState.vertical
-          ? (currSimState.players[0]?.yUnits ?? 0) * UNITS_TO_METERS
+        rt.currSimState.vertical
+          ? (rt.currSimState.players[0]?.yUnits ?? 0) * UNITS_TO_METERS
           : ENGINE_CONFIG.PLAYER_EYE_HEIGHT,
         initialWorld.z
       );
-      euler.set(0, spawn.yaw, 0, 'YXZ');
-      camera.quaternion.setFromEuler(euler);
+      euler.set(0, rt.spawn.yaw, 0, 'YXZ');
+      rt.camera.quaternion.setFromEuler(euler);
 
       updateSkybox();
       rebuild3DWorld();
@@ -1393,10 +1459,10 @@ export function startGame(
       let hasSyncedHud = false;
       let lastSyncX = initialWorld.x;
       let lastSyncZ = initialWorld.z;
-      let lastSyncYaw = spawn.yaw;
+      let lastSyncYaw = rt.spawn.yaw;
       let lastSyncPitch = 0;
-      let lastSyncRow = spawn.row;
-      let lastSyncCol = spawn.col;
+      let lastSyncRow = rt.spawn.row;
+      let lastSyncCol = rt.spawn.col;
       let lastSyncSpeed = 0;
       let dioramaAngleRad = 0;
 
@@ -1412,29 +1478,29 @@ export function startGame(
       document.addEventListener('visibilitychange', onVisibilityChange);
 
       const afterDraw = (cb: () => void) => {
-        if (!renderer || stopped) return;
-        const gl = renderer.getContext() as WebGL2RenderingContext;
+        if (!rt.renderer || rt.stopped) return;
+        const gl = rt.renderer.getContext() as WebGL2RenderingContext;
         const sync = gl.fenceSync
           ? gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0)
           : null;
         gl.flush();
         let polls = 0;
         const poll = () => {
-          if (stopped) return;
+          if (rt.stopped) return;
           polls += 1;
           const state = sync && gl.getSyncParameter(sync, gl.SYNC_STATUS);
           if (state === gl.UNSIGNALED && polls < 20) {
-            frameId = window.setTimeout(poll, 5);
+            rt.frameId = window.setTimeout(poll, 5);
           } else {
             if (sync) gl.deleteSync(sync);
-            frameId = window.setTimeout(cb, 16);
+            rt.frameId = window.setTimeout(cb, 16);
           }
         };
-        frameId = window.setTimeout(poll, 5);
+        rt.frameId = window.setTimeout(poll, 5);
       };
 
       const tick = () => {
-        if (stopped || !renderer || !scene || !camera) return;
+        if (rt.stopped || !rt.renderer || !rt.scene || !rt.camera) return;
 
         const nowMs = performance.now();
         const rawDeltaMs = Math.max(0, nowMs - lastFrameTimeMs);
@@ -1442,54 +1508,54 @@ export function startGame(
 
         if (document.hidden) {
           accumulatorMs = 0;
-          frameId = requestAnimationFrame(tick);
+          rt.frameId = requestAnimationFrame(tick);
           return;
         }
 
         const dtSec = Math.min(rawDeltaMs / 1000, 0.1);
         const isMenuPaused = Boolean(
-          menuController && menuController.isSimulationPaused()
+          rt.menuController && rt.menuController.isSimulationPaused()
         );
 
         if (isMenuPaused) {
           accumulatorMs = 0;
-          const activeScreen = menuController?.getActiveScreen();
+          const activeScreen = rt.menuController?.getActiveScreen();
           if (
-            menuController?.getAppState() === 'MAIN_MENU' &&
+            rt.menuController?.getAppState() === 'MAIN_MENU' &&
             activeScreen?.backgroundConfig.type === '3d-scene'
           ) {
             const bg = activeScreen.backgroundConfig;
             const targetWorld = CollisionSystem.gridToWorld(
               bg.cameraTarget.row,
               bg.cameraTarget.col,
-              grid.length
+              rt.grid.length
             );
             const targetY = bg.cameraTarget.elevationMeters ?? 1.8;
             if (bg.cameraMode === 'orbit') {
               dioramaAngleRad += (bg.orbitSpeedRadPerSec || 0.2) * dtSec;
               const radius = Math.max(2, bg.orbitRadiusMeters || 10);
-              camera.position.set(
+              rt.camera.position.set(
                 targetWorld.x + Math.cos(dioramaAngleRad) * radius,
                 targetY + 2.2,
                 targetWorld.z + Math.sin(dioramaAngleRad) * radius
               );
-              camera.lookAt(targetWorld.x, targetY, targetWorld.z);
+              rt.camera.lookAt(targetWorld.x, targetY, targetWorld.z);
             } else {
-              camera.position.set(targetWorld.x, targetY, targetWorld.z);
+              rt.camera.position.set(targetWorld.x, targetY, targetWorld.z);
               euler.set(bg.fixedPitchRad ?? 0, bg.fixedYawRad ?? 0, 0, 'YXZ');
-              camera.quaternion.setFromEuler(euler);
+              rt.camera.quaternion.setFromEuler(euler);
             }
           }
-          renderer.render(scene, camera);
+          rt.renderer.render(rt.scene, rt.camera);
           if (isSoftwareGl) {
             afterDraw(tick);
           } else {
-            frameId = requestAnimationFrame(tick);
+            rt.frameId = requestAnimationFrame(tick);
           }
           return;
         }
 
-        elapsedSec += dtSec;
+        rt.elapsedSec += dtSec;
         accumulatorMs += rawDeltaMs;
 
         let ticksToRun = Math.floor(accumulatorMs / TICK_MS);
@@ -1500,7 +1566,7 @@ export function startGame(
           accumulatorMs -= ticksToRun * TICK_MS;
         }
 
-        const frameStartSim = currSimState;
+        const frameStartSim = rt.currSimState;
         let stateChangedThisFrame = false;
 
         for (let tickIdx = 0; tickIdx < ticksToRun; tickIdx++) {
@@ -1508,18 +1574,18 @@ export function startGame(
           stateChangedThisFrame = true;
         }
 
-        const curSim = currSimState;
-        const prevSim = prevSimState;
+        const curSim = rt.currSimState;
+        const prevSim = rt.prevSimState;
 
-        if (curSim.logs.length > lastLogCount) {
+        if (curSim.logs.length > rt.lastLogCount) {
           const latestLog = curSim.logs[curSim.logs.length - 1];
-          lastLogCount = curSim.logs.length;
+          rt.lastLogCount = curSim.logs.length;
           emitLog(`Event: ${latestLog.message}`);
         }
 
-        if (curSim.soundsPlayed.length > lastSoundCount) {
+        if (curSim.soundsPlayed.length > rt.lastSoundCount) {
           for (
-            let sIdx = lastSoundCount;
+            let sIdx = rt.lastSoundCount;
             sIdx < curSim.soundsPlayed.length;
             sIdx++
           ) {
@@ -1528,7 +1594,7 @@ export function startGame(
               SoundEffects.playById(cue.soundId);
             }
           }
-          lastSoundCount = curSim.soundsPlayed.length;
+          rt.lastSoundCount = curSim.soundsPlayed.length;
         }
 
         if (
@@ -1564,8 +1630,8 @@ export function startGame(
           const interpZUnits =
             prevP.zUnits + (currP.zUnits - prevP.zUnits) * alpha;
 
-          camera.position.x = interpXUnits * UNITS_TO_METERS;
-          camera.position.z = interpZUnits * UNITS_TO_METERS;
+          rt.camera.position.x = interpXUnits * UNITS_TO_METERS;
+          rt.camera.position.z = interpZUnits * UNITS_TO_METERS;
 
           const interpYawRad = lerpBamToRadians(
             prevP.yawBam,
@@ -1580,7 +1646,7 @@ export function startGame(
           currentPitchRad = interpPitchRad;
 
           euler.set(interpPitchRad, interpYawRad, 0, 'YXZ');
-          camera.quaternion.setFromEuler(euler);
+          rt.camera.quaternion.setFromEuler(euler);
 
           currentSpeedMetersPerSec =
             currP.speedUnitsPerTick *
@@ -1601,21 +1667,21 @@ export function startGame(
             const eyeY =
               (prevP.yUnits + (currP.yUnits - prevP.yUnits) * alpha) * UNITS_TO_METERS;
             const bob =
-              currP.speedUnitsPerTick > 0 && currP.onGround && !combatState.isDead
-                ? Math.sin(elapsedSec * 10) * 0.045
+              currP.speedUnitsPerTick > 0 && currP.onGround && !rt.combatState.isDead
+                ? Math.sin(rt.elapsedSec * 10) * 0.045
                 : 0;
-            camera.position.y = eyeY + bob;
-          } else if (currP.speedUnitsPerTick > 0 && !combatState.isDead) {
+            rt.camera.position.y = eyeY + bob;
+          } else if (currP.speedUnitsPerTick > 0 && !rt.combatState.isDead) {
             const isSprinting = Boolean(
               input.keys['ShiftLeft'] || input.keys['ShiftRight']
             );
-            camera.position.y =
+            rt.camera.position.y =
               interpFloorH +
               ENGINE_CONFIG.PLAYER_EYE_HEIGHT +
-              Math.sin(elapsedSec * (isSprinting ? 14 : 10)) * 0.055;
+              Math.sin(rt.elapsedSec * (isSprinting ? 14 : 10)) * 0.055;
           } else {
-            camera.position.y = THREE.MathUtils.damp(
-              camera.position.y,
+            rt.camera.position.y = THREE.MathUtils.damp(
+              rt.camera.position.y,
               interpFloorH + ENGINE_CONFIG.PLAYER_EYE_HEIGHT,
               10,
               dtSec
@@ -1625,50 +1691,50 @@ export function startGame(
           if (curSim.earthquake && curSim.earthquake.remainingTicks > 0) {
             const shakeMag = (curSim.earthquake.intensity / 1000) * 0.25;
             const tremorX =
-              Math.sin(curSim.tick * 1.7 + elapsedSec * 25) * shakeMag;
+              Math.sin(curSim.tick * 1.7 + rt.elapsedSec * 25) * shakeMag;
             const tremorY =
-              Math.cos(curSim.tick * 2.3 + elapsedSec * 30) * shakeMag * 0.6;
-            camera.position.x += tremorX;
-            camera.position.y += tremorY;
+              Math.cos(curSim.tick * 2.3 + rt.elapsedSec * 30) * shakeMag * 0.6;
+            rt.camera.position.x += tremorX;
+            rt.camera.position.y += tremorY;
           }
         }
 
-        combatSystem?.update(dtSec, elapsedSec, currentSpeedMetersPerSec);
+        rt.combatSystem?.update(dtSec, rt.elapsedSec, currentSpeedMetersPerSec);
 
         const openDoorsSet = getOpenDoorsSetFromSim(curSim);
 
-        if (enemyAI && !isReplayOrDeterministic) {
-          enemyAI.setVerticalWorld(curSim.vertical ? curSim : null);
-          const occluders = [...wallMeshes];
-          doorMeshes.forEach((doorGroup, cKey) => {
+        if (rt.enemyAI && !isReplayOrDeterministic) {
+          rt.enemyAI.setVerticalWorld(curSim.vertical ? curSim : null);
+          const occluders = [...rt.wallMeshes];
+          rt.doorMeshes.forEach((doorGroup, cKey) => {
             if (!openDoorsSet.has(cKey)) {
               occluders.push(doorGroup);
             }
           });
 
-          enemyAI.update(
+          rt.enemyAI.update(
             dtSec,
-            elapsedSec,
-            camera.position,
+            rt.elapsedSec,
+            rt.camera.position,
             curSim.grid,
             openDoorsSet,
             occluders,
-            combatState.isDead,
+            rt.combatState.isDead,
             {
               onPlayerDamaged: (damage, attackerName) => {
-                if (combatState.isDead) return;
-                const nextHealth = Math.max(0, combatState.health - damage);
+                if (rt.combatState.isDead) return;
+                const nextHealth = Math.max(0, rt.combatState.health - damage);
                 const nowDead = nextHealth <= 0;
 
-                isPlayerHurtFlashing = true;
-                window.clearTimeout(hurtFlashTimeout);
-                hurtFlashTimeout = window.setTimeout(() => {
-                  isPlayerHurtFlashing = false;
+                rt.isPlayerHurtFlashing = true;
+                window.clearTimeout(rt.hurtFlashTimeout);
+                rt.hurtFlashTimeout = window.setTimeout(() => {
+                  rt.isPlayerHurtFlashing = false;
                   syncHud();
                 }, 180);
 
-                combatState = {
-                  ...combatState,
+                rt.combatState = {
+                  ...rt.combatState,
                   health: nextHealth,
                   isDead: nowDead,
                 };
@@ -1681,9 +1747,9 @@ export function startGame(
                 );
               },
               onAmmoCollected: (amount) => {
-                combatState = {
-                  ...combatState,
-                  ammo: Math.min(combatState.maxAmmo, combatState.ammo + amount),
+                rt.combatState = {
+                  ...rt.combatState,
+                  ammo: Math.min(rt.combatState.maxAmmo, rt.combatState.ammo + amount),
                 };
                 syncHud();
                 emitLog(
@@ -1695,19 +1761,19 @@ export function startGame(
           );
         }
 
-        keyMeshes.forEach((keyGroup, cellKey) => {
+        rt.keyMeshes.forEach((keyGroup, cellKey) => {
           const isCollected = curSim.collectedKeys.includes(cellKey);
           keyGroup.visible = !isCollected;
           if (!isCollected) {
             const card = keyGroup.getObjectByName('floatingKeycard');
             if (card) {
-              card.rotation.y = elapsedSec * 2.2;
-              card.position.y = 1.25 + Math.sin(elapsedSec * 3.5) * 0.14;
+              card.rotation.y = rt.elapsedSec * 2.2;
+              card.position.y = 1.25 + Math.sin(rt.elapsedSec * 3.5) * 0.14;
             }
           }
         });
 
-        doorMeshes.forEach((doorGroup, dKey) => {
+        rt.doorMeshes.forEach((doorGroup, dKey) => {
           const leaf = doorGroup.getObjectByName('doorLeaf');
           if (leaf) {
             const moverId = `door:${dKey}`;
@@ -1728,7 +1794,7 @@ export function startGame(
           if (!currMover || currMover.kind !== 'pushwall') continue;
 
           const cellKey = `${currMover.row},${currMover.col}`;
-          const wallGroup = getWallBlockGroup(cellKey);
+          const wallGroup = rt.getWallBlockGroup(cellKey);
           if (!wallGroup) continue;
 
           const prevProg = prevSim.movers[mKey]?.progress ?? 0;
@@ -1772,8 +1838,8 @@ export function startGame(
         }
 
         // Lifts and moving floors glide between ticks, like the flat levels' floor tiles
-        if (updateLayeredHeights) {
-          updateLayeredHeights(
+        if (rt.updateLayeredHeights) {
+          rt.updateLayeredHeights(
             lerpHeights(prevSim.floorHeights, curSim.floorHeights, alpha),
             lerpHeights(prevSim.ceilingHeights, curSim.ceilingHeights, alpha)
           );
@@ -1788,26 +1854,26 @@ export function startGame(
           for (let c = 0; c < curSim.gridSize; c++) {
             const prevH = prevFloorRow?.[c] ?? 0;
             const currH = currFloorRow?.[c] ?? 0;
-            if (floorLayer && (prevH !== 0 || currH !== 0)) {
+            if (rt.floorLayer && (prevH !== 0 || currH !== 0)) {
               const interpH = prevH + (currH - prevH) * alpha;
-              floorLayer.setCellY(`${r},${c}`, interpH * UNITS_TO_METERS);
+              rt.floorLayer.setCellY(`${r},${c}`, interpH * UNITS_TO_METERS);
             }
             const prevCeilH = prevCeilRow?.[c] ?? defaultCeilH;
             const currCeilH = currCeilRow?.[c] ?? defaultCeilH;
             if (
-              ceilingLayer &&
+              rt.ceilingLayer &&
               (prevCeilH !== defaultCeilH || currCeilH !== defaultCeilH)
             ) {
               const interpH = prevCeilH + (currCeilH - prevCeilH) * alpha;
-              ceilingLayer.setCellY(`${r},${c}`, interpH * UNITS_TO_METERS);
+              rt.ceilingLayer.setCellY(`${r},${c}`, interpH * UNITS_TO_METERS);
             }
           }
         }
 
-        if (elapsedSec - lastHudSyncTime > 0.05 && currP) {
-          lastHudSyncTime = elapsedSec;
-          const nx = camera.position.x;
-          const nz = camera.position.z;
+        if (rt.elapsedSec - lastHudSyncTime > 0.05 && currP) {
+          lastHudSyncTime = rt.elapsedSec;
+          const nx = rt.camera.position.x;
+          const nz = rt.camera.position.z;
           const nyaw = currentYawRad;
           const npitch = currentPitchRad;
           if (
@@ -1828,9 +1894,9 @@ export function startGame(
             lastSyncRow = currP.gridRow;
             lastSyncCol = currP.gridCol;
             lastSyncSpeed = currentSpeedMetersPerSec;
-            playerTransform = {
+            rt.playerTransform = {
               x: nx,
-              y: camera.position.y,
+              y: rt.camera.position.y,
               z: nz,
               yaw: nyaw,
               pitch: npitch,
@@ -1838,57 +1904,57 @@ export function startGame(
               gridCol: currP.gridCol,
               speed: currentSpeedMetersPerSec,
             };
-            options.onPlayerMove?.(playerTransform);
+            options.onPlayerMove?.(rt.playerTransform);
           }
 
-          if (enemyAI) {
-            const snapshots = enemyAI.getTelemetrySnapshots();
-            enemySnapshots = snapshots.enemies;
-            ammoDrops = snapshots.ammoDrops;
+          if (rt.enemyAI) {
+            const snapshots = rt.enemyAI.getTelemetrySnapshots();
+            rt.enemySnapshots = snapshots.enemies;
+            rt.ammoDrops = snapshots.ammoDrops;
             const totals = hudEnemyTotals(snapshots);
             if (
-              combatState.kills !== totals.kills ||
-              combatState.totalEnemies !== totals.totalEnemies
+              rt.combatState.kills !== totals.kills ||
+              rt.combatState.totalEnemies !== totals.totalEnemies
             ) {
-              combatState = { ...combatState, ...totals };
+              rt.combatState = { ...rt.combatState, ...totals };
             }
           }
 
           syncHud();
         }
 
-        if (dirLight) {
-          dirLight.position.set(
-            camera.position.x + 14,
+        if (rt.dirLight) {
+          rt.dirLight.position.set(
+            rt.camera.position.x + 14,
             28,
-            camera.position.z + 12
+            rt.camera.position.z + 12
           );
-          dirLight.target.position.set(camera.position.x, 0, camera.position.z);
-          dirLight.target.updateMatrixWorld();
+          rt.dirLight.target.position.set(rt.camera.position.x, 0, rt.camera.position.z);
+          rt.dirLight.target.updateMatrixWorld();
         }
 
-        renderer.render(scene, camera);
+        rt.renderer.render(rt.scene, rt.camera);
 
         if (isSoftwareGl) {
           afterDraw(tick);
         } else {
-          frameId = requestAnimationFrame(tick);
+          rt.frameId = requestAnimationFrame(tick);
         }
       };
 
-      if (!inputReader && currSimState.tick === 0 && !options.initialSimState) {
+      if (!inputReader && rt.currSimState.tick === 0 && !options.initialSimState) {
         runSingleSimTick(0);
         syncHud();
       }
-      renderer.render(scene, camera);
+      rt.renderer.render(rt.scene, rt.camera);
       emitDebugEvent('first-frame');
 
-      frameId = requestAnimationFrame(tick);
+      rt.frameId = requestAnimationFrame(tick);
 
-      cleanupDomListeners = () => {
+      rt.cleanupDomListeners = () => {
         document.removeEventListener('visibilitychange', onVisibilityChange);
-        controls?.removeEventListener('lock', onLock);
-        controls?.removeEventListener('unlock', onUnlock);
+        rt.controls?.removeEventListener('lock', onLock);
+        rt.controls?.removeEventListener('unlock', onUnlock);
         unbindInput();
       };
     } catch {
@@ -1897,53 +1963,53 @@ export function startGame(
   }
 
   function stop(): void {
-    stopped = true;
+    rt.stopped = true;
     if (typeof cancelAnimationFrame !== 'undefined') {
-      cancelAnimationFrame(frameId);
+      cancelAnimationFrame(rt.frameId);
     }
     if (typeof clearTimeout !== 'undefined') {
-      clearTimeout(frameId);
-      clearTimeout(muzzleFlashTimeout);
-      clearTimeout(hitMarkerTimeout);
-      clearTimeout(hurtFlashTimeout);
+      clearTimeout(rt.frameId);
+      clearTimeout(rt.muzzleFlashTimeout);
+      clearTimeout(rt.hitMarkerTimeout);
+      clearTimeout(rt.hurtFlashTimeout);
     }
   }
 
   function dispose(): void {
-    if (disposed) return;
-    disposed = true;
+    if (rt.disposed) return;
+    rt.disposed = true;
     stop();
-    cleanupDomListeners?.();
-    cleanupDomListeners = null;
-    combatHud?.dispose();
-    combatHud = null;
-    minimapHud?.dispose();
-    minimapHud = null;
-    menuController?.dispose();
-    menuController = null;
-    skyboxTex?.dispose();
-    skyboxTex = null;
-    doorTex?.dispose();
-    doorTex = null;
-    combatSystem?.dispose();
-    combatSystem = null;
-    WorldBuilder.disposeWorldGroup(worldGroup);
-    worldGroup = null;
-    controls?.dispose();
-    controls = null;
-    removeRendererProbe();
-    removeWorldBuildProbe();
+    rt.cleanupDomListeners?.();
+    rt.cleanupDomListeners = null;
+    rt.combatHud?.dispose();
+    rt.combatHud = null;
+    rt.minimapHud?.dispose();
+    rt.minimapHud = null;
+    rt.menuController?.dispose();
+    rt.menuController = null;
+    rt.skyboxTex?.dispose();
+    rt.skyboxTex = null;
+    rt.doorTex?.dispose();
+    rt.doorTex = null;
+    rt.combatSystem?.dispose();
+    rt.combatSystem = null;
+    WorldBuilder.disposeWorldGroup(rt.worldGroup);
+    rt.worldGroup = null;
+    rt.controls?.dispose();
+    rt.controls = null;
+    rt.removeRendererProbe();
+    rt.removeWorldBuildProbe();
     // Releases the renderer, its WebGL context, the environment map and the shadow map
-    renderSystem?.dispose();
-    renderSystem = null;
-    renderer = null;
-    dirLight = null;
+    rt.renderSystem?.dispose();
+    rt.renderSystem = null;
+    rt.renderer = null;
+    rt.dirLight = null;
   }
 
   return {
     stop,
     dispose,
-    getState: () => currSimState,
+    getState: () => rt.currSimState,
     getManifest: () => activeManifest,
     stepTicks: (count: number) => {
       for (let i = 0; i < count; i++) {
@@ -1954,8 +2020,8 @@ export function startGame(
     },
     getTickHashes: () => [...tickHashes],
     getRecordedInputs: () => [...recordedInputs],
-    getCurrentLevelIndex: () => currentLevelIndex,
-    getTotalLevels: () => campaignLevels.length,
+    getCurrentLevelIndex: () => rt.currentLevelIndex,
+    getTotalLevels: () => rt.campaignLevels.length,
     goToLevel: (
       index: number,
       carryOver?: { health?: number; ammo?: number }
@@ -1964,99 +2030,99 @@ export function startGame(
     },
     advanceToNextLevel: handleAdvanceToNextLevel,
     setCampaignSettings: (nextCampaign: CampaignSettings) => {
-      campaignSettings = { ...nextCampaign };
-      menuController?.setMenuPack(campaignSettings.menus);
+      rt.campaignSettings = { ...nextCampaign };
+      rt.menuController?.setMenuPack(rt.campaignSettings.menus);
       syncHud();
     },
     setShowCeiling: (show: boolean) => {
-      if (showCeiling === show) return;
-      showCeiling = show;
+      if (rt.showCeiling === show) return;
+      rt.showCeiling = show;
       rebuild3DWorld();
     },
     setShowWireframe: (wireframe: boolean) => {
-      if (showWireframe === wireframe) return;
-      showWireframe = wireframe;
+      if (rt.showWireframe === wireframe) return;
+      rt.showWireframe = wireframe;
       rebuild3DWorld();
     },
     setCollisionEnabled: (enabled: boolean) => {
-      collisionEnabled = enabled;
+      rt.collisionEnabled = enabled;
     },
     setMinimapEnabled: (enabled: boolean) => {
-      minimapEnabled = enabled;
+      rt.minimapEnabled = enabled;
       syncHud();
     },
     setSkybox: (theme: SkyboxThemeId, seed: number) => {
-      if (skyboxTheme === theme && skyboxSeed === seed) return;
-      skyboxTheme = theme;
-      skyboxSeed = seed;
+      if (rt.skyboxTheme === theme && rt.skyboxSeed === seed) return;
+      rt.skyboxTheme = theme;
+      rt.skyboxSeed = seed;
       updateSkybox();
     },
     syncEditorLevel: (payload: EditorLevelSyncPayload) => {
       if (payload.campaign) {
-        campaignSettings = { ...payload.campaign };
-        menuController?.setMenuPack(campaignSettings.menus);
+        rt.campaignSettings = { ...payload.campaign };
+        rt.menuController?.setMenuPack(rt.campaignSettings.menus);
       }
       if (payload.levels && payload.levels.length > 0) {
-        campaignLevels = payload.levels.map((l) =>
+        rt.campaignLevels = payload.levels.map((l) =>
           JSON.parse(JSON.stringify(l))
         );
       }
       if (
         typeof payload.currentLevelIndex === 'number' &&
-        payload.currentLevelIndex !== currentLevelIndex
+        payload.currentLevelIndex !== rt.currentLevelIndex
       ) {
-        currentLevelIndex = Math.max(
+        rt.currentLevelIndex = Math.max(
           0,
-          Math.min(campaignLevels.length - 1, payload.currentLevelIndex)
+          Math.min(rt.campaignLevels.length - 1, payload.currentLevelIndex)
         );
       }
 
-      customTextures = payload.customTextures;
-      wallTextures = payload.wallTextures.map((r) => [...r]);
-      floorTextures = payload.floorTextures.map((r) => [...r]);
-      ceilingTextures = payload.ceilingTextures.map((r) => [...r]);
-      entities = payload.entities.map((e) => ({ ...e }));
-      spawn = { ...payload.spawn };
-      showCeiling = payload.showCeiling;
-      minimapEnabled = payload.minimapEnabled;
+      rt.customTextures = payload.customTextures;
+      rt.wallTextures = payload.wallTextures.map((r) => [...r]);
+      rt.floorTextures = payload.floorTextures.map((r) => [...r]);
+      rt.ceilingTextures = payload.ceilingTextures.map((r) => [...r]);
+      rt.entities = payload.entities.map((e) => ({ ...e }));
+      rt.spawn = { ...payload.spawn };
+      rt.showCeiling = payload.showCeiling;
+      rt.minimapEnabled = payload.minimapEnabled;
 
       if (
-        skyboxTheme !== payload.skyboxTheme ||
-        skyboxSeed !== payload.skyboxSeed
+        rt.skyboxTheme !== payload.skyboxTheme ||
+        rt.skyboxSeed !== payload.skyboxSeed
       ) {
-        skyboxTheme = payload.skyboxTheme;
-        skyboxSeed = payload.skyboxSeed;
+        rt.skyboxTheme = payload.skyboxTheme;
+        rt.skyboxSeed = payload.skyboxSeed;
         updateSkybox();
       }
 
-      if (payload.grid.length !== currSimState.gridSize || payload.vertical !== vertical) {
-        grid = payload.grid.map((r) => [...r]);
-        vertical = payload.vertical;
+      if (payload.grid.length !== rt.currSimState.gridSize || payload.vertical !== rt.vertical) {
+        rt.grid = payload.grid.map((r) => [...r]);
+        rt.vertical = payload.vertical;
         rebuild3DWorld();
         teleportToSpawn();
         return;
       }
 
-      grid = payload.grid.map((r) => [...r]);
-      currSimState.grid = grid.map((r) => [...r]);
-      currSimState.solidFootprint = buildSolidFootprintGrid(
-        entities.map((e) => ({
+      rt.grid = payload.grid.map((r) => [...r]);
+      rt.currSimState.grid = rt.grid.map((r) => [...r]);
+      rt.currSimState.solidFootprint = buildSolidFootprintGrid(
+        rt.entities.map((e) => ({
           ...e,
           yawBam: radiansToBam(e.yaw || 0),
         })),
-        grid.length
+        rt.grid.length
       );
 
-      for (let r = 0; r < grid.length; r++) {
-        for (let c = 0; c < grid.length; c++) {
+      for (let r = 0; r < rt.grid.length; r++) {
+        for (let c = 0; c < rt.grid.length; c++) {
           const mKey = `door:${r},${c}`;
-          if (grid[r]?.[c] === 2 && !currSimState.movers[mKey]) {
-            currSimState.movers[mKey] = {
+          if (rt.grid[r]?.[c] === 2 && !rt.currSimState.movers[mKey]) {
+            rt.currSimState.movers[mKey] = {
               id: mKey,
               kind: 'door',
               row: r,
               col: c,
-              tag: currSimState.cellTags[r]?.[c] ?? 0,
+              tag: rt.currSimState.cellTags[r]?.[c] ?? 0,
               state: 'closed',
               progress: 0,
               speedPerTick: SIM_CONFIG.DEFAULT_DOOR_SPEED_PER_TICK,
@@ -2069,46 +2135,46 @@ export function startGame(
         }
       }
 
-      const p0 = currSimState.players[0];
+      const p0 = rt.currSimState.players[0];
       if (
         p0 &&
-        collisionEnabled &&
+        rt.collisionEnabled &&
         checkCircleCollisionUnits(
           p0.xUnits,
           p0.zUnits,
           SIM_CONFIG.PLAYER_RADIUS_UNITS,
-          currSimState.grid,
-          currSimState.movers,
-          currSimState.solidFootprint
+          rt.currSimState.grid,
+          rt.currSimState.movers,
+          rt.currSimState.solidFootprint
         )
       ) {
         const unstuck = depenetrateCircleUnits(
           p0.xUnits,
           p0.zUnits,
           SIM_CONFIG.PLAYER_RADIUS_UNITS,
-          currSimState.grid,
-          currSimState.movers,
-          currSimState.solidFootprint
+          rt.currSimState.grid,
+          rt.currSimState.movers,
+          rt.currSimState.solidFootprint
         );
         p0.xUnits = unstuck.xUnits;
         p0.zUnits = unstuck.zUnits;
         const nextCell = worldUnitsToGrid(
           p0.xUnits,
           p0.zUnits,
-          currSimState.gridSize
+          rt.currSimState.gridSize
         );
         p0.gridRow = nextCell.row;
         p0.gridCol = nextCell.col;
-        if (prevSimState.players[0]) {
-          prevSimState.players[0].xUnits = unstuck.xUnits;
-          prevSimState.players[0].zUnits = unstuck.zUnits;
-          prevSimState.players[0].gridRow = nextCell.row;
-          prevSimState.players[0].gridCol = nextCell.col;
+        if (rt.prevSimState.players[0]) {
+          rt.prevSimState.players[0].xUnits = unstuck.xUnits;
+          rt.prevSimState.players[0].zUnits = unstuck.zUnits;
+          rt.prevSimState.players[0].gridRow = nextCell.row;
+          rt.prevSimState.players[0].gridCol = nextCell.col;
         }
       }
 
-      combatState = {
-        ...combatState,
+      rt.combatState = {
+        ...rt.combatState,
         totalEnemies: countLevelEnemies(),
       };
 
@@ -2116,20 +2182,20 @@ export function startGame(
       syncHud();
     },
     setSimState: (nextSim: SimulationState) => {
-      currSimState = nextSim;
-      prevSimState = nextSim;
-      lastLogCount = nextSim.logs.length;
-      lastSoundCount = nextSim.soundsPlayed.length;
+      rt.currSimState = nextSim;
+      rt.prevSimState = nextSim;
+      rt.lastLogCount = nextSim.logs.length;
+      rt.lastSoundCount = nextSim.soundsPlayed.length;
       syncHud();
     },
     resetToSpawn: teleportToSpawn,
     fullRespawn: handleFullRespawn,
     lockPointer: requestPointerLockSafely,
-    getMenuAppState: () => menuController?.getAppState() ?? 'ACTIVE_GAMEPLAY',
-    openMainMenu: () => menuController?.enterMainMenu(),
+    getMenuAppState: () => rt.menuController?.getAppState() ?? 'ACTIVE_GAMEPLAY',
+    openMainMenu: () => rt.menuController?.enterMainMenu(),
     openInGameOverlay: (screenId?: string) => {
-      menuController?.openInGameOverlay(screenId);
+      rt.menuController?.openInGameOverlay(screenId);
     },
-    resumeFromOverlay: () => menuController?.closeMenuAndResume(),
+    resumeFromOverlay: () => rt.menuController?.closeMenuAndResume(),
   };
 }
