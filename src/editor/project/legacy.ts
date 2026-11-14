@@ -29,13 +29,13 @@ import {
   TextureAsset,
   VerticalLevelData,
   createUniformTextureMatrix,
-} from '../../runtime/types';
-import { buildGameManifest, createGameManifest } from '../../runtime/manifest';
+} from '../../runtime';
+import { buildGameManifest, createGameManifest } from '../../runtime';
 import {
   pickEditorVerticalPlacement,
   readEditorVerticalData,
   verticalFromLevelV3,
-} from '../../runtime/verticalLevelData';
+} from '../../runtime';
 import {
   EventDefinition,
   LevelDataV3,
@@ -44,7 +44,7 @@ import {
   bamToRadians,
   validateLevelDataV3,
 } from '../../sim';
-import { AssetRegistry } from '../../runtime/AssetRegistry';
+import { AssetRegistry } from '../../runtime';
 
 /**
  * Computes the next safe monotonic integer `nextEntityId` (>= 1) that is strictly
@@ -55,7 +55,7 @@ import {
   computeNextEntityId,
   pickPlacementFields,
   placedEntitiesFromLevelV3,
-} from '../../runtime/LevelSerializer';
+} from '../../runtime';
 
 export class LegacyLevelSerializer extends RuntimeLevelSerializer {
   /**

@@ -2,8 +2,7 @@ import {useEffect} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './editor/App.tsx';
 import {publicFileUrl} from './editor/engine/basePath';
-import {emitDebugEvent} from './runtime/debugEvents';
-import {EntityLoader} from './runtime/EntityLoader';
+import {EntityLoader, emitDebugEvent} from './runtime';
 import './index.css';
 
 // Before any model loads: the Draco decoder ships in public/draco/ under the editor's base path.

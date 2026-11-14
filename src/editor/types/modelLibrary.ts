@@ -11,7 +11,7 @@ import type {
   ModelCategoryInfo,
   ModelCollision,
   ModelSizing,
-} from '../../runtime/types';
+} from '../../runtime';
 
 export type {
   ModelCategoryId,

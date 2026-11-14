@@ -8,5 +8,5 @@ export {
   SAFE_ASSET_ID_REGEX,
   computeDeterministicAssetId,
   AssetRegistry,
-} from '../../runtime/AssetRegistry';
-export type { AssetAllowlist } from '../../runtime/AssetRegistry';
+} from '../../runtime';
+export type { AssetAllowlist } from '../../runtime';

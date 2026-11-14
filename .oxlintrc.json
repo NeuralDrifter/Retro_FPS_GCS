@@ -31,6 +31,310 @@
       // Playwright fixtures call `use()`, which is not a React hook.
       "files": ["e2e/**"],
       "rules": { "react-hooks/rules-of-hooks": "off" }
+    },
+    // Area boundaries (P1.5). scripts/check-boundaries.ts enforces the same table.
+    {
+      "files": [
+        "src/sim/**",
+        "src/net/protocol/**"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "react",
+                "message": "sim must not import React (boundary: sim)"
+              },
+              {
+                "name": "react-dom",
+                "message": "sim must not import React (boundary: sim)"
+              },
+              {
+                "name": "lucide-react",
+                "message": "sim must not import UI icons (boundary: sim)"
+              },
+              {
+                "name": "three",
+                "message": "sim must not import Three.js (boundary: sim)"
+              },
+              {
+                "name": "jszip",
+                "message": "sim must not import jszip (boundary: sim)"
+              }
+            ],
+            "patterns": [
+              {
+                "group": [
+                  "node:*"
+                ],
+                "message": "sim must not import Node modules (boundary: sim)"
+              },
+              {
+                "group": [
+                  "**/runtime",
+                  "**/runtime/**"
+                ],
+                "message": "sim must not import the runtime, which needs the DOM (boundary: sim)"
+              },
+              {
+                "group": [
+                  "**/editor/**",
+                  "**/main"
+                ],
+                "message": "sim must not import the editor (boundary: sim)"
+              },
+              {
+                "group": [
+                  "**/export",
+                  "**/export/**"
+                ],
+                "message": "sim must not import the export pipeline (boundary: sim)"
+              },
+              {
+                "group": [
+                  "**/net/client",
+                  "**/net/client/**"
+                ],
+                "message": "Only src/runtime/entries/mp.ts may import src/net/client (boundary: net-client)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/shared/**"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "react",
+                "message": "shared must not import React (boundary: shared)"
+              },
+              {
+                "name": "react-dom",
+                "message": "shared must not import React (boundary: shared)"
+              },
+              {
+                "name": "lucide-react",
+                "message": "shared must not import UI icons (boundary: shared)"
+              },
+              {
+                "name": "three",
+                "message": "shared must not import Three.js (boundary: shared)"
+              },
+              {
+                "name": "jszip",
+                "message": "shared must not import jszip (boundary: shared)"
+              }
+            ],
+            "patterns": [
+              {
+                "group": [
+                  "node:*"
+                ],
+                "message": "shared must not import Node modules (boundary: shared)"
+              },
+              {
+                "group": [
+                  "**/runtime",
+                  "**/runtime/**"
+                ],
+                "message": "shared must not import the runtime, which needs the DOM (boundary: shared)"
+              },
+              {
+                "group": [
+                  "**/editor/**",
+                  "**/main"
+                ],
+                "message": "shared must not import the editor (boundary: shared)"
+              },
+              {
+                "group": [
+                  "**/export",
+                  "**/export/**"
+                ],
+                "message": "shared must not import the export pipeline (boundary: shared)"
+              },
+              {
+                "group": [
+                  "**/net/client",
+                  "**/net/client/**"
+                ],
+                "message": "Only src/runtime/entries/mp.ts may import src/net/client (boundary: net-client)"
+              },
+              {
+                "group": [
+                  "**/sim",
+                  "**/sim/**"
+                ],
+                "message": "shared must not import the sim; the sim depends on shared (boundary: shared)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/runtime/**"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "react",
+                "message": "runtime must not import React (boundary: runtime)"
+              },
+              {
+                "name": "react-dom",
+                "message": "runtime must not import React (boundary: runtime)"
+              },
+              {
+                "name": "lucide-react",
+                "message": "runtime must not import UI icons (boundary: runtime)"
+              }
+            ],
+            "patterns": [
+              {
+                "group": [
+                  "**/editor/**",
+                  "**/main"
+                ],
+                "message": "runtime must not import the editor (boundary: runtime)"
+              },
+              {
+                "group": [
+                  "**/export",
+                  "**/export/**"
+                ],
+                "message": "runtime must not import the export pipeline (boundary: runtime)"
+              },
+              {
+                "group": [
+                  "**/net/client",
+                  "**/net/client/**"
+                ],
+                "message": "Only src/runtime/entries/mp.ts may import src/net/client (boundary: net-client)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/export/**"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "react",
+                "message": "export must not import React (boundary: export)"
+              },
+              {
+                "name": "react-dom",
+                "message": "export must not import React (boundary: export)"
+              },
+              {
+                "name": "lucide-react",
+                "message": "export must not import UI icons (boundary: export)"
+              }
+            ],
+            "patterns": [
+              {
+                "group": [
+                  "**/net/client",
+                  "**/net/client/**"
+                ],
+                "message": "Only src/runtime/entries/mp.ts may import src/net/client (boundary: net-client)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/editor/**",
+        "src/main.tsx"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [],
+            "patterns": [
+              {
+                "group": [
+                  "**/runtime/*",
+                  "!**/runtime/index"
+                ],
+                "message": "the editor imports the runtime only through src/runtime/index.ts (boundary: editor)"
+              },
+              {
+                "group": [
+                  "**/net/client",
+                  "**/net/client/**"
+                ],
+                "message": "Only src/runtime/entries/mp.ts may import src/net/client (boundary: net-client)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/runtime/entries/mp.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "react",
+                "message": "runtime must not import React (boundary: runtime)"
+              },
+              {
+                "name": "react-dom",
+                "message": "runtime must not import React (boundary: runtime)"
+              },
+              {
+                "name": "lucide-react",
+                "message": "runtime must not import UI icons (boundary: runtime)"
+              }
+            ],
+            "patterns": [
+              {
+                "group": [
+                  "**/editor/**"
+                ],
+                "message": "runtime must not import the editor (boundary: runtime)"
+              },
+              {
+                "group": [
+                  "**/export",
+                  "**/export/**"
+                ],
+                "message": "runtime must not import the export pipeline (boundary: runtime)"
+              }
+            ]
+          }
+        ]
+      }
     }
   ],
   "ignorePatterns": ["dist/**", "coverage/**", "public/**", "playwright-report/**", "test-results/**"]

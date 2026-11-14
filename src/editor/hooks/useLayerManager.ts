@@ -6,12 +6,12 @@ import {
 import {
   VerticalLevelData,
   createSolidLayer,
-} from '../../runtime/types';
+} from '../../runtime';
 import {
   MovementSettingsSpec,
   SIM_CONFIG,
 } from '../../sim';
-import { editorVerticalFeatures } from '../../runtime/verticalLevelData';
+import { editorVerticalFeatures } from '../../runtime';
 
 export interface UseLayerManagerProps {
   grid: number[][];

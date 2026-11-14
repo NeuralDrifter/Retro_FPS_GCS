@@ -26,19 +26,19 @@ import {
   SkyboxThemeId,
   TextureAsset,
   VerticalLevelData,
-} from '../../runtime/types';
+} from '../../runtime';
 import { SIM_CONFIG, WALK_SURFACE_EMPTY, WalkSurfaceSpec } from '../../sim';
 import { getFootprintRect } from '../../sim/footprint';
 import { radiansToBam } from '../../sim/trigTable';
-import { WorldBuilder } from '../../runtime/WorldBuilder';
-import { TextureGenerator } from '../../runtime/TextureGenerator';
-import { EntityLoader } from '../../runtime/EntityLoader';
-import { CollisionSystem } from '../../runtime/CollisionSystem';
+import { WorldBuilder } from '../../runtime';
+import { TextureGenerator } from '../../runtime';
+import { EntityLoader } from '../../runtime';
+import { CollisionSystem } from '../../runtime';
 import {
   LAYER_METERS,
   applyVerticalPlacement,
   entityAnchorWorld,
-} from '../../runtime/entityPlacement';
+} from '../../runtime';
 
 const UNITS_PER_METER = SIM_CONFIG.CELL_UNITS / ENGINE_CONFIG.CELL_SIZE;
 const CELL = ENGINE_CONFIG.CELL_SIZE;

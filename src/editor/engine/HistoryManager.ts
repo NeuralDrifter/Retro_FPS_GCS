@@ -19,7 +19,7 @@
  */
 
 import { PlacedEntity } from '../types/engine';
-import { VerticalLevelData, cloneVerticalData } from '../../runtime/types';
+import { VerticalLevelData, cloneVerticalData } from '../../runtime';
 
 export interface DesignStateSnapshot {
   grid: number[][];

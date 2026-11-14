@@ -5,7 +5,7 @@ import {
   MAX_HISTORY_DEPTH,
 } from '../engine/HistoryManager';
 import { PlacedEntity } from '../types/engine';
-import { VerticalLevelData } from '../../runtime/types';
+import { VerticalLevelData } from '../../runtime';
 
 export interface SpawnPoint {
   row: number;

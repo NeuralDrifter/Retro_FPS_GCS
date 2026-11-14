@@ -27,7 +27,7 @@ import {
   VerticalLevelData,
   createDefaultVerticalData,
   resizeVerticalData,
-} from '../../runtime/types';
+} from '../../runtime';
 import { entitiesFittingGrid } from '../engine/modelLibrary/placement';
 import { SpawnPoint } from './useEditorHistory';
 

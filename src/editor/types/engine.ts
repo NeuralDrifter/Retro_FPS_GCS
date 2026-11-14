@@ -43,7 +43,7 @@ import {
   WallTexturePresetId,
   createUniformTextureMatrix,
   resizeSquareMatrix,
-} from '../../runtime/types';
+} from '../../runtime';
 
 export {
   CellType,
@@ -75,7 +75,7 @@ export type {
   CampaignSettings,
 };
 
-export * from '../../runtime/menu';
+export * from '../../runtime';
 
 /**
  * Editor Paint Modes (Phase 1 + Phase 2 + Phase 3)

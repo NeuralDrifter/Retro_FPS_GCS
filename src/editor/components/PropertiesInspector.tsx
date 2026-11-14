@@ -16,7 +16,7 @@ import {
 } from './inspector/WorldSettingsTab';
 import { VerticalTileSection } from './inspector/VerticalTileSection';
 import { MovementSettingsSection } from './inspector/MovementSettingsSection';
-import { EditorLayerData } from '../../runtime/types';
+import { EditorLayerData } from '../../runtime';
 import { CardinalDirection, MovementSettingsSpec } from '../../sim';
 import type {
   ModelLibraryState,

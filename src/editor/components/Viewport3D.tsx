@@ -16,10 +16,10 @@ import {
   TextureAsset,
 } from '../types/engine';
 import { LevelDataV3, SimulationState } from '../../sim';
-import { VerticalLevelData, isFlatVerticalData } from '../../runtime/types';
+import { VerticalLevelData, isFlatVerticalData } from '../../runtime';
 import { LevelSerializer } from '../engine/LevelSerializer';
-import { GameRuntimeHandle, startGame } from '../../runtime/startGame';
-import { createGameManifest } from '../../runtime/manifest';
+import { GameRuntimeHandle, startGame } from '../../runtime';
+import { createGameManifest } from '../../runtime';
 import {
   Crosshair,
   RotateCcw,

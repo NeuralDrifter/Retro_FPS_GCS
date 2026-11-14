@@ -7,4 +7,4 @@ export {
   getCategoryInfo,
   resolveEntityCategory,
   isStaticModel,
-} from '../../../runtime/categories';
+} from '../../../runtime';

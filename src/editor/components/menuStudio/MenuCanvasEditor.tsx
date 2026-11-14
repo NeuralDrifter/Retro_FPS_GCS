@@ -30,7 +30,7 @@ import {
   MenuWidgetType,
   TextureAsset,
 } from '../../types/engine';
-import { SoundEffects } from '../../../runtime/SoundEffects';
+import { SoundEffects } from '../../../runtime';
 
 interface MenuCanvasEditorProps {
   menuPack: MenuPackSpec;

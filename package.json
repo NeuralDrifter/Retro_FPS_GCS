@@ -20,7 +20,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "npm run build:pages && playwright test",
-    "metrics": "tsx scripts/report-metrics.ts"
+    "metrics": "tsx scripts/report-metrics.ts",
+    "check:boundaries": "tsx scripts/check-boundaries.ts"
   },
   "dependencies": {
     "jszip": "^3.10.2",
@@ -38,6 +39,7 @@
     "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^6.1.1",
     "@vitest/coverage-v8": "^5.0.5",
+    "es-module-lexer": "^3.0.4",
     "esbuild": "^0.28.0",
     "oxlint": "^1.90.0",
     "tailwindcss": "^4.3.3",

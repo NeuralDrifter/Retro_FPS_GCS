@@ -39,6 +39,8 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint
+      - name: Boundaries
+        run: npm run check:boundaries
       - name: Unit tests
         run: npm test
       - name: Build for GitHub Pages

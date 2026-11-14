@@ -7,8 +7,8 @@
  * Editor-only browser file download (`downloadLevelJson`) stays here.
  */
 
-import { LevelStateData } from '../../runtime/types';
-import { computeNextEntityId, placedEntitiesFromLevelV3 } from '../../runtime/LevelSerializer';
+import { LevelStateData } from '../../runtime';
+import { computeNextEntityId, placedEntitiesFromLevelV3 } from '../../runtime';
 import { LegacyLevelSerializer } from '../project/legacy';
 
 export { computeNextEntityId, placedEntitiesFromLevelV3 };

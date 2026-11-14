@@ -1,6 +1,6 @@
 import React from 'react';
 import { CardinalDirection, SIM_CONFIG } from '../../../sim';
-import { EditorLayerData } from '../../../runtime/types';
+import { EditorLayerData } from '../../../runtime';
 
 const M = 4 / SIM_CONFIG.CELL_UNITS; // Meters per sim unit
 const DIRS: (CardinalDirection | '')[] = ['', 'N', 'E', 'S', 'W'];

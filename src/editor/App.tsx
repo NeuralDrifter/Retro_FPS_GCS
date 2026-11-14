@@ -30,8 +30,8 @@ import {
   createDefaultMenuPack,
   createUniformTextureMatrix,
 } from './types/engine';
-import { CollisionSystem } from '../runtime/CollisionSystem';
-import { TextureGenerator } from '../runtime/TextureGenerator';
+import { CollisionSystem } from '../runtime';
+import { TextureGenerator } from '../runtime';
 import {
   LevelSerializer,
   computeNextEntityId,
@@ -59,8 +59,8 @@ import {
   cloneVerticalData,
   createDefaultVerticalData,
   isFlatVerticalData,
-} from '../runtime/types';
-import { LAYER_METERS, entityAnchorWorld } from '../runtime/entityPlacement';
+} from '../runtime';
+import { LAYER_METERS, entityAnchorWorld } from '../runtime';
 import {
   CardinalDirection,
   FloorSlopeSpec,
@@ -90,7 +90,7 @@ import {
   remapEntityModelIds,
   removeModelCopies,
 } from './engine/modelLibrary/placement';
-import { EntityLoader } from '../runtime/EntityLoader';
+import { EntityLoader } from '../runtime';
 import {
   collectUsedTextureIdsFromMatrices,
   loadRecentTextureIds,

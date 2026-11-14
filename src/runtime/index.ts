@@ -1,3 +1,7 @@
+/**
+ * The runtime's public API. The editor imports the runtime only through this file
+ * (enforced by Oxlint and scripts/check-boundaries.ts).
+ */
 export * from './types';
 export * from './categories';
 export * from './AssetRegistry';
@@ -16,6 +20,6 @@ export * from './hud/MinimapHUD';
 export * from './manifest';
 export * from './menu';
 export * from './startGame';
-
-
-
+export * from './verticalLevelData';
+export * from './entityPlacement';
+export * from './debugEvents';

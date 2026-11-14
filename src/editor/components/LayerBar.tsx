@@ -9,7 +9,7 @@
 import React from 'react';
 import { Minus, Plus } from 'lucide-react';
 import { EditorToolMode } from '../types/engine';
-import { ENGINE_CONFIG } from '../../runtime/types';
+import { ENGINE_CONFIG } from '../../runtime';
 import { SIM_CONFIG } from '../../sim';
 
 const METERS_PER_UNIT = ENGINE_CONFIG.CELL_SIZE / SIM_CONFIG.CELL_UNITS;
