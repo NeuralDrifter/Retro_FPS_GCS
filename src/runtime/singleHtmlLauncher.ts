@@ -7,24 +7,25 @@
  * that launches from window.__GRIDFORGE_MANIFEST__.
  */
 
+import { loadGameManifest } from './manifest';
 import { startGame } from './startGame';
-import type { GameManifest } from './types';
 
 declare global {
   interface Window {
-    __GRIDFORGE_MANIFEST__?: GameManifest;
+    __GRIDFORGE_MANIFEST__?: unknown;
   }
 }
 
 export function launchSingleHtmlGame(): void {
   const container = document.getElementById('game-container');
   const overlay = document.getElementById('click-to-play');
-  const manifest = window.__GRIDFORGE_MANIFEST__;
+  const rawManifest = window.__GRIDFORGE_MANIFEST__;
 
-  if (!manifest) {
+  if (!rawManifest) {
     console.error('GridForge: window.__GRIDFORGE_MANIFEST__ is not defined.');
     return;
   }
+  const manifest = loadGameManifest(rawManifest);
 
   const hasCustomMainMenu = Boolean(
     manifest.campaign?.menus?.enableMainMenuOnBoot &&

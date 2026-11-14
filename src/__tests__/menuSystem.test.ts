@@ -6,11 +6,13 @@ import {
   collectMenuTextureIds,
   MenuRuntimeController,
   createGameManifest,
-  migrateGameManifest,
+  loadGameManifest,
   validateGameManifest,
-  collectAllReferencedAssets,
   createInitialSimulationState,
 } from '../runtime';
+import {
+  collectAllReferencedAssets,
+} from '../export/collect';
 import { createMinimalArenaTestLevel } from './determinismFixtures';
 
 describe('UI Menu System: Main Menu Studio & In-Game Overlay Builder', () => {
@@ -100,7 +102,7 @@ describe('UI Menu System: Main Menu Studio & In-Game Overlay Builder', () => {
     const validation = validateGameManifest(manifest);
     assert.equal(validation.valid, true, validation.errors.join(', '));
 
-    const roundTripped = migrateGameManifest(JSON.parse(JSON.stringify(manifest)));
+    const roundTripped = loadGameManifest(JSON.parse(JSON.stringify(manifest)));
     assert.ok(roundTripped.campaign?.menus);
     assert.equal(roundTripped.campaign?.menus?.entryMainMenuScreenId, 'screen-main-menu');
   });

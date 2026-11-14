@@ -4,6 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  startGame,
+} from '../runtime';
+import {
   collectReferencedAssets,
   collectAllReferencedAssets,
   bundleLevelAssets,
@@ -11,8 +14,7 @@ import {
   detectDracoCompression,
   isBuiltInTexture,
   isBuiltInModel,
-  startGame,
-} from '../runtime';
+} from '../export/collect';
 import {
   createMinimalArenaTestLevel,
   createFullTestLevel,
@@ -23,6 +25,7 @@ import {
   TEST_GITHUB_MODEL_ID,
   TEST_CUSTOM_UPLOAD_TEXTURE_DATA_URL,
 } from './determinismFixtures';
+import { loadDracoFilesFromDisk } from './nodeAssetSources';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const baselinePath = path.join(__dirname, 'determinismBaseline.json');
@@ -193,6 +196,7 @@ describe('Phase 3 Acceptance: Asset Collection, Offline Bundling & Draco', () =>
     const mockPngBytes = decodeDataUrl(TEST_CUSTOM_UPLOAD_TEXTURE_DATA_URL).bytes;
 
     const bundle = await bundleLevelAssets(level2, {
+      dracoFiles: loadDracoFilesFromDisk(),
       customSources: {
         [TEST_CUSTOM_UPLOAD_TEXTURE_ID]: {
           bytes: mockPngBytes,
@@ -296,6 +300,7 @@ describe('Phase 3 Acceptance: Asset Collection, Offline Bundling & Draco', () =>
     const mockPngBytes = decodeDataUrl(TEST_CUSTOM_UPLOAD_TEXTURE_DATA_URL).bytes;
 
     const bundle2 = await bundleLevelAssets(level2, {
+      dracoFiles: loadDracoFilesFromDisk(),
       customSources: {
         [TEST_CUSTOM_UPLOAD_TEXTURE_ID]: {
           bytes: mockPngBytes,

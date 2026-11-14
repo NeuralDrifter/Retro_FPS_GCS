@@ -14,7 +14,6 @@ export * from '../sim';
 export * from './hud/CombatHUD';
 export * from './hud/MinimapHUD';
 export * from './manifest';
-export * from './assetBundler';
 export * from './menu';
 export * from './startGame';
 

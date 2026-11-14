@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startGame } from '../runtime/startGame';
+import { createGameManifest } from '../runtime/manifest';
 import {
   createMinimalArenaTestLevel,
   createFullTestLevel,
@@ -27,7 +28,7 @@ describe('Phase 1 Acceptance: /src/runtime Determinism Harness & 3000-Tick Repla
 
   it('replays 3000 ticks (~100 s) on Test Level 1 (Minimal Arena) through startGame and matches pre-refactor baseline hashes on every tick', () => {
     const level1 = createMinimalArenaTestLevel();
-    const game = startGame(level1, null, {
+    const game = startGame(createGameManifest(level1), null, {
       inputSource: inputs3000,
     });
 
@@ -49,7 +50,7 @@ describe('Phase 1 Acceptance: /src/runtime Determinism Harness & 3000-Tick Repla
 
   it('replays 3000 ticks (~100 s) on Test Level 2 (Full Test Level) through startGame and matches pre-refactor baseline hashes on every tick', () => {
     const level2 = createFullTestLevel();
-    const game = startGame(level2, null, {
+    const game = startGame(createGameManifest(level2), null, {
       inputSource: inputs3000,
     });
 
@@ -73,7 +74,7 @@ describe('Phase 1 Acceptance: /src/runtime Determinism Harness & 3000-Tick Repla
     const level = createFullTestLevel();
     const feedInputs = inputs3000.slice(0, 300);
 
-    const recorderGame = startGame(level, null, {
+    const recorderGame = startGame(createGameManifest(level), null, {
       inputSource: feedInputs,
       recordInputs: true,
     });
@@ -84,7 +85,7 @@ describe('Phase 1 Acceptance: /src/runtime Determinism Harness & 3000-Tick Repla
     assert.equal(recordedInputs.length, 300);
     assert.equal(recordedHashes.length, 300);
 
-    const replayGame = startGame(level, null, {
+    const replayGame = startGame(createGameManifest(level), null, {
       inputSource: recordedInputs,
     });
     const replayedHashes = replayGame.stepTicks(300);

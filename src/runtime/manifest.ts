@@ -12,7 +12,6 @@ import {
   GameManifest,
   GameManifestAssets,
   GameManifestMeta,
-  LevelStateData,
   ManifestModelAsset,
   ManifestTextureAsset,
   TextureAsset,
@@ -24,26 +23,48 @@ import { AssetRegistry } from './AssetRegistry';
 export const CURRENT_MANIFEST_SCHEMA_VERSION = 1;
 export const DEFAULT_ENGINE_VERSION = '2.0.0';
 
+/** Converts one input level to a validated LevelDataV3 plus any custom textures it carried. */
+export type LevelToV3 = (level: unknown) => { levelV3: LevelDataV3; customTextures: TextureAsset[] };
+
+const validateV3: LevelToV3 = (level) => ({
+  levelV3: RuntimeLevelSerializer.validateLevelV3(level),
+  customTextures: [],
+});
+
 /**
- * Creates a compliant GameManifest wrapping a LevelDataV3 or LevelStateData
+ * Creates a GameManifest wrapping a validated LevelDataV3
  * (and optional multi-level campaign levels + carry-over settings).
+ * Editor save formats are converted first by src/editor/project/legacy.ts.
  */
 export function createGameManifest(
-  levelInput: LevelDataV3 | LevelStateData,
+  levelInput: LevelDataV3,
   meta?: Partial<GameManifestMeta>,
   assets?: Partial<GameManifestAssets>,
   campaignOptions?: {
-    levels?: (LevelDataV3 | LevelStateData)[];
+    levels?: LevelDataV3[];
     campaign?: CampaignSettings;
   }
 ): GameManifest {
-  const { levelV3, customTextures } = RuntimeLevelSerializer.migrateToV3(levelInput);
+  return buildGameManifest(levelInput, meta, assets, campaignOptions, validateV3);
+}
+
+/**
+ * Builds a GameManifest, converting each input level with `toV3`.
+ * The runtime passes v3 validation; the editor passes its legacy migrator.
+ */
+export function buildGameManifest<L extends object>(
+  levelInput: L,
+  meta: Partial<GameManifestMeta> | undefined,
+  assets: Partial<GameManifestAssets> | undefined,
+  campaignOptions: { levels?: L[]; campaign?: CampaignSettings } | undefined,
+  toV3: LevelToV3
+): GameManifest {
+  const input = levelInput as Record<string, unknown>;
+  const { levelV3, customTextures } = toV3(levelInput);
 
   const rawLevelsList =
     campaignOptions?.levels ??
-    ('levels' in levelInput && Array.isArray(levelInput.levels)
-      ? levelInput.levels
-      : undefined);
+    (Array.isArray(input.levels) ? (input.levels as unknown[]) : undefined);
 
   let migratedLevels: LevelDataV3[] | undefined;
   const allCustomTexturesMap = new Map<string, TextureAsset>();
@@ -53,7 +74,7 @@ export function createGameManifest(
 
   if (rawLevelsList && rawLevelsList.length > 0) {
     migratedLevels = rawLevelsList.map((lvl) => {
-      const migrated = RuntimeLevelSerializer.migrateToV3(lvl);
+      const migrated = toV3(lvl);
       for (const t of migrated.customTextures) {
         allCustomTexturesMap.set(t.id, t);
       }
@@ -66,8 +87,8 @@ export function createGameManifest(
 
   const rawCampaign =
     campaignOptions?.campaign ??
-    ('campaign' in levelInput && levelInput.campaign
-      ? levelInput.campaign
+    (input.campaign && typeof input.campaign === 'object'
+      ? (input.campaign as CampaignSettings)
       : undefined);
 
   const finalCampaign: CampaignSettings | undefined = rawCampaign
@@ -83,18 +104,14 @@ export function createGameManifest(
       meta?.title ||
       primaryLevelV3.metadata?.title ||
       levelV3.metadata?.title ||
-      ('engine' in levelInput && typeof (levelInput as any).title === 'string'
-        ? (levelInput as any).title
-        : 'Untitled Game'),
+      ('engine' in input && typeof input.title === 'string' ? input.title : 'Untitled Game'),
     author: meta?.author || 'Creator',
     description: meta?.description || '',
     createdAt:
       meta?.createdAt ||
       primaryLevelV3.metadata?.exportedAt ||
       levelV3.metadata?.exportedAt ||
-      ('timestamp' in levelInput && typeof (levelInput as any).timestamp === 'string'
-        ? (levelInput as any).timestamp
-        : new Date().toISOString()),
+      (typeof input.timestamp === 'string' ? input.timestamp : new Date().toISOString()),
     engineVersion: meta?.engineVersion || DEFAULT_ENGINE_VERSION,
   };
 
@@ -125,20 +142,16 @@ export function createGameManifest(
 }
 
 /**
- * Validates and migrates an untrusted or serialized object into a typed GameManifest.
+ * Loads an untrusted or serialized GameManifest (an exported game's manifest.json):
+ * validates the wrapper and every level, and returns it typed.
  * Contains the schemaVersion migration hook for future version bumps.
  */
-export function migrateGameManifest(raw: unknown): GameManifest {
+export function loadGameManifest(raw: unknown): GameManifest {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new Error('Invalid manifest: root value must be an object');
   }
 
   const record = raw as Record<string, unknown>;
-
-  // If raw is already a naked LevelDataV3 or LevelStateData without a manifest wrapper
-  if (!('level' in record) && ('grid' in record || 'spawn' in record)) {
-    return createGameManifest(raw as LevelDataV3 | LevelStateData);
-  }
 
   const rawSchemaVersion = record.schemaVersion;
   const schemaVersion =
@@ -163,20 +176,12 @@ export function migrateGameManifest(raw: unknown): GameManifest {
     throw new Error('Invalid manifest: missing or invalid "level" field');
   }
 
-  // Load level through existing LevelSerializer migration path (V1/V2 -> V3)
-  // This already validates against the dynamic allowlist in AssetRegistry.
-  const { levelV3 } = RuntimeLevelSerializer.migrateToV3(
-    record.level as LevelDataV3 | LevelStateData
-  );
+  // Every level must already be LevelDataV3; validation checks asset IDs against the allowlist.
+  const levelV3 = RuntimeLevelSerializer.validateLevelV3(record.level);
 
   let migratedLevels: LevelDataV3[] | undefined;
   if (Array.isArray(record.levels) && record.levels.length > 0) {
-    migratedLevels = record.levels.map(
-      (lvl) =>
-        RuntimeLevelSerializer.migrateToV3(
-          lvl as LevelDataV3 | LevelStateData
-        ).levelV3
-    );
+    migratedLevels = record.levels.map((lvl) => RuntimeLevelSerializer.validateLevelV3(lvl));
   }
 
   let campaign: CampaignSettings | undefined;

@@ -17,7 +17,13 @@ import {
   TEST_GITHUB_MODEL_ID,
   TEST_CUSTOM_UPLOAD_TEXTURE_DATA_URL,
 } from './determinismFixtures';
-import { decodeDataUrl, startGame } from '../runtime';
+import {
+  startGame,
+} from '../runtime';
+import {
+  decodeDataUrl,
+} from '../export/collect';
+import { loadDracoFilesFromDisk } from './nodeAssetSources';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const baselinePath = path.join(__dirname, 'determinismBaseline.json');
@@ -156,6 +162,7 @@ describe('Phase 5 Acceptance: Single HTML Offline Export', () => {
     const mockPngBytes = decodeDataUrl(TEST_CUSTOM_UPLOAD_TEXTURE_DATA_URL).bytes;
 
     const result = await exportSingleHtml(level2, {
+      dracoFiles: loadDracoFilesFromDisk(),
       customSources: {
         [TEST_CUSTOM_UPLOAD_TEXTURE_ID]: {
           bytes: mockPngBytes,

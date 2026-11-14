@@ -19,6 +19,7 @@ import { LevelDataV3, SimulationState } from '../../sim';
 import { VerticalLevelData, isFlatVerticalData } from '../../runtime/types';
 import { LevelSerializer } from '../engine/LevelSerializer';
 import { GameRuntimeHandle, startGame } from '../../runtime/startGame';
+import { createGameManifest } from '../../runtime/manifest';
 import {
   Crosshair,
   RotateCcw,
@@ -154,7 +155,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       vertical: levelVertical,
     });
 
-    const handle = startGame(initialLevelV3, container, {
+    const handle = startGame(createGameManifest(initialLevelV3), container, {
       hudRoot,
       initialSimState: simState,
       showCeiling,

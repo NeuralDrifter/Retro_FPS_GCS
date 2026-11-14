@@ -26,8 +26,8 @@ import {
 import { LevelStateData } from '../../types/engine';
 import {
   collectAllReferencedAssets,
-  createGameManifest,
-} from '../../../runtime';
+} from '../../../export/collect';
+import { createGameManifestFromEditor } from '../../project/legacy';
 import { downloadProjectZip } from '../../../export/projectExporter';
 import { downloadSingleHtml } from '../../../export/singleHtmlExporter';
 
@@ -115,7 +115,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
     try {
       // 1. Package level manifest with customized metadata
-      const manifest = createGameManifest(levelState, {
+      const manifest = createGameManifestFromEditor(levelState, {
         title: title.trim() || 'GridForge 3D Game',
         author: author.trim() || 'Creator',
         description: description.trim(),

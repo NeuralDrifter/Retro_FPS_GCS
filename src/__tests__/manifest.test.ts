@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   createGameManifest,
-  migrateGameManifest,
+  loadGameManifest,
   validateGameManifest,
   startGame,
 } from '../runtime';
@@ -14,6 +14,7 @@ import {
   createFullTestLevel,
   generateDeterministic3000TickInputs,
 } from './determinismFixtures';
+import { createGameManifestFromEditor } from '../editor/project/legacy';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const baselinePath = path.join(__dirname, 'determinismBaseline.json');
@@ -63,13 +64,13 @@ describe('Phase 2 Acceptance: GameManifest wrapping LevelDataV3', () => {
     const validManifest = createGameManifest(level);
 
     // Round-trip valid v1 manifest
-    const migratedV1 = migrateGameManifest(validManifest);
+    const migratedV1 = loadGameManifest(validManifest);
     assert.equal(migratedV1.schemaVersion, 1);
 
     // Unsupported future schemaVersion must throw
     assert.throws(
       () =>
-        migrateGameManifest({
+        loadGameManifest({
           ...validManifest,
           schemaVersion: 2,
         }),
@@ -78,7 +79,7 @@ describe('Phase 2 Acceptance: GameManifest wrapping LevelDataV3', () => {
 
     assert.throws(
       () =>
-        migrateGameManifest({
+        loadGameManifest({
           ...validManifest,
           schemaVersion: 99,
         }),
@@ -86,10 +87,10 @@ describe('Phase 2 Acceptance: GameManifest wrapping LevelDataV3', () => {
     );
   });
 
-  it('automatically migrates un-wrapped legacy levels to GameManifest', () => {
+  it('rejects bare levels at the runtime boundary; the editor wraps them into a GameManifest', () => {
     const level = createMinimalArenaTestLevel();
-    // Pass raw LevelDataV3 without manifest wrapper
-    const wrapped = migrateGameManifest(level);
+    assert.throws(() => loadGameManifest(level), /missing or invalid "level" field/);
+    const wrapped = createGameManifestFromEditor(level);
     assert.equal(wrapped.schemaVersion, 1);
     assert.ok(wrapped.level.grid.length > 0);
     assert.equal(wrapped.meta.title, level.metadata?.title ?? 'Minimal Arena');

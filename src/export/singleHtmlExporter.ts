@@ -14,14 +14,15 @@
  */
 
 import {
+  GameManifest,
+  LevelDataV3,
+} from '../runtime';
+import {
   AssetBundleResult,
   bundleLevelAssets,
   BundleOptions,
-  GameManifest,
-  LevelDataV3,
-  LevelStateData,
   slugify,
-} from '../runtime';
+} from './collect';
 import { publicFileUrl } from '../editor/engine/basePath';
 import { assertExportPayloadIsSafe } from './safetyScanner';
 
@@ -120,7 +121,7 @@ export interface SingleHtmlExportOptions extends BundleOptions {
  * Generates a self-contained Single HTML document with all assets and runtime inlined.
  */
 export async function exportSingleHtml(
-  levelInput: LevelDataV3 | LevelStateData | GameManifest,
+  levelInput: GameManifest | LevelDataV3,
   options: SingleHtmlExportOptions = {}
 ): Promise<SingleHtmlExportResult> {
   const bundle = await bundleLevelAssets(levelInput, options);
@@ -310,7 +311,7 @@ ${runtimeJs}
  * Triggers a browser download of the standalone single HTML file.
  */
 export async function downloadSingleHtml(
-  levelInput: LevelDataV3 | LevelStateData | GameManifest,
+  levelInput: GameManifest | LevelDataV3,
   options: SingleHtmlExportOptions = {}
 ): Promise<string> {
   const result = await exportSingleHtml(levelInput, options);

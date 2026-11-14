@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * ASSET COLLECTOR, OFFLINE RESOLVER & DRACO BUNDLER (`/src/runtime/assetBundler.ts`)
+ * ASSET COLLECTOR, OFFLINE RESOLVER & DRACO BUNDLER (`src/export/collect.ts`)
  * ============================================================================
  * Phase 3 asset collector and offline packager:
  *  1. Scans LevelDataV3 grid cells, entities, and event actions (including
@@ -13,7 +13,8 @@
  *  6. Tracks licenses (GitHub repo license, user uploads, remote warnings) and
  *     formats ASSET_LICENSES.md.
  *
- * Pure runtime-compatible module with zero React or lucide imports.
+ * Runs in the browser (the editor, later a Web Worker). No React and no Node APIs:
+ * tests inject file bytes through `readFile` and `dracoFiles`.
  */
 
 import {
@@ -25,10 +26,10 @@ import {
   LevelStateData,
   ManifestModelAsset,
   ManifestTextureAsset,
-} from './types';
-import { AssetRegistry } from './AssetRegistry';
-import { migrateGameManifest } from './manifest';
-import { collectMenuTextureIds } from './menu/types';
+} from '../runtime/types';
+import { AssetRegistry } from '../runtime/AssetRegistry';
+import { createGameManifest, loadGameManifest } from '../runtime/manifest';
+import { collectMenuTextureIds } from '../runtime/menu/types';
 
 export const BUILTIN_PROCEDURAL_TEXTURE_IDS = new Set<string>([
   'default-grid',
@@ -383,6 +384,11 @@ export interface ResolveAssetOptions {
     }
   >;
   baseUrl?: string;
+  /**
+   * Reads a non-HTTP asset path when `fetch` cannot (tests in Node). Returns null when the
+   * file is not found. The browser never needs it.
+   */
+  readFile?: (path: string) => Promise<{ bytes: Uint8Array; mimeType: string } | null>;
 }
 
 /**
@@ -412,7 +418,7 @@ export async function resolveAssetBytes(
       mimeType = decoded.mimeType;
     }
     if (!bytes && src.url) {
-      const fetched = await fetchUrlToBytes(src.url);
+      const fetched = await fetchUrlToBytes(src.url, undefined, options.readFile);
       bytes = fetched.bytes;
       mimeType = fetched.mimeType || mimeType;
     }
@@ -497,7 +503,7 @@ export async function resolveAssetBytes(
     }
 
     // Remote or local URL
-    const fetched = await fetchUrlToBytes(directUrl, options.baseUrl);
+    const fetched = await fetchUrlToBytes(directUrl, options.baseUrl, options.readFile);
     const isDraco = type === 'model' && detectDracoCompression(fetched.bytes);
     const isGithub =
       directUrl.includes('github.com') ||
@@ -524,11 +530,12 @@ export async function resolveAssetBytes(
 }
 
 /**
- * Universal fetcher supporting browser fetch and Node local file fallbacks.
+ * Fetches an asset's bytes, falling back to the injected `readFile` for local paths.
  */
 async function fetchUrlToBytes(
   url: string,
-  baseUrl?: string
+  baseUrl?: string,
+  readFile?: ResolveAssetOptions['readFile']
 ): Promise<{ bytes: Uint8Array; mimeType: string }> {
   const fullUrl =
     baseUrl && !url.startsWith('http://') && !url.startsWith('https://')
@@ -544,46 +551,20 @@ async function fetchUrlToBytes(
         return { bytes: new Uint8Array(ab), mimeType };
       }
     } catch {
-      // Fall through to Node local fs read if applicable
+      // Fall through to the injected readFile, if any
     }
   }
 
-  // Node local filesystem fallback for /assets/... or public/...
-  if (typeof process !== 'undefined' && process.versions?.node) {
-    try {
-      const fs = await import('node:fs');
-      const path = await import('node:path');
-      const cleanPath = url.replace(/^[a-z]+:\/\/[^/]+/i, '').replace(/^\/+/, '');
-      const candidates = [
-        path.resolve(cleanPath),
-        path.resolve('public', cleanPath),
-        path.resolve('public', cleanPath.replace(/^assets\//, '')),
-      ];
-      for (const cand of candidates) {
-        if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
-          const buf = fs.readFileSync(cand);
-          const ext = path.extname(cand).toLowerCase();
-          let mimeType = 'application/octet-stream';
-          if (ext === '.png') mimeType = 'image/png';
-          else if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg';
-          else if (ext === '.svg') mimeType = 'image/svg+xml';
-          else if (ext === '.glb') mimeType = 'model/gltf-binary';
-          return {
-            bytes: new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength),
-            mimeType,
-          };
-        }
-      }
-    } catch {
-      // Ignore
-    }
+  if (readFile && !/^https?:\/\//i.test(url)) {
+    const local = await readFile(url);
+    if (local) return local;
   }
 
   throw new Error(`Failed to fetch asset from URL: ${url}`);
 }
 
 /**
- * Reads the bundled Draco decoder files from local filesystem or static path.
+ * Fetches the Draco decoder files the editor serves from its draco/ folder.
  */
 export async function loadBundledDracoFiles(): Promise<BundledDracoFiles> {
   const fileNames = [
@@ -594,26 +575,7 @@ export async function loadBundledDracoFiles(): Promise<BundledDracoFiles> {
 
   const result: Partial<BundledDracoFiles> = {};
 
-  if (typeof process !== 'undefined' && process.versions?.node) {
-    const fs = await import('node:fs');
-    const path = await import('node:path');
-    const searchDirs = [
-      path.resolve('public/draco'),
-      path.resolve('node_modules/three/examples/jsm/libs/draco/gltf'),
-      path.resolve('node_modules/three/examples/jsm/libs/draco'),
-    ];
-
-    for (const name of fileNames) {
-      for (const dir of searchDirs) {
-        const full = path.join(dir, name);
-        if (fs.existsSync(full)) {
-          const buf = fs.readFileSync(full);
-          result[name] = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
-          break;
-        }
-      }
-    }
-  } else if (typeof fetch === 'function') {
+  if (typeof fetch === 'function') {
     for (const name of fileNames) {
       // Relative to the page, so it resolves under the editor's base path (e.g. /Retro_FPS_GCS/draco/)
       const res = await fetch(`draco/${name}`);
@@ -681,6 +643,8 @@ export interface AssetBundleResult {
 
 export interface BundleOptions extends ResolveAssetOptions {
   includeDracoIfDetected?: boolean;
+  /** Decoder files to bundle instead of fetching them (tests in Node). */
+  dracoFiles?: BundledDracoFiles;
 }
 
 /**
@@ -688,10 +652,11 @@ export interface BundleOptions extends ResolveAssetOptions {
  * Collects, resolves, and rewrites all referenced assets in a level or manifest.
  */
 export async function bundleLevelAssets(
-  levelInput: LevelDataV3 | LevelStateData | GameManifest,
+  levelInput: GameManifest | LevelDataV3,
   options: BundleOptions = {}
 ): Promise<AssetBundleResult> {
-  const baseManifest = migrateGameManifest(levelInput);
+  const baseManifest =
+    'level' in levelInput ? loadGameManifest(levelInput) : createGameManifest(levelInput);
   const referenced = collectReferencedAssets(baseManifest);
 
   const bundledAssets: BundledAssetItem[] = [];
@@ -792,7 +757,7 @@ export async function bundleLevelAssets(
   let dracoFiles: BundledDracoFiles | undefined;
   if (hasDraco && options.includeDracoIfDetected !== false) {
     try {
-      dracoFiles = await loadBundledDracoFiles();
+      dracoFiles = options.dracoFiles ?? (await loadBundledDracoFiles());
     } catch (err) {
       // In non-filesystem headless test environments without draco files, log warning
       console.warn('Draco files could not be pre-loaded:', err);

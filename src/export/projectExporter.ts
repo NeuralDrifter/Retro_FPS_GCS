@@ -15,14 +15,15 @@
 
 import JSZip from 'jszip';
 import {
+  GameManifest,
+  LevelDataV3,
+} from '../runtime';
+import {
   AssetBundleResult,
   bundleLevelAssets,
   BundleOptions,
-  GameManifest,
-  LevelDataV3,
-  LevelStateData,
   slugify,
-} from '../runtime';
+} from './collect';
 import { assertExportPayloadIsSafe } from './safetyScanner';
 
 export interface ExportProjectResult {
@@ -275,7 +276,7 @@ export function generateExportMainJs(hasDraco = true): string {
  * Standalone Game Launcher
  * Fetches manifest.json and launches the ForgeCore game runtime.
  */
-import { startGame } from './runtime/index.ts';
+import { loadGameManifest, startGame } from './runtime/index.ts';
 
 async function launch() {
   const container = document.getElementById('game-container');
@@ -285,7 +286,7 @@ async function launch() {
   if (!res.ok) {
     throw new Error('Failed to load manifest.json (status: ' + res.status + ')');
   }
-  const manifest = await res.json();
+  const manifest = loadGameManifest(await res.json());
 
   const hasCustomMainMenu = Boolean(
     manifest.campaign?.menus?.enableMainMenuOnBoot &&
@@ -425,7 +426,7 @@ export interface ExportProjectOptions extends BundleOptions {
  * Generates the complete JSZip structure for the standalone project.
  */
 export async function exportProjectZip(
-  levelInput: LevelDataV3 | LevelStateData | GameManifest,
+  levelInput: GameManifest | LevelDataV3,
   options: ExportProjectOptions = {}
 ): Promise<ExportProjectResult> {
   const bundle = await bundleLevelAssets(levelInput, options);
@@ -534,7 +535,7 @@ export async function exportProjectZip(
  * Triggers a browser download of the generated project ZIP file.
  */
 export async function downloadProjectZip(
-  levelInput: LevelDataV3 | LevelStateData | GameManifest,
+  levelInput: GameManifest | LevelDataV3,
   options: ExportProjectOptions = {}
 ): Promise<string> {
   const result = await exportProjectZip(levelInput, options);

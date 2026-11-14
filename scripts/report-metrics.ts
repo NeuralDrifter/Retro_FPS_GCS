@@ -54,7 +54,9 @@ rows.push(['Tracked files', tracked.length.toLocaleString('en-US')]);
 const isTest = (file: string) => file.includes('__tests__/') || /\.test\.tsx?$/.test(file);
 const sourceFiles = tracked.filter((file) => file.startsWith('src/') && /\.tsx?$/.test(file));
 const nonTest = sourceFiles.filter((file) => !isTest(file));
-const runtimeLines = nonTest.filter((file) => file.startsWith('src/runtime/')).reduce((sum, file) => sum + countLines(file), 0);
+// "Runtime" means everything a game ships: src/runtime, src/sim and src/shared (src/runtime/sim before P1.2)
+const isGameCode = (file: string) => /^src\/(runtime|sim|shared)\//.test(file);
+const runtimeLines = nonTest.filter(isGameCode).reduce((sum, file) => sum + countLines(file), 0);
 const totalLines = nonTest.reduce((sum, file) => sum + countLines(file), 0);
 const testLines = sourceFiles.filter(isTest).reduce((sum, file) => sum + countLines(file), 0);
 rows.push([

@@ -2,20 +2,18 @@
  * ============================================================================
  * EDITOR LEVEL SERIALIZER & FILE DOWNLOAD MANAGER (`src/editor/engine/LevelSerializer.ts`)
  * ============================================================================
- * Runtime serialization & v1/v2->v3 migration live in `src/runtime/LevelSerializer.ts`.
+ * LevelDataV3 serialization and validation live in `src/runtime/LevelSerializer.ts`;
+ * the editor save format and v1/v2 migration live in `src/editor/project/legacy.ts`.
  * Editor-only browser file download (`downloadLevelJson`) stays here.
  */
 
 import { LevelStateData } from '../../runtime/types';
-import {
-  RuntimeLevelSerializer,
-  computeNextEntityId,
-  placedEntitiesFromLevelV3,
-} from '../../runtime/LevelSerializer';
+import { computeNextEntityId, placedEntitiesFromLevelV3 } from '../../runtime/LevelSerializer';
+import { LegacyLevelSerializer } from '../project/legacy';
 
 export { computeNextEntityId, placedEntitiesFromLevelV3 };
 
-export class LevelSerializer extends RuntimeLevelSerializer {
+export class LevelSerializer extends LegacyLevelSerializer {
   /**
    * Triggers a browser download of the serialized level state as a `.json` file.
    */

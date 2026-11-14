@@ -17,7 +17,6 @@ import {
   ENGINE_CONFIG,
   EnemyTelemetrySnapshot,
   GameManifest,
-  LevelStateData,
   PlacedEntity,
   PlayerCombatState,
   PlayerTransform,
@@ -26,7 +25,6 @@ import {
   VerticalLevelData,
 } from './types';
 import { emitDebugEvent } from './debugEvents';
-import { migrateGameManifest } from './manifest';
 import { verticalFromLevelV3 } from './verticalLevelData';
 import {
   LevelDataV3,
@@ -83,19 +81,6 @@ export type InputSourceOption =
   | TickInputProvider
   | ((tick: number) => PlayerTickInput | undefined);
 
-export interface RuntimeManifestLike {
-  schemaVersion?: number;
-  level: LevelDataV3;
-  levels?: LevelDataV3[];
-  campaign?: CampaignSettings;
-  customTextures?: TextureAsset[];
-}
-
-export type StartGameManifestInput =
-  | GameManifest
-  | RuntimeManifestLike
-  | LevelDataV3
-  | LevelStateData;
 
 export interface StartGameOptions {
   assetBaseUrl?: string;
@@ -186,27 +171,6 @@ export interface GameRuntimeHandle {
   resumeFromOverlay: () => void;
 }
 
-function normalizeManifestToLevelV3(input: StartGameManifestInput): {
-  manifest: GameManifest;
-  levelV3: LevelDataV3;
-  customTextures: TextureAsset[];
-} {
-  const manifest = migrateGameManifest(input);
-  const explicitTextures =
-    input &&
-    typeof input === 'object' &&
-    'customTextures' in input &&
-    Array.isArray((input as any).customTextures)
-      ? ((input as any).customTextures as TextureAsset[])
-      : undefined;
-
-  return {
-    manifest,
-    levelV3: manifest.level,
-    customTextures: explicitTextures ?? [],
-  };
-}
-
 /** Horizontal half-angle (radians) within which auto-aim picks an enemy */
 const AUTO_AIM_CONE = 0.14;
 const autoAimRay = new THREE.Raycaster();
@@ -274,8 +238,12 @@ function createInputReader(
   return null;
 }
 
+/**
+ * Starts the game runtime on a validated GameManifest. Load untrusted manifest JSON with
+ * `loadGameManifest` first; the editor builds manifests with `createGameManifestFromEditor`.
+ */
 export function startGame(
-  manifest: StartGameManifestInput,
+  manifest: GameManifest,
   canvasOrContainer: HTMLCanvasElement | HTMLElement | null,
   options: StartGameOptions = {}
 ): GameRuntimeHandle {
@@ -287,27 +255,20 @@ export function startGame(
     EntityLoader.setDracoDecoderPath(options.dracoDecoderPath);
   }
 
-  const normalized = normalizeManifestToLevelV3(manifest);
-  const activeManifest: GameManifest = normalized.manifest;
+  const activeManifest: GameManifest = manifest;
 
   let campaignLevels: LevelDataV3[] =
     options.levels && options.levels.length > 0
       ? options.levels.map((l) => JSON.parse(JSON.stringify(l)))
       : activeManifest.levels && activeManifest.levels.length > 0
       ? activeManifest.levels.map((l) => JSON.parse(JSON.stringify(l)))
-      : [normalized.levelV3];
+      : [activeManifest.level];
 
   let currentLevelIndex: number = Math.max(
     0,
     Math.min(
       campaignLevels.length - 1,
-      options.currentLevelIndex ??
-        (manifest &&
-        typeof manifest === 'object' &&
-        'activeLevelIndex' in manifest &&
-        typeof (manifest as any).activeLevelIndex === 'number'
-          ? Math.trunc((manifest as any).activeLevelIndex)
-          : 0)
+      options.currentLevelIndex ?? 0
     )
   );
 
@@ -318,7 +279,7 @@ export function startGame(
   };
 
   let currentLevelV3: LevelDataV3 =
-    campaignLevels[currentLevelIndex] ?? normalized.levelV3;
+    campaignLevels[currentLevelIndex] ?? activeManifest.level;
 
   if (activeManifest.assets?.textures) {
     for (const tex of activeManifest.assets.textures) {
@@ -355,7 +316,7 @@ export function startGame(
   }
 
   let customTextures: TextureAsset[] =
-    options.customTextures ?? normalized.customTextures;
+    options.customTextures ?? [];
 
   let grid: number[][] = currentLevelV3.grid.map((r) => [...r]);
   let wallTextures: string[][] = currentLevelV3.wallTextures.map((r) => [...r]);
