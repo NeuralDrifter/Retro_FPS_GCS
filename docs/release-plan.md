@@ -1085,7 +1085,7 @@ cross-area edges                              external packages
 - [x] P2.3 Document store and complete undo (HistoryManager is deleted when App moves onto the store in P2.4)
 - [x] P2.4 Move App onto the store (App is 706 lines. All domains moved in one commit, not one per domain, because undo cannot be split across two history systems; the new e2e spec covers each domain. Uploaded textures stay in the texture catalog until P2.6 makes them user assets, and save files keep the editor format until P2.5.)
 - [x] P2.5 Local persistence and project management (New from Sample opens the first preset until P2.8 adds Proving Grounds. Until P2.6, stored and downloaded projects embed the uploaded textures they use as base64 user assets, and the asset blob store is created but unused. Save JSON and Load JSON are gone: Download Project File writes v4, and Open File reads every format.)
-- [ ] P2.6 Portable user assets and import hardening
+- [x] P2.6 Portable user assets and import hardening (The custom-texture rules live in `src/editor/project/legacy.ts`, where the legacy converter moved in P1.3, and the validator refuses user assets with built-in ids; AssetRegistry is unchanged. Uploaded models also stay in the model library's own browser store, as before.)
 - [ ] P2.7 Pin and describe the asset library
 - [ ] P2.8 Sample project v1
 - [ ] P3.1 Single-player entry
