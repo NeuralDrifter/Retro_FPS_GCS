@@ -1,0 +1,11 @@
+{
+  // React editor and the in-browser export pipeline.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    // Node types only for the legacy exporters' fs fallbacks (removed in P3.6 and P3.9).
+    "types": ["vite/client", "node"]
+  },
+  "include": ["src/editor", "src/export", "src/main.tsx"]
+}

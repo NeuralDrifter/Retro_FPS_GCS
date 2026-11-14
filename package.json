@@ -14,7 +14,7 @@
     "build:pages": "npm run build -- --base=/Retro_FPS_GCS/",
     "preview": "vite preview",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p tsconfig.sim.json && tsc -p tsconfig.runtime.json && tsc -p tsconfig.editor.json && tsc -p tsconfig.node.json",
     "lint": "oxlint",
     "test": "vitest run",
     "test:watch": "vitest",

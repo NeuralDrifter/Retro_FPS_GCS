@@ -1,0 +1,9 @@
+{
+  // Deterministic simulation and shared rules: no DOM, no Node, no Three.js.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": []
+  },
+  "include": ["src/sim", "src/shared"]
+}

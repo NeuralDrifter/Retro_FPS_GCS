@@ -38,7 +38,7 @@ import {
   BUILTIN_MODEL_IDS,
   BUILTIN_SOUND_IDS,
   BUILTIN_TEXTURE_IDS,
-} from '../runtime/AssetRegistry';
+} from '../shared/assetIds';
 
 export interface ValidationErrorItem {
   path: string;

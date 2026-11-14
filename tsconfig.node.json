@@ -1,0 +1,10 @@
+{
+  // Node-side code: scripts, tool configs, unit tests and Playwright specs.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["node", "vite/client"]
+  },
+  "include": ["scripts", "e2e", "src/__tests__", "vite.config.ts", "vitest.config.ts", "playwright.config.ts"]
+}

@@ -1,0 +1,10 @@
+{
+  // Game runtime: DOM and Three.js, no React (so no JSX).
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // Node types only for the fs fallbacks in assetBundler.ts, which P1.3 moves out of the runtime.
+    "types": ["node"]
+  },
+  "include": ["src/runtime"]
+}

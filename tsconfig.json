@@ -1,23 +1,12 @@
 {
+  // Whole-project config for editors and IDEs. `npm run typecheck` checks each area
+  // with its own config (tsconfig.sim/runtime/editor/node.json), which is stricter
+  // about what each area may use.
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "moduleDetection": "force",
-    "isolatedModules": true,
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "jsx": "react-jsx",
-    "types": ["vite/client"],
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "noImplicitOverride": true
+    "jsx": "react-jsx",
+    "types": ["vite/client", "node"]
   },
   "include": ["src", "scripts", "e2e", "vite.config.ts", "vitest.config.ts", "playwright.config.ts"]
 }

@@ -9,60 +9,25 @@
  *    (`tex-<hash>` / `glb-<hash>`) instead of `Date.now()` or `Math.random()`.
  */
 
-import { fnv1a64Hex } from '../sim/hash';
+import {
+  BUILTIN_MODEL_IDS,
+  BUILTIN_SOUND_IDS,
+  BUILTIN_TEXTURE_IDS,
+  SAFE_ASSET_ID_REGEX,
+  computeDeterministicAssetId,
+  type AssetAllowlist,
+} from '../shared/assetIds';
 import { Model3DAsset, TextureAsset } from './types';
 
-export const BUILTIN_TEXTURE_IDS: readonly string[] = [
-  'default-grid',
-  'techbase-panel',
-  'dungeon-stone',
-  'labyrinth-check',
-  'floor-obsidian',
-  'ceiling-coffer',
-  'grate-alpha',
-];
-
-export const BUILTIN_MODEL_IDS: readonly string[] = [
-  'sentinel-bot',
-  'turret-guardian',
-  'supply-crate',
-  'custom-glb',
-];
-
-export const BUILTIN_SOUND_IDS: readonly string[] = [
-  'door_open',
-  'door_close',
-  'door_locked',
-  'key_pickup',
-  'secret_found',
-  'switch_click',
-  'alarm',
-  'weapon_fire',
-  'enemy_hit',
-  'enemy_death',
-  'player_hurt',
-  'level_exit',
-];
-
-export const SAFE_ASSET_ID_REGEX = /^[a-z0-9_-]+$/;
-
-export interface AssetAllowlist {
-  textureIds: Set<string>;
-  modelIds: Set<string>;
-  soundIds: Set<string>;
-}
-
-/**
- * Generates a deterministic content-hash ID (`tex-<16hex>`, `glb-<16hex>`, `snd-<16hex>`)
- * from the asset's payload or source string. Never uses `Date.now()` or `Math.random()`.
- */
-export function computeDeterministicAssetId(
-  prefix: 'tex' | 'glb' | 'snd',
-  content: string
-): string {
-  const hash = fnv1a64Hex(content.trim());
-  return `${prefix}-${hash}`;
-}
+// The ID rules live in src/shared so the sim can use them without the runtime.
+export {
+  BUILTIN_MODEL_IDS,
+  BUILTIN_SOUND_IDS,
+  BUILTIN_TEXTURE_IDS,
+  SAFE_ASSET_ID_REGEX,
+  computeDeterministicAssetId,
+};
+export type { AssetAllowlist };
 
 export class AssetRegistry {
   private static texturesById = new Map<string, TextureAsset>();
