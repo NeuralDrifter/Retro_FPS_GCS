@@ -41,6 +41,9 @@ import { TopMenuBar } from './components/ide/TopMenuBar';
 import { LeftToolPalette } from './components/ide/LeftToolPalette';
 import { BottomStatusBar } from './components/ide/BottomStatusBar';
 import { MenuStudioWorkspace } from './components/menuStudio/MenuStudioWorkspace';
+import { FileMenu } from './components/ide/FileMenu';
+import { RecoveryDialog } from './components/dialogs/RecoveryDialog';
+import { useProjectFiles } from './persistence/useProjectFiles';
 import { remapEntityModelIds, removeModelCopies } from './engine/modelLibrary/placement';
 import { buildRuntimeLevel, runtimeLevelOf } from './store/levelView';
 import { campaignMenus, mapAllEntities, useEditorDocument } from './store/useEditorDocument';
@@ -64,7 +67,8 @@ export default function App() {
   const [engineLog, setEngineLog] = useState<string>(
     'Ready — Click 2D grid to sculpt level (Ctrl+Z Undo / Ctrl+Y Redo) or open UI Menu Studio to design custom menus.'
   );
-  const { store, doc, past, future, view, activeIndex, setActiveLevelId, ctx, undo, redo } = useEditorDocument(setEngineLog);
+  const { store, doc, past, future, view, activeIndex, setActiveLevelId, ctx, undo, redo, setReadOnly } =
+    useEditorDocument(setEngineLog);
   // Debug runs let the e2e suite read the project and the active level
   useEffect(() => registerDebugProbe('projectDocument', () => store.getState().doc), [store]);
   useEffect(() => registerDebugProbe('activeLevelId', () => view.id), [view.id]);
@@ -186,6 +190,18 @@ export default function App() {
       setIsEventEditorOpen(false);
       setResetSignal((n) => n + 1);
     },
+  });
+
+  const project = useProjectFiles({
+    store,
+    doc,
+    customTextures,
+    addCustomTextures: catalog.addCustomTextures,
+    setActiveLevelId,
+    onProjectOpened: resetLevelUi,
+    restoreLegacy: files.handleRestoreLevelState,
+    setReadOnly,
+    log: setEngineLog,
   });
 
   // MapEditor2D starts a stroke (one undo step) on pointer down, then reports each cell
@@ -385,8 +401,20 @@ export default function App() {
         activeLevelIndex={activeIndex}
         onSelectCampaignLevel={campaign.handleSelectCampaignLevel}
         onAddCampaignLevel={campaign.handleAddCampaignLevel}
-        onSaveMap={files.handleSaveMap}
-        onLoadMapFile={files.handleLoadMapFile}
+        fileMenu={
+          <FileMenu
+            recent={project.recent}
+            readOnly={project.readOnly}
+            storageOk={project.storageOk}
+            quotaWarning={project.quotaWarning}
+            onNew={project.newProject}
+            onOpenFile={project.openFile}
+            onOpenRecent={(id) => void project.openRecent(id)}
+            onSave={() => void project.save()}
+            onDownload={project.download}
+            onClose={project.close}
+          />
+        }
         onOpenArchModal={() => setIsArchModalOpen(true)}
         onOpenEventEditor={() => setIsEventEditorOpen(true)}
         onOpenExportModal={() => setIsExportModalOpen(true)}
@@ -689,6 +717,15 @@ export default function App() {
           grid={view.grid}
           gridSize={view.gridSize}
           onSaveLevelData={files.handleSaveLevelDataFromEditor}
+        />
+      )}
+
+      {project.recovery && (
+        <RecoveryDialog
+          title={project.recovery.title}
+          savedAt={project.recovery.savedAt}
+          onRecover={() => void project.recover()}
+          onDiscard={() => void project.discardRecovery()}
         />
       )}
 

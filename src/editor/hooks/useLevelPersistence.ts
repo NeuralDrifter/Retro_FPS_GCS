@@ -1,16 +1,16 @@
 /**
- * Presets, save files, and the level's events: loading a preset into the level, saving and
- * opening editor save files, the Visual Triggers editor's save, and the level exit shortcut.
- * Works on the project store (release plan P2.4). Save files keep the editor save format
- * (LevelStateData) until P2.5 adds project files.
+ * Presets, older save files, and the level's events: loading a preset into the level, opening
+ * editor save files (LevelStateData) and building that format for the export dialog, the Visual
+ * Triggers editor's save, and the level exit shortcut. Works on the project store (P2.4);
+ * project files and browser storage are in src/editor/persistence (P2.5).
  */
 import { useCallback } from 'react';
-import { CellType, LevelStateData, MAP_PRESETS, TextureAsset, collectMenuTextureIds } from '../types/engine';
+import { CellType, LevelStateData, MAP_PRESETS, TextureAsset } from '../types/engine';
 import type { EventDefinition, RegionDefinition, VariableRegistrySpec } from '../../sim';
-import { LevelSerializer } from '../engine/LevelSerializer';
 import type { ProjectDocV4, ProjectLevel } from '../../shared/project';
 import { levelStateOf, levelView, storedLevelFromState } from '../store/levelView';
-import { campaignMenus, presetLevelData } from '../store/useEditorDocument';
+import { campaignMenus, presetLevelData, randomProjectId } from '../store/useEditorDocument';
+import { usedTextureIds } from '../persistence/projectAssets';
 import type { DocContext } from '../store/useEditorDocument';
 
 export interface UseLevelPersistenceProps {
@@ -23,28 +23,6 @@ export interface UseLevelPersistenceProps {
   /** Resets per-level editor state (layer, selection, playtest) after the level was replaced */
   onLevelReplaced: () => void;
   onEventsSaved: () => void;
-}
-
-/** Every texture id the project's levels and menus use */
-function usedTextureIds(doc: ProjectDocV4): Set<string> {
-  const ids = new Set<string>();
-  const add = (m: string[][]) => {
-    for (const row of m) for (const id of row) ids.add(id);
-  };
-  for (const level of doc.levels) {
-    const d = level.data;
-    add(d.wallTextures);
-    add(d.floorTextures);
-    add(d.ceilingTextures);
-    for (const layer of d.layers ?? []) {
-      add(layer.wallTextures);
-      add(layer.floorTextures);
-      add(layer.ceilingTextures);
-    }
-  }
-  const menus = campaignMenus(doc);
-  if (menus) for (const id of collectMenuTextureIds(menus)) ids.add(id);
-  return ids;
 }
 
 /** The whole project in the editor save format: the active level at the root, every level in `levels` */
@@ -113,7 +91,9 @@ export function useLevelPersistence({
             ...(state.campaign.menus ? { menus: state.campaign.menus as unknown as Record<string, unknown> } : {}),
           }
         : doc.campaign;
-      ctx.store.replace({ ...doc, levels, campaign });
+      // An opened file is a new project with its own id (and its own autosaves and edit lock)
+      const title = levels[0].title;
+      ctx.store.replace({ ...doc, id: randomProjectId(), meta: { ...doc.meta, title }, levels, campaign, userAssets: [] });
       const target =
         typeof state.activeLevelIndex === 'number' && state.activeLevelIndex >= 0 && state.activeLevelIndex < levels.length
           ? state.activeLevelIndex
@@ -159,27 +139,6 @@ export function useLevelPersistence({
     return buildSaveState(doc, index, customTextures);
   }, [ctx, customTextures]);
 
-  const handleSaveMap = useCallback(() => {
-    LevelSerializer.downloadLevelJson(buildCurrentLevelState());
-    log('File: Exported level state to downloadable .json file.');
-  }, [buildCurrentLevelState, log]);
-
-  const handleLoadMapFile = useCallback(
-    (file: File) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result !== 'string') return;
-        try {
-          handleRestoreLevelState(LevelSerializer.parseLevelJson(reader.result));
-        } catch (err) {
-          log(err instanceof Error ? `Error: ${err.message}` : 'Error: Failed to parse uploaded JSON map file.');
-        }
-      };
-      reader.readAsText(file);
-    },
-    [handleRestoreLevelState, log]
-  );
-
   /** Makes the selected cell the level exit: an event that ends the level when the player steps on it */
   const handlePlaceExitOnSelectedCell = useCallback(() => {
     const { row, col } = selectedCell;
@@ -224,8 +183,6 @@ export function useLevelPersistence({
     handleRestoreLevelState,
     handleSaveLevelDataFromEditor,
     buildCurrentLevelState,
-    handleSaveMap,
-    handleLoadMapFile,
     handlePlaceExitOnSelectedCell,
   };
 }

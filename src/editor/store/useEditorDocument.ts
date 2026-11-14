@@ -58,7 +58,7 @@ export function presetLevelData(preset: MapPreset, look: LevelLook, nextEntityId
   });
 }
 
-function randomProjectId(): string {
+export function randomProjectId(): string {
   const bytes = new Uint8Array(8);
   crypto.getRandomValues(bytes);
   return `project-${Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')}`;
@@ -133,6 +133,12 @@ export function useEditorDocument(log: (message: string) => void) {
   const logRef = useRef(log);
   logRef.current = log;
   const strokeRef = useRef<{ id: string; label: string } | null>(null);
+  // Another tab edits this project: edits and undo are refused (release plan P2.5)
+  const readOnlyRef = useRef(false);
+  const setReadOnly = useCallback((readOnly: boolean) => {
+    readOnlyRef.current = readOnly;
+  }, []);
+  const refuse = () => logRef.current('Read-only: this project is open for editing in another tab.');
   const strokeCounter = useRef(0);
 
   const ctx = useMemo<DocContext>(() => {
@@ -144,7 +150,10 @@ export function useEditorDocument(log: (message: string) => void) {
       store,
       level: currentLevel,
       view: () => levelView(currentLevel()),
-      edit: (action, label, options) => store.dispatch(action, label, options),
+      edit: (action, label, options) => {
+        if (readOnlyRef.current) refuse();
+        else store.dispatch(action, label, options);
+      },
       beginStroke: (label) => {
         strokeCounter.current += 1;
         strokeRef.current = { id: `stroke-${strokeCounter.current}`, label };
@@ -161,6 +170,10 @@ export function useEditorDocument(log: (message: string) => void) {
    */
   const stepHistory = useCallback(
     (direction: 'undo' | 'redo'): boolean => {
+      if (readOnlyRef.current) {
+        refuse();
+        return false;
+      }
       const before = store.getState();
       const step = direction === 'undo' ? before.past[before.past.length - 1] : before.future[0];
       if (!step) {
@@ -203,6 +216,7 @@ export function useEditorDocument(log: (message: string) => void) {
     ctx,
     undo,
     redo,
+    setReadOnly,
   };
 }
 

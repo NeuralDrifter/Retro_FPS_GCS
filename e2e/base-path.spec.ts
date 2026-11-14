@@ -55,9 +55,10 @@ test('a Draco model loads its decoder from the base path', async ({ page, baseUR
   await waitForGcsEvent(page, 'editor-ready');
   await manifestLoaded;
 
-  // Save the current level, place the cube next to the spawn point, and load it back.
+  // Download the project, place the cube next to the spawn point, and open it again.
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Save JSON' }).click();
+  await page.getByRole('button', { name: 'File' }).click();
+  await page.getByRole('menuitem', { name: 'Download Project File' }).click();
   const saved = JSON.parse(await streamToString(await (await downloadPromise).createReadStream()));
   const placed = addEntityToEveryLevel(saved, {
     id: 'e2e-draco-entity',
@@ -66,19 +67,19 @@ test('a Draco model loads its decoder from the base path', async ({ page, baseUR
     blueprintId: 'supply-crate',
     modelAssetId: DRACO_MODEL_ID,
     name: 'E2E Draco Cube',
-    yaw: 0,
-    scale: 1,
+    yawBam: 0,
+    scalePct: 100,
     isEnemy: false,
   });
   expect(placed).toBeGreaterThan(0);
 
-  await page.getByRole('banner').locator('input[type="file"]').setInputFiles({
-    name: 'draco-level.json',
+  await page.getByLabel('Open project file').setInputFiles({
+    name: 'draco-level.gcs.json',
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(saved)),
   });
 
-  await expect(page.getByText('Loaded Campaign JSON')).toBeVisible();
+  await expect(page.getByText(/File: Opened '/)).toBeVisible();
   const decoderResponse = await decoderLoaded;
   expect(decoderResponse.status()).toBe(200);
 });
