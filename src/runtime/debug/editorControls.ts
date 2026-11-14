@@ -36,7 +36,7 @@ import {
   worldUnitsToGrid,
 } from '../../sim';
 import { startGame } from '../startGame';
-import type { GameRuntimeHandle, StartGameOptions } from '../startGame';
+import type { GameRuntimeHandle, StartGameOptions } from '../core/api';
 
 export interface EditorLevelSyncPayload {
   grid: number[][];

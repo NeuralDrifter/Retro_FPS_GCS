@@ -5,6 +5,8 @@
  * input gathered since the last tick. It also exists in headless runs, which feed recorded input
  * instead. bindInputListeners attaches the DOM listeners that fill it and returns their cleanup.
  */
+import type { PlayerTickInput } from '../../sim';
+import type { InputSourceOption, TickInputProvider } from './api';
 
 /** Look, use and shoot input gathered since the previous tick */
 export interface FrameInput {
@@ -182,4 +184,20 @@ export function bindInputListeners(state: InputState, b: InputBindings): () => v
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('keyup', onKeyUp);
   };
+}
+
+export function createInputReader(
+  source: InputSourceOption | undefined
+): ((tick: number) => PlayerTickInput | undefined) | null {
+  if (!source) return null;
+  if (typeof source === 'function') {
+    return source;
+  }
+  if (Array.isArray(source)) {
+    return (tick: number) => source[tick];
+  }
+  if (typeof (source as TickInputProvider).nextInput === 'function') {
+    return (tick: number) => (source as TickInputProvider).nextInput(tick);
+  }
+  return null;
 }

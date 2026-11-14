@@ -24,7 +24,8 @@ import type { MinimapHUDController } from '../hud/MinimapHUD';
 import type { MenuRuntimeController, MenuRuntimeSettings } from '../menu';
 import type { InputState } from './InputController';
 import type { RenderSystem } from './RenderSystem';
-import type { StartGameOptions, createInputReader } from '../startGame';
+import type { StartGameOptions } from './api';
+import type { createInputReader } from './InputController';
 
 /** Mutable state of one running game (see startGame). */
 export interface RuntimeState {

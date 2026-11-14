@@ -14,26 +14,26 @@ import {
   DEFAULT_CAMPAIGN_SETTINGS,
   ENGINE_CONFIG,
   GameManifest,
-  PlayerTransform,
-  TextureAsset,
 } from './types';
 import { emitDebugEvent, registerDebugProbe } from './debugEvents';
-import { InputState, bindInputListeners } from './core/InputController';
+import { InputState, bindInputListeners, createInputReader } from './core/InputController';
+import type { GameRuntimeHandle, StartGameOptions } from './core/api';
+export type { GameRuntimeHandle, InputSourceOption, StartGameOptions, TickInputProvider } from './core/api';
+export { createInputReader } from './core/InputController';
 import { createRenderSystem } from './core/RenderSystem';
 import { RUNTIME_CONTEXT } from './core/RuntimeState';
 import type { RuntimeContext, RuntimeState } from './core/RuntimeState';
 import { UNITS_TO_METERS } from './core/constants';
 import { syncHud } from './core/hud';
-import { emitLog, handleFireWeapon, handleReloadAmmo } from './core/combat';
+import { handleFireWeapon, handleReloadAmmo } from './core/combat';
 import { updateSkybox, rebuild3DWorld } from './core/WorldView';
-import { teleportToSpawn, handleFullRespawn, loadCampaignLevel, handleAdvanceToNextLevel, handleRestartCampaign } from './core/campaign';
+import { teleportToSpawn, handleFullRespawn, loadCampaignLevel, handleAdvanceToNextLevel } from './core/campaign';
 import { runSingleSimTick } from './core/simTick';
+import { mountHudAndMenus } from './core/hudSetup';
 import { FrameLoopState, createFrameTick } from './core/GameLoop';
 import { verticalFromLevelV3 } from './verticalLevelData';
 import {
-  LevelDataV3,
   PlayerTickInput,
-  SimulationState,
   bamToRadians,
   createInitialSimulationState,
   isVerticalLevel,
@@ -47,114 +47,11 @@ import { AssetRegistry } from './AssetRegistry';
 import { CollisionSystem } from './CollisionSystem';
 import { WorldBuilder } from './WorldBuilder';
 import { CombatSystem } from './CombatSystem';
-import { SoundEffects } from './SoundEffects';
-import { CombatHUDController } from './hud/CombatHUD';
-import { MinimapHUDController } from './hud/MinimapHUD';
 import {
   DEFAULT_MENU_RUNTIME_SETTINGS,
-  MenuRuntimeController,
-  RuntimeAppState,
 } from './menu';
 
 
-export interface TickInputProvider {
-  nextInput: (tick: number) => PlayerTickInput | undefined;
-}
-
-export type InputSourceOption =
-  | readonly PlayerTickInput[]
-  | TickInputProvider
-  | ((tick: number) => PlayerTickInput | undefined);
-
-
-export interface StartGameOptions {
-  assetBaseUrl?: string;
-  dracoDecoderPath?: string;
-  inputSource?: InputSourceOption;
-  hudRoot?: HTMLElement | null;
-  autoLockPointerOnClick?: boolean;
-  recordInputs?: boolean;
-  deterministicSimOnly?: boolean;
-  onTickHash?: (tick: number, hash: string, state: SimulationState) => void;
-  /**
-   * Hash the full sim state every tick and keep the hashes (getTickHashes). Hashing costs about
-   * 1 ms per tick on a 64x64 level, so live play leaves it off. It is on when this is true, when
-   * recordInputs or onTickHash is set, and in headless runs (no canvas), which replay tests use.
-   */
-  recordTickHashes?: boolean;
-  // Multi-level campaign options
-  levels?: LevelDataV3[];
-  currentLevelIndex?: number;
-  campaign?: CampaignSettings;
-  onLevelChange?: (
-    levelIndex: number,
-    carryOver: { health: number; ammo: number },
-    simState: SimulationState
-  ) => void;
-  // Editor integration hooks (all optional; unused in standalone exports)
-  initialSimState?: SimulationState;
-  showCeiling?: boolean;
-  showWireframe?: boolean;
-  collisionEnabled?: boolean;
-  minimapEnabled?: boolean;
-  customTextures?: TextureAsset[];
-  onSimStateChange?: (state: SimulationState) => void;
-  onPlayerMove?: (transform: PlayerTransform) => void;
-  onEngineLog?: (message: string) => void;
-  onPointerLockChange?: (locked: boolean) => void;
-  onMinimapToggleRequest?: () => void;
-  startInMainMenu?: boolean;
-  onMenuStateChange?: (
-    state: RuntimeAppState,
-    activeScreenId: string | null
-  ) => void;
-}
-
-
-export interface GameRuntimeHandle {
-  stop: () => void;
-  dispose: () => void;
-  getState: () => SimulationState;
-  getManifest: () => GameManifest;
-  stepTicks: (count: number) => string[];
-  getTickHashes: () => string[];
-  getRecordedInputs: () => PlayerTickInput[];
-  // Campaign progression methods
-  getCurrentLevelIndex: () => number;
-  getTotalLevels: () => number;
-  goToLevel: (
-    index: number,
-    carryOver?: { health?: number; ammo?: number }
-  ) => void;
-  advanceToNextLevel: () => void;
-  setCampaignSettings: (campaign: CampaignSettings) => void;
-  resetToSpawn: () => void;
-  fullRespawn: () => void;
-  lockPointer: () => void;
-  getMenuAppState: () => RuntimeAppState;
-  openMainMenu: () => void;
-  openInGameOverlay: (screenId?: string) => void;
-  resumeFromOverlay: () => void;
-}
-
-
-
-
-export function createInputReader(
-  source: InputSourceOption | undefined
-): ((tick: number) => PlayerTickInput | undefined) | null {
-  if (!source) return null;
-  if (typeof source === 'function') {
-    return source;
-  }
-  if (Array.isArray(source)) {
-    return (tick: number) => source[tick];
-  }
-  if (typeof (source as TickInputProvider).nextInput === 'function') {
-    return (tick: number) => (source as TickInputProvider).nextInput(tick);
-  }
-  return null;
-}
 
 
 
@@ -423,141 +320,7 @@ export function startGame(
     }
   };
 
-  // Mount vanilla HUDs if hudRoot is provided or defaulted to container
-  if (resolvedHudRoot) {
-    rt.combatHud = new CombatHUDController(resolvedHudRoot, {
-      onFireWeapon: () => handleFireWeapon(ctx),
-      onReloadAmmo: () => handleReloadAmmo(ctx),
-      onUseAction: () => {
-        input.pendingUse = true;
-      },
-      onRespawnPlayer: () => handleFullRespawn(ctx),
-      onNextLevel: () => handleAdvanceToNextLevel(ctx),
-      onRestartCampaign: () => handleRestartCampaign(ctx),
-    });
-    rt.minimapHud = new MinimapHUDController(resolvedHudRoot, () => {
-      if (options.onMinimapToggleRequest) {
-        options.onMinimapToggleRequest();
-      } else {
-        rt.minimapEnabled = false;
-        syncHud(ctx);
-      }
-    });
-
-    if (!isReplayOrDeterministic) {
-      const bootInMainMenu =
-        options.startInMainMenu !== undefined
-          ? options.startInMainMenu
-          : Boolean(
-              rt.campaignSettings.menus?.enableMainMenuOnBoot &&
-                !options.initialSimState
-            );
-
-      rt.menuController = new MenuRuntimeController(
-        resolvedHudRoot,
-        rt.campaignSettings.menus,
-        {
-          getGameTitle: () =>
-            activeManifest.meta?.title ||
-            rt.campaignLevels[0]?.metadata?.title ||
-            'GridForge Game',
-          getCombatState: () => rt.combatState,
-          getSimState: () => rt.currSimState,
-          getCurrentLevelIndex: () => rt.currentLevelIndex,
-          getTotalLevels: () => rt.campaignLevels.length,
-          getCurrentLevelTitle: () =>
-            rt.campaignLevels[rt.currentLevelIndex]?.metadata?.title ||
-            `Level ${rt.currentLevelIndex + 1}`,
-          getElapsedSeconds: () => rt.elapsedSec,
-          getCustomTextures: () => rt.customTextures,
-          onStartNewGame: (startIdx) => {
-            loadCampaignLevel(ctx, startIdx, {
-              health: ENGINE_CONFIG.PLAYER_MAX_HEALTH,
-              ammo: ENGINE_CONFIG.PLAYER_START_AMMO,
-            });
-            syncHud(ctx);
-            requestPointerLockSafely();
-            emitLog(ctx, 
-              `Menu System: Launched campaign at Level ${startIdx + 1}/${rt.campaignLevels.length}.`
-            );
-          },
-          onResumeGame: () => {
-            syncHud(ctx);
-            requestPointerLockSafely();
-          },
-          onRestartCurrentLevel: () => {
-            handleFullRespawn(ctx);
-            requestPointerLockSafely();
-          },
-          onRestoreCheckpoint: (payload) => {
-            loadCampaignLevel(ctx, payload.levelIndex, {
-              health: payload.combatState.health,
-              ammo: payload.combatState.ammo,
-            });
-            rt.currSimState = payload.simState;
-            rt.prevSimState = payload.simState;
-            rt.combatState = { ...payload.combatState };
-            rebuild3DWorld(ctx);
-            syncHud(ctx);
-            requestPointerLockSafely();
-          },
-          onFireSimEvent: (action) => {
-            if (action.flagName) {
-              rt.currSimState = {
-                ...rt.currSimState,
-                flags: {
-                  ...rt.currSimState.flags,
-                  [action.flagName]: action.flagValue ?? true,
-                },
-              };
-            }
-            if (action.counterName) {
-              const prevVal = rt.currSimState.counters[action.counterName] ?? 0;
-              rt.currSimState = {
-                ...rt.currSimState,
-                counters: {
-                  ...rt.currSimState.counters,
-                  [action.counterName]: prevVal + (action.counterDelta ?? 1),
-                },
-              };
-            }
-            options.onSimStateChange?.(rt.currSimState);
-            syncHud(ctx);
-          },
-          onQuitToMainMenu: () => {
-            if (typeof document !== 'undefined' && document.pointerLockElement) {
-              try {
-                document.exitPointerLock?.();
-              } catch {
-                // Ignore
-              }
-            }
-            syncHud(ctx);
-          },
-          onApplySettings: (nextSettings) => {
-            rt.runtimeSettings = { ...nextSettings };
-            SoundEffects.setMasterVolume(nextSettings.masterVolume);
-            rt.minimapEnabled = nextSettings.minimapEnabled;
-            if (rt.camera) {
-              rt.camera.fov = nextSettings.fov;
-              rt.camera.updateProjectionMatrix();
-            }
-            syncHud(ctx);
-          },
-          onAppStateChange: (state, activeScreen) => {
-            syncHud(ctx);
-            options.onMenuStateChange?.(state, activeScreen?.id ?? null);
-          },
-          onEngineLog: (msg) => emitLog(ctx, msg),
-        },
-        { startInMainMenu: bootInMainMenu }
-      );
-      rt.runtimeSettings = { ...rt.menuController.getSettings() };
-      SoundEffects.setMasterVolume(rt.runtimeSettings.masterVolume);
-    }
-
-    syncHud(ctx);
-  }
+  mountHudAndMenus(ctx, resolvedHudRoot, requestPointerLockSafely, activeManifest);
 
   rt.frameId = 0;
   rt.stopped = false;
