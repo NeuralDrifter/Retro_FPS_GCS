@@ -1,0 +1,37 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "react-hooks", "import"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
+  "rules": {
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "error",
+
+    // React Compiler diagnostics. The project does not use the React Compiler,
+    // and react-hooks/exhaustive-deps already covers effect dependencies.
+    "react/refs": "off",
+    "react/memo-dependencies": "off",
+    "react/preserve-manual-memoization": "off",
+    "react/set-state-in-effect": "off",
+    "react/immutability": "off",
+    "react/exhaustive-effect-dependencies": "off",
+
+    // Not needed with the automatic JSX runtime (React 17+).
+    "react/react-in-jsx-scope": "off",
+    // Style rules, not defects: static-only classes and _-prefixed names are used on purpose.
+    "typescript/no-extraneous-class": "off",
+    "no-underscore-dangle": "off",
+    // `import './index.css'` is how Vite loads styles.
+    "import/no-unassigned-import": "off"
+  },
+  "overrides": [
+    {
+      // Playwright fixtures call `use()`, which is not a React hook.
+      "files": ["e2e/**"],
+      "rules": { "react-hooks/rules-of-hooks": "off" }
+    }
+  ],
+  "ignorePatterns": ["dist/**", "coverage/**", "public/**", "playwright-report/**", "test-results/**"]
+}
