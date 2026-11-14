@@ -40,7 +40,14 @@ export default defineConfig({
     },
     ...(allBrowsers
       ? [
-          { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+          {
+            name: 'firefox',
+            use: {
+              ...devices['Desktop Firefox'],
+              // Headless Firefox refuses software WebGL on GPU-less machines unless forced.
+              launchOptions: { firefoxUserPrefs: { 'webgl.force-enabled': true } },
+            },
+          },
           { name: 'webkit', use: { ...devices['Desktop Safari'] } },
         ]
       : []),
