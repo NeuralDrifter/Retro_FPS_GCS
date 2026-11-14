@@ -25,6 +25,7 @@ import {
   VerticalLevelData,
 } from './types';
 import { emitDebugEvent, registerDebugProbe } from './debugEvents';
+import { InputState, NO_FRAME_INPUT, bindInputListeners } from './core/InputController';
 import { verticalFromLevelV3 } from './verticalLevelData';
 import {
   LevelDataV3,
@@ -440,13 +441,8 @@ export function startGame(
   let removeWorldBuildProbe: () => void = () => {};
   let worldBuildCount = 0;
 
-  const keysPressed: Record<string, boolean> = {};
+  const input = new InputState();
   const euler = new THREE.Euler(0, 0, 0, 'YXZ');
-
-  let pendingYawDeltaBam = 0;
-  let pendingPitchDeltaBam = 0;
-  let pendingUse = false;
-  let pendingShoot = false;
 
   const initialWorld = CollisionSystem.gridToWorld(
     spawn.row,
@@ -531,7 +527,7 @@ export function startGame(
     if (!camera || !combatSystem || !enemyAI || combatState.isDead) return;
 
     if (combatState.ammo <= 0) {
-      pendingShoot = true;
+      input.pendingShoot = true;
       emitLog(
         'Combat: Out of Plasma Ammo — Press [R] to Reload or collect dropped Ammo Crates.'
       );
@@ -556,7 +552,7 @@ export function startGame(
     if (!shot.fired) return;
 
     if (!shot.hitEnemy) {
-      pendingShoot = true;
+      input.pendingShoot = true;
     } else if (shot.killedEnemy && shot.hitEntityId && !isReplayOrDeterministic) {
       currSimState = recordEntityKilledInSim(
         currSimState,
@@ -989,25 +985,20 @@ export function startGame(
     } else {
       const isPlayerDead = combatState.isDead;
       const moveForward = (
-        Number(Boolean(keysPressed['KeyW'] || keysPressed['ArrowUp'])) -
-        Number(Boolean(keysPressed['KeyS'] || keysPressed['ArrowDown']))
+        Number(Boolean(input.keys['KeyW'] || input.keys['ArrowUp'])) -
+        Number(Boolean(input.keys['KeyS'] || input.keys['ArrowDown']))
       ) as -1 | 0 | 1;
       const moveRight = (
-        Number(Boolean(keysPressed['KeyD'])) -
-        Number(Boolean(keysPressed['KeyA']))
+        Number(Boolean(input.keys['KeyD'])) -
+        Number(Boolean(input.keys['KeyA']))
       ) as -1 | 0 | 1;
 
-      const yawDeltaBam = tickIdxInFrame === 0 ? pendingYawDeltaBam : 0;
-      const pitchDeltaBam = tickIdxInFrame === 0 ? pendingPitchDeltaBam : 0;
-      const useTriggered = tickIdxInFrame === 0 ? pendingUse : false;
-      const shootTriggered = tickIdxInFrame === 0 ? pendingShoot : false;
-
-      if (tickIdxInFrame === 0) {
-        pendingYawDeltaBam = 0;
-        pendingPitchDeltaBam = 0;
-        pendingUse = false;
-        pendingShoot = false;
-      }
+      // Look, use and shoot gathered since the last frame apply to the frame's first tick only
+      const frameInput = tickIdxInFrame === 0 ? input.takeFrameInput() : NO_FRAME_INPUT;
+      const yawDeltaBam = frameInput.yawDeltaBam;
+      const pitchDeltaBam = frameInput.pitchDeltaBam;
+      const useTriggered = frameInput.use;
+      const shootTriggered = frameInput.shoot;
 
       playerInput = isPlayerDead
         ? {
@@ -1023,10 +1014,10 @@ export function startGame(
         : {
             moveForward,
             moveRight,
-            turnLeft: Boolean(keysPressed['KeyQ'] || keysPressed['ArrowLeft']),
-            turnRight: Boolean(keysPressed['ArrowRight']),
+            turnLeft: Boolean(input.keys['KeyQ'] || input.keys['ArrowLeft']),
+            turnRight: Boolean(input.keys['ArrowRight']),
             sprint: Boolean(
-              keysPressed['ShiftLeft'] || keysPressed['ShiftRight']
+              input.keys['ShiftLeft'] || input.keys['ShiftRight']
             ),
             yawDeltaBam,
             pitchDeltaBam,
@@ -1034,12 +1025,12 @@ export function startGame(
             shoot: shootTriggered,
             noclip: !collisionEnabled,
             ...(currSimState.vertical?.movement.jump
-              ? { jump: Boolean(keysPressed['Space']) }
+              ? { jump: Boolean(input.keys['Space']) }
               : {}),
             ...(currSimState.vertical?.movement.crouch
               ? {
                   crouch: Boolean(
-                    keysPressed['KeyC'] || keysPressed['ControlLeft'] || keysPressed['ControlRight']
+                    input.keys['KeyC'] || input.keys['ControlLeft'] || input.keys['ControlRight']
                   ),
                 }
               : {}),
@@ -1166,14 +1157,13 @@ export function startGame(
   // PointerLockControls.lock() drops the promise requestPointerLock() returns, so a refusal
   // (e.g. clicking again within ~1 s of pressing Esc) surfaced as an uncaught rejection.
   // Request the lock on the controls' own element instead; the controls still see the change.
-  let pointerLockRequested = false;
   const requestPointerLockSafely = () => {
     const el = controls?.domElement as HTMLElement | undefined;
     if (!el?.requestPointerLock) return;
-    pointerLockRequested = true;
+    input.pointerLockRequested = true;
     const onRefused = () => {
       // Fall back to drag-look instead of turning on every mouse move
-      pointerLockRequested = false;
+      input.pointerLockRequested = false;
     };
     try {
       const pending = el.requestPointerLock() as unknown as Promise<void> | undefined;
@@ -1189,7 +1179,7 @@ export function startGame(
       onFireWeapon: handleFireWeapon,
       onReloadAmmo: handleReloadAmmo,
       onUseAction: () => {
-        pendingUse = true;
+        input.pendingUse = true;
       },
       onRespawnPlayer: handleFullRespawn,
       onNextLevel: handleAdvanceToNextLevel,
@@ -1418,11 +1408,11 @@ export function startGame(
 
       controls = new PointerLockControls(camera, renderer.domElement);
       const onLock = () => {
-        pointerLockRequested = true;
+        input.pointerLockRequested = true;
         options.onPointerLockChange?.(true);
       };
       const onUnlock = () => {
-        pointerLockRequested = false;
+        input.pointerLockRequested = false;
         options.onPointerLockChange?.(false);
         if (
           menuController &&
@@ -1435,151 +1425,28 @@ export function startGame(
       controls.addEventListener('lock', onLock);
       controls.addEventListener('unlock', onUnlock);
 
-      let isDraggingLook = false;
-      let pointerDownX = 0;
-      let pointerDownY = 0;
-      let prevPointerX = 0;
-      let prevPointerY = 0;
-      let maxDragDelta = 0;
-
       const domCanvas = renderer.domElement;
-
-      const onCanvasPointerDown = (e: PointerEvent) => {
-        if (inputReader || e.button !== 0) return;
-        if (menuController && menuController.getAppState() !== 'ACTIVE_GAMEPLAY') {
-          return;
-        }
-        if (
-          document.pointerLockElement === domCanvas ||
-          document.pointerLockElement === mountEl
-        ) {
-          handleFireWeapon();
-          return;
-        }
-        if (options.autoLockPointerOnClick) {
-          requestPointerLockSafely();
-        }
-        isDraggingLook = true;
-        pointerDownX = e.clientX;
-        pointerDownY = e.clientY;
-        prevPointerX = e.clientX;
-        prevPointerY = e.clientY;
-        maxDragDelta = 0;
-      };
-
-      const onWindowMouseMove = (e: MouseEvent) => {
-        if (inputReader) return;
-        if (menuController && menuController.getAppState() !== 'ACTIVE_GAMEPLAY') {
-          return;
-        }
-        const sensMult = Math.max(0.1, (runtimeSettings.mouseSensitivity ?? 100) / 100);
-        const invertSign = runtimeSettings.invertY ? -1 : 1;
-        const isLocked =
-          document.pointerLockElement === domCanvas ||
-          document.pointerLockElement === mountEl;
-        if (
-          isLocked ||
-          (pointerLockRequested &&
-            !isDraggingLook &&
-            Boolean(e.movementX || e.movementY))
-        ) {
-          const yawRad = -(e.movementX || 0) * 0.0022 * sensMult;
-          const pitchRad = -(e.movementY || 0) * 0.0022 * sensMult * invertSign;
-          pendingYawDeltaBam += Math.round((yawRad / (Math.PI * 2)) * 65536);
-          pendingPitchDeltaBam += Math.round(
-            (pitchRad / (Math.PI * 2)) * 65536
-          );
-          return;
-        }
-
-        if (!isDraggingLook) return;
-        const dx = e.clientX - prevPointerX;
-        const dy = e.clientY - prevPointerY;
-        prevPointerX = e.clientX;
-        prevPointerY = e.clientY;
-
-        const totalDrag = Math.hypot(
-          e.clientX - pointerDownX,
-          e.clientY - pointerDownY
-        );
-        if (totalDrag > maxDragDelta) {
-          maxDragDelta = totalDrag;
-        }
-
-        const yawRad = -dx * 0.0045 * sensMult;
-        const pitchRad = -dy * 0.0045 * sensMult * invertSign;
-        pendingYawDeltaBam += Math.round((yawRad / (Math.PI * 2)) * 65536);
-        pendingPitchDeltaBam += Math.round((pitchRad / (Math.PI * 2)) * 65536);
-      };
-
-      const onWindowPointerUp = (e: PointerEvent) => {
-        if (inputReader || !isDraggingLook) return;
-        isDraggingLook = false;
-        if (menuController && menuController.getAppState() !== 'ACTIVE_GAMEPLAY') {
-          return;
-        }
-        if (
-          e.button === 0 &&
-          maxDragDelta < 6 &&
-          document.pointerLockElement !== domCanvas
-        ) {
-          handleFireWeapon();
-        }
-      };
-
-      const onKeyDown = (e: KeyboardEvent) => {
-        if (inputReader) return;
-        if (
-          document.activeElement instanceof HTMLInputElement ||
-          document.activeElement instanceof HTMLSelectElement ||
-          document.activeElement instanceof HTMLTextAreaElement
-        ) {
-          return;
-        }
-        if (e.code === 'Escape') {
-          pointerLockRequested = false;
-        }
-        if (menuController && menuController.handleKeyDown(e.code)) {
-          for (const k of Object.keys(keysPressed)) {
-            keysPressed[k] = false;
-          }
-          return;
-        }
-        keysPressed[e.code] = true;
-
-        if (e.code === 'KeyM') {
+      const unbindInput = bindInputListeners(input, {
+        domCanvas,
+        mountEl,
+        isReplaying: () => Boolean(inputReader),
+        isGameplayActive: () => !menuController || menuController.getAppState() === 'ACTIVE_GAMEPLAY',
+        menuHandlesKey: (code) => Boolean(menuController && menuController.handleKeyDown(code)),
+        lookSettings: () => runtimeSettings,
+        autoLockPointerOnClick: Boolean(options.autoLockPointerOnClick),
+        requestPointerLock: requestPointerLockSafely,
+        spaceJumps: () => Boolean(currSimState.vertical?.movement.jump),
+        fire: handleFireWeapon,
+        reload: handleReloadAmmo,
+        toggleMinimap: () => {
           if (options.onMinimapToggleRequest) {
             options.onMinimapToggleRequest();
           } else {
             minimapEnabled = !minimapEnabled;
             syncHud();
           }
-        }
-
-        if (e.code === 'KeyF') {
-          handleFireWeapon();
-        }
-
-        if (e.code === 'KeyR') {
-          handleReloadAmmo();
-        }
-
-        // Space jumps when jumping is on; otherwise it uses, like E
-        const spaceJumps = Boolean(currSimState.vertical?.movement.jump);
-        if (e.code === 'KeyE' || (e.code === 'Space' && !spaceJumps)) {
-          pendingUse = true;
-        }
-      };
-
-      const onKeyUp = (e: KeyboardEvent) => {
-        keysPressed[e.code] = false;
-      };
-
-      domCanvas.addEventListener('pointerdown', onCanvasPointerDown);
-      window.addEventListener('mousemove', onWindowMouseMove);
-      window.addEventListener('pointerup', onWindowPointerUp);
-      window.addEventListener('keydown', onKeyDown);
-      window.addEventListener('keyup', onKeyUp);
+        },
+      });
 
       const resizeObserver =
         typeof ResizeObserver !== 'undefined'
@@ -1625,9 +1492,7 @@ export function startGame(
       const onVisibilityChange = () => {
         if (document.hidden) {
           accumulatorMs = 0;
-          for (const k of Object.keys(keysPressed)) {
-            keysPressed[k] = false;
-          }
+          input.releaseAllKeys();
         } else {
           lastFrameTimeMs = performance.now();
           accumulatorMs = 0;
@@ -1831,7 +1696,7 @@ export function startGame(
             camera.position.y = eyeY + bob;
           } else if (currP.speedUnitsPerTick > 0 && !combatState.isDead) {
             const isSprinting = Boolean(
-              keysPressed['ShiftLeft'] || keysPressed['ShiftRight']
+              input.keys['ShiftLeft'] || input.keys['ShiftRight']
             );
             camera.position.y =
               interpFloorH +
@@ -2114,11 +1979,7 @@ export function startGame(
         document.removeEventListener('visibilitychange', onVisibilityChange);
         controls?.removeEventListener('lock', onLock);
         controls?.removeEventListener('unlock', onUnlock);
-        domCanvas.removeEventListener('pointerdown', onCanvasPointerDown);
-        window.removeEventListener('mousemove', onWindowMouseMove);
-        window.removeEventListener('pointerup', onWindowPointerUp);
-        window.removeEventListener('keydown', onKeyDown);
-        window.removeEventListener('keyup', onKeyUp);
+        unbindInput();
       };
     } catch {
       // Headless / non-WebGL test environment fallback: simulation and stepTicks still work
