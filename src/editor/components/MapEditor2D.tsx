@@ -38,6 +38,8 @@ import { getEntityRect } from '../engine/modelLibrary/placement';
 import { resolveEntityCategory } from '../engine/modelLibrary/categories';
 import { VARIANT_DRAG_TYPE } from './inspector/modelLibrary/UsedInLevelList';
 import type { FloorSlopeSpec } from '../../sim';
+import { getCollectedKeysSetFromSim, getOpenDoorsSetFromSim } from '../../sim';
+import { usePlaytestLiveSim, usePlaytestPlayer } from '../playtest/playtestStore';
 
 /** What the 2D map shows about the layer being edited */
 export interface MapLayerView {
@@ -118,7 +120,7 @@ interface MapEditor2DProps {
   layerView?: MapLayerView;
 }
 
-export const MapEditor2D: React.FC<MapEditor2DProps> = ({
+const MapEditor2DView: React.FC<MapEditor2DProps> = ({
   grid,
   wallTextures,
   floorTextures,
@@ -133,17 +135,30 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
   onDropTextureOnCell,
   onDropModelOnCell,
   onHoverCellChange,
-  playerTransform,
+  playerTransform: documentPlayer,
   spawn,
   onClearGrid,
   onBorderWalls,
   onDropVariantOnCell,
   allowOverlap,
   onToggleAllowOverlap,
-  collectedKeys,
-  openDoors,
+  collectedKeys: documentCollectedKeys,
+  openDoors: documentOpenDoors,
   layerView,
 }) => {
+  // While playtesting, the player marker, doors and keys follow the running game (P1.7)
+  const livePlayer = usePlaytestPlayer();
+  const liveSim = usePlaytestLiveSim();
+  const playerTransform = livePlayer ?? documentPlayer;
+  const collectedKeys = useMemo(
+    () => (liveSim ? getCollectedKeysSetFromSim(liveSim) : documentCollectedKeys),
+    [liveSim, documentCollectedKeys]
+  );
+  const openDoors = useMemo(
+    () => (liveSim ? getOpenDoorsSetFromSim(liveSim) : documentOpenDoors),
+    [liveSim, documentOpenDoors]
+  );
+
   const [isDragging, setIsDragging] = useState(false);
   const [isRightClickDrag, setIsRightClickDrag] = useState(false);
   const [dragTargetValue, setDragTargetValue] = useState<number | undefined>(
@@ -1034,3 +1049,6 @@ export const MapEditor2D: React.FC<MapEditor2DProps> = ({
     </section>
   );
 };
+
+/** Memoized so App re-renders that leave its props unchanged skip it */
+export const MapEditor2D = React.memo(MapEditor2DView);

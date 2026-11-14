@@ -437,6 +437,8 @@ export function startGame(
   let skyboxTex: THREE.CanvasTexture | null = null;
   let envTarget: THREE.WebGLRenderTarget | null = null;
   let removeRendererProbe: () => void = () => {};
+  let removeWorldBuildProbe: () => void = () => {};
+  let worldBuildCount = 0;
 
   const keysPressed: Record<string, boolean> = {};
   const euler = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -647,6 +649,7 @@ export function startGame(
 
   function rebuild3DWorld(): void {
     if (!scene || !renderer) return;
+    worldBuildCount++;
 
     const maxAniso = renderer.capabilities.getMaxAnisotropy();
 
@@ -1386,6 +1389,7 @@ export function startGame(
       pmremGenerator.dispose();
       const probedRenderer = renderer;
       removeRendererProbe = registerDebugProbe('runtimeRenderer', () => ({ ...probedRenderer.info.memory }));
+      removeWorldBuildProbe = registerDebugProbe('runtimeWorldBuilds', () => worldBuildCount);
 
       hemiLight = new THREE.HemisphereLight(0x38bdf8, 0x0f172a, 0.65);
       scene.add(hemiLight);
@@ -2161,6 +2165,7 @@ export function startGame(
     dirLight?.dispose();
     dirLight = null;
     removeRendererProbe();
+    removeWorldBuildProbe();
     if (renderer) {
       renderer.dispose();
       // Free the GPU context now instead of waiting for GC, so Edit and Play switches never pile up contexts

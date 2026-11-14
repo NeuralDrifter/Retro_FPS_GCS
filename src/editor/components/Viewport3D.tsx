@@ -11,7 +11,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   CampaignSettings,
   PlacedEntity,
-  PlayerTransform,
   SkyboxThemeId,
   TextureAsset,
 } from '../types/engine';
@@ -20,6 +19,7 @@ import { VerticalLevelData, isFlatVerticalData } from '../../runtime';
 import { LevelSerializer } from '../engine/LevelSerializer';
 import { GameRuntimeHandle, startGame } from '../../runtime';
 import { createGameManifest } from '../../runtime';
+import { playtestStore } from '../playtest/playtestStore';
 import {
   Crosshair,
   RotateCcw,
@@ -48,10 +48,7 @@ interface Viewport3DProps {
   onTogglePlayFullscreen: () => void;
   skyboxTheme: SkyboxThemeId;
   skyboxSeed: number;
-  playerTransform: PlayerTransform;
-  onPlayerMove: (transform: PlayerTransform) => void;
   simState: SimulationState;
-  onSimStateChange: (nextState: SimulationState) => void;
   resetSignal: number;
   onEngineLog: (message: string) => void;
   /** Stacked layers, heights and movement settings (flat levels may leave it out) */
@@ -90,9 +87,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   onTogglePlayFullscreen,
   skyboxTheme,
   skyboxSeed,
-  onPlayerMove,
   simState,
-  onSimStateChange,
   resetSignal,
   onEngineLog,
   vertical,
@@ -113,11 +108,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   const [showWireframe, setShowWireframe] = useState(false);
   const [collisionEnabled, setCollisionEnabled] = useState(true);
 
-  const onSimStateChangeRef = useRef(onSimStateChange);
-  onSimStateChangeRef.current = onSimStateChange;
 
-  const onPlayerMoveRef = useRef(onPlayerMove);
-  onPlayerMoveRef.current = onPlayerMove;
 
   const onToggleMinimapRef = useRef(onToggleMinimap);
   onToggleMinimapRef.current = onToggleMinimap;
@@ -167,9 +158,10 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       currentLevelIndex: activeLevelIndex,
       campaign: campaignSettings,
       startInMainMenu,
-      onSimStateChange: (nextState) => onSimStateChangeRef.current(nextState),
-      onPlayerMove: (transform) => onPlayerMoveRef.current(transform),
-      onEngineLog: (msg) => onEngineLogRef.current(msg),
+      // Live game state goes to the playtest store, never back into the document (P1.7)
+      onSimStateChange: playtestStore.setLiveSim,
+      onPlayerMove: playtestStore.setPlayer,
+      onEngineLog: playtestStore.setLog,
       onPointerLockChange: (locked) => setIsPointerLocked(locked),
       onMinimapToggleRequest: () => onToggleMinimapRef.current(),
       onLevelChange: (lvlIdx, carried, nextSim) =>
@@ -181,6 +173,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     return () => {
       handle.dispose();
       runtimeRef.current = null;
+      playtestStore.reset();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount the runtime once; the effects below push later prop changes into it
   }, []);
@@ -215,7 +208,13 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     }
   }, [campaignSettings]);
 
+  // The runtime starts with exactly these props, so the first run would only rebuild the same world
+  const skipFirstSync = useRef(true);
   useEffect(() => {
+    if (skipFirstSync.current) {
+      skipFirstSync.current = false;
+      return;
+    }
     runtimeRef.current?.syncEditorLevel({
       grid,
       wallTextures,

@@ -30,7 +30,7 @@ import {
   createDefaultMenuPack,
   createUniformTextureMatrix,
 } from './types/engine';
-import { CollisionSystem } from '../runtime';
+import { CollisionSystem, registerDebugProbe } from '../runtime';
 import { TextureGenerator } from '../runtime';
 import {
   LevelSerializer,
@@ -103,6 +103,10 @@ import { useLayerManager } from './hooks/useLayerManager';
 import { useLevelPersistence } from './hooks/useLevelPersistence';
 
 export default function App() {
+  // Debug runs count App renders, so the e2e suite can check that playtest does not re-render the editor
+  const appRenderCount = useRef(0);
+  appRenderCount.current++;
+  useEffect(() => registerDebugProbe('appRenders', () => appRenderCount.current), []);
   const initialPreset = MAP_PRESETS[0];
   const workspaceRef = useRef<HTMLDivElement | null>(null);
 
@@ -665,21 +669,21 @@ export default function App() {
   // --------------------------------------------------------------------------
   // 6. REAL-TIME FIRST-PERSON CAMERA TRANSFORM
   // --------------------------------------------------------------------------
-  const initialWorld = CollisionSystem.gridToWorld(
-    initialPreset.spawn.row,
-    initialPreset.spawn.col,
-    initialPreset.grid.length
-  );
-  const [playerTransform, setPlayerTransform] = useState<PlayerTransform>({
-    x: initialWorld.x,
-    y: ENGINE_CONFIG.PLAYER_EYE_HEIGHT,
-    z: initialWorld.z,
-    yaw: initialPreset.spawn.yaw,
-    pitch: 0,
-    gridRow: initialPreset.spawn.row,
-    gridCol: initialPreset.spawn.col,
-    speed: 0,
-  });
+  // Where the player stands in edit mode: the level's spawn point. While playtesting, the live
+  // position comes from playtestStore instead, so play never re-renders App (P1.7).
+  const spawnTransform = useMemo<PlayerTransform>(() => {
+    const world = CollisionSystem.gridToWorld(spawn.row, spawn.col, grid.length);
+    return {
+      x: world.x,
+      y: ENGINE_CONFIG.PLAYER_EYE_HEIGHT,
+      z: world.z,
+      yaw: spawn.yaw,
+      pitch: 0,
+      gridRow: spawn.row,
+      gridCol: spawn.col,
+      speed: 0,
+    };
+  }, [spawn, grid.length]);
 
   // --------------------------------------------------------------------------
   // RESIZABLE SPLIT PANE DRAG HANDLER
@@ -2289,7 +2293,7 @@ export default function App() {
                 onDropTextureOnCell={handleDropTextureOnCell}
                 onDropModelOnCell={handleDropModelOnCell}
                 onHoverCellChange={setHoveredCell}
-                playerTransform={playerTransform}
+                playerTransform={spawnTransform}
                 spawn={spawn}
                 onClearGrid={handleClearGrid}
                 onBorderWalls={handleBorderWalls}
@@ -2394,10 +2398,7 @@ export default function App() {
             onTogglePlayFullscreen={handleTogglePlayFullscreen}
             skyboxTheme={skyboxTheme}
             skyboxSeed={skyboxSeed}
-            playerTransform={playerTransform}
-            onPlayerMove={setPlayerTransform}
             simState={simState}
-            onSimStateChange={setSimState}
             resetSignal={resetSignal}
             onEngineLog={setEngineLog}
           />
@@ -2492,7 +2493,7 @@ export default function App() {
         pastHistoryCount={pastHistory.length}
         futureHistoryCount={futureHistory.length}
         activeCoord={activeCoord}
-        playerTransform={playerTransform}
+        playerTransform={spawnTransform}
         wallCount={wallCount}
         entityCount={entities.length}
       />

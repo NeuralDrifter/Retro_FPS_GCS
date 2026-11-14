@@ -139,7 +139,7 @@ function buildCustomModel3DAsset(params: {
   };
 }
 
-export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
+const AssetLibraryTabView: React.FC<AssetLibraryTabProps> = ({
   textures,
   recentTextureIds = [],
   selectedTextureId,
@@ -1167,3 +1167,6 @@ export const AssetLibraryTab: React.FC<AssetLibraryTabProps> = ({
     </>
   );
 };
+
+/** Memoized so App re-renders that leave its props unchanged skip it */
+export const AssetLibraryTab = React.memo(AssetLibraryTabView);
