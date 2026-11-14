@@ -1074,7 +1074,7 @@ cross-area edges                              external packages
 - [ ] P0.7 Baseline metrics, LICENSE, README stub (metrics and README done; LICENSE waits for Q2)
 - [x] P1.1 Explicit compiler settings
 - [x] P1.2 Restructure folders
-- [ ] P1.3 Move authoring code out of the runtime
+- [x] P1.3 Move authoring code out of the runtime (legacy formats went to src/editor/project/legacy.ts, not src/shared: the migration registers assets in the runtime AssetRegistry)
 - [ ] P1.4 Split startGame into core and playtest adapter
 - [ ] P1.5 Enforce boundaries
 - [ ] P1.6 Sim hot path
