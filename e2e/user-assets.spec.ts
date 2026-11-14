@@ -5,7 +5,9 @@ import { expect, test, waitForGcsEvent } from './fixtures';
 // Uploads are project files: checked, licensed, kept with the project, and portable to another
 // browser profile (release plan P2.6).
 
-test.describe.configure({ timeout: 180_000 });
+// Two editor profiles, uploads and a Draco model: CI's two workers on software rendering need
+// about three times the local run time
+test.describe.configure({ timeout: 360_000 });
 
 const DRACO_CUBE = fileURLToPath(new URL('./assets/draco-cube.glb', import.meta.url));
 // A 1x1 PNG

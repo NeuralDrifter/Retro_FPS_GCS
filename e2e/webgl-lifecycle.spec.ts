@@ -8,7 +8,8 @@ const MAX_HEAP_GROWTH_BYTES = 30 * 1024 * 1024;
 
 test('ten Edit, Play, Edit cycles release WebGL contexts, textures and memory', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'heap is read through the Chrome DevTools Protocol');
-  test.setTimeout(240_000);
+  // Ten playtests on software rendering, sharing CI's CPU with another heavy spec
+  test.setTimeout(360_000);
 
   const contextWarnings: string[] = [];
   page.on('console', (message) => {
