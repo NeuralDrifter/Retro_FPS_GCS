@@ -1081,7 +1081,7 @@ cross-area edges                              external packages
 - [x] P1.7 Decouple playtest from editor state (long-task budget deferred to P7.4: SwiftShader frames take ~100 ms)
 - [x] P1.8 Disposal and WebGL context hygiene
 - [x] P2.1 Project schema v4
-- [ ] P2.2 Migrations to v4
+- [x] P2.2 Migrations to v4
 - [ ] P2.3 Document store and complete undo
 - [ ] P2.4 Move App onto the store
 - [ ] P2.5 Local persistence and project management
