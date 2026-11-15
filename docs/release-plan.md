@@ -1071,7 +1071,7 @@ cross-area edges                              external packages
 - [x] P0.4 Playwright smoke harness
 - [x] P0.5 Remove Google calls and base-path bugs
 - [x] P0.6 CI pipeline and lint
-- [ ] P0.7 Baseline metrics, LICENSE, README stub (metrics and README done; LICENSE waits for Q2)
+- [x] P0.7 Baseline metrics, LICENSE, README stub (MIT, confirmed for Q2)
 - [x] P1.1 Explicit compiler settings
 - [x] P1.2 Restructure folders
 - [x] P1.3 Move authoring code out of the runtime (legacy formats went to src/editor/project/legacy.ts, not src/shared: the migration registers assets in the runtime AssetRegistry)

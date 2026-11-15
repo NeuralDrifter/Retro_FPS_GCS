@@ -23,6 +23,12 @@ Before the first `npm run test:e2e`, install the test browser with `npx playwrig
 
 `npm run dev` listens on localhost only. Use `npm run dev:lan` to open it to other devices on your network.
 
+## License
+
+The editor and the game runtime are released under the [MIT License](LICENSE). The asset
+library's textures and models are CC0 (public domain); see
+[Retro_FPS_GCS-assets](https://github.com/NeuralDrifter/Retro_FPS_GCS-assets).
+
 ## Built with AI models
 
 This project was developed with the help of these AI models:
@@ -30,7 +36,7 @@ This project was developed with the help of these AI models:
 | | Provider | Models |
 |:---:|---|---|
 | <img src="https://cdn.simpleicons.org/anthropic/191919/F0EEE6" alt="Anthropic logo" width="24" height="24"> | [Anthropic](https://www.anthropic.com) | Claude Opus 5.5, Claude Fable 5, Claude Fable 5.2 |
-| <img src="https://cdn.simpleicons.org/google/4285F4" alt="Google logo" width="24" height="24"> | [Google](https://ai.google.dev) | Argon, Carbon, Gemini 3.8 Flash |
+| <img src="https://cdn.simpleicons.org/google/4285F4" alt="Google logo" width="24" height="24"> | [Google](https://ai.google.dev) | Gemini 4 Argon, Carbon, Gemini 3.8 Flash |
 | <img src="https://cdn.simpleicons.org/deepseek/4D6BFE" alt="DeepSeek logo" width="24" height="24"> | [DeepSeek](https://www.deepseek.com) | DeepSeek |
 
 Logos are trademarks of their owners and are served by [Simple Icons](https://simpleicons.org).
