@@ -144,6 +144,12 @@ export const USER_ASSET_MIME_TYPES: readonly UserAssetMimeType[] = [
 export type UserAssetLicense = 'own-work' | 'CC0-1.0' | 'CC-BY-4.0' | 'other';
 export const USER_ASSET_LICENSES: readonly UserAssetLicense[] = ['own-work', 'CC0-1.0', 'CC-BY-4.0', 'other'];
 
+/**
+ * The attribution recorded for textures uploaded before the editor asked for a license (P2.6).
+ * Their license is unknown, so the export refuses them until they are uploaded again (P3.4).
+ */
+export const LICENSE_NOT_RECORDED = 'Uploaded before the editor recorded licenses.';
+
 export interface UserAsset {
   id: string;
   name: string;

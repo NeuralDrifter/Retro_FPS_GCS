@@ -31,7 +31,8 @@ interface TopMenuBarProps {
   helpMenu: React.ReactNode;
   onOpenArchModal: () => void;
   onOpenEventEditor: () => void;
-  onOpenExportModal: () => void;
+  /** Exports the game at once (P3.4) */
+  onExport: () => void;
   isMenuStudioOpen: boolean;
   onToggleMenuStudio: () => void;
   isPlayFullscreen: boolean;
@@ -55,7 +56,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
   helpMenu,
   onOpenArchModal,
   onOpenEventEditor,
-  onOpenExportModal,
+  onExport,
   isMenuStudioOpen,
   onToggleMenuStudio,
   isPlayFullscreen,
@@ -161,7 +162,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
 
         <button
           type="button"
-          onClick={onOpenExportModal}
+          onClick={onExport}
           className="ide-btn !h-[20px] text-[#38bdf8] hover:text-[#7dd3fc] font-medium"
           title="Export the game as files you can upload to a website"
         >

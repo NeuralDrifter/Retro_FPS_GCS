@@ -8,6 +8,7 @@ import type { Model3DAsset, TextureAsset } from '../../runtime';
 import { collectMenuTextureIds } from '../../runtime';
 import type { MenuPackSpec } from '../../runtime';
 import { base64ToBytes, sha256Hex } from '../../shared/bytes';
+import { LICENSE_NOT_RECORDED } from '../../shared/project';
 import type { ProjectDocV4, UserAsset, UserAssetMimeType } from '../../shared/project';
 import { AssetRegistry } from '../engine/AssetRegistry';
 import { bytesToBase64, sha256OfBytes } from '../library/uploadIntake';
@@ -52,7 +53,7 @@ function uploadToUserAsset(texture: TextureAsset): UserAsset | null {
     size: bytes.length,
     // The upload dialog asks for a license from P2.6; until then it is not recorded
     license: 'other',
-    attribution: 'Uploaded before the editor recorded licenses.',
+    attribution: LICENSE_NOT_RECORDED,
     data,
   };
 }

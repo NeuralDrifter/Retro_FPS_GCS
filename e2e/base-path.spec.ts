@@ -17,10 +17,10 @@ test('single-HTML export works from the Pages base path', async ({ page }) => {
   await page.goto('./');
   await waitForGcsEvent(page, 'editor-ready');
 
-  await page.getByRole('button', { name: 'Export Game' }).click();
-  await page.getByRole('button', { name: /Single Offline HTML/ }).click();
+  // The legacy single-HTML export stays in the File menu until P3.9 moves it onto the export worker
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export Single HTML' }).click();
+  await page.getByRole('button', { name: 'File' }).click();
+  await page.getByRole('menuitem', { name: 'Export Single HTML (legacy)' }).click();
   const download = await downloadPromise;
 
   expect(download.suggestedFilename()).toMatch(/\.html$/);

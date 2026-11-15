@@ -36,7 +36,13 @@ import { LayerBar } from './components/LayerBar';
 import { PropertiesInspector } from './components/PropertiesInspector';
 import { ArchitectureModal } from './components/ArchitectureModal';
 import { EventTriggerEditorModal } from './components/EventTriggerEditorModal';
-import { ExportModal } from './components/ide/ExportModal';
+import { ExportProgress } from './components/export/ExportProgress';
+import { ExportProblems } from './components/export/ExportProblems';
+import { ProjectSettingsDialog } from './components/settings/ProjectSettingsDialog';
+import type { ProjectSettingsValues } from './components/settings/ProjectSettingsDialog';
+import { useExport } from './export/useExport';
+import { createGameManifestFromEditor } from './project/legacy';
+import { downloadSingleHtml } from '../export/singleHtmlExporter';
 import { TopMenuBar } from './components/ide/TopMenuBar';
 import { LeftToolPalette } from './components/ide/LeftToolPalette';
 import { BottomStatusBar } from './components/ide/BottomStatusBar';
@@ -109,7 +115,7 @@ export default function App() {
   const [resetSignal, setResetSignal] = useState<number>(0);
   const [isArchModalOpen, setIsArchModalOpen] = useState<boolean>(false);
   const [isEventEditorOpen, setIsEventEditorOpen] = useState<boolean>(false);
-  const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+  const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState<boolean>(false);
   const [isMenuStudioOpen, setIsMenuStudioOpen] = useState<boolean>(false);
   const [startInMainMenu, setStartInMainMenu] = useState<boolean>(false);
   // When off, new placements may not overlap models, walls or doors (existing ones are untouched)
@@ -197,6 +203,39 @@ export default function App() {
       setResetSignal((n) => n + 1);
     },
   });
+
+  // One-click export (P3.4)
+  const getDoc = useCallback(() => store.getState().doc, [store]);
+  const exporter = useExport(getDoc, setEngineLog);
+  const saveProjectSettings = (values: ProjectSettingsValues) => {
+    store.dispatch(
+      {
+        type: 'batch',
+        actions: [
+          { type: 'meta/update', patch: { title: values.title, author: values.author, description: values.description } },
+          { type: 'export/setSlug', slug: values.slug },
+        ],
+      },
+      'Project settings'
+    );
+    setIsProjectSettingsOpen(false);
+    setEngineLog(`Project settings saved: '${values.title}' exports as ${values.slug}.`);
+  };
+  // The legacy single-HTML export, until P3.9 moves it onto the export worker
+  const exportSingleHtml = async () => {
+    const { meta } = store.getState().doc;
+    try {
+      const manifest = createGameManifestFromEditor(files.buildCurrentLevelState(), {
+        title: meta.title,
+        author: meta.author,
+        description: meta.description,
+      });
+      const filename = await downloadSingleHtml(manifest);
+      setEngineLog(`Export: downloaded the single HTML file '${filename}'.`);
+    } catch (err) {
+      setEngineLog(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
 
   const project = useProjectFiles({
     store,
@@ -427,12 +466,14 @@ export default function App() {
             onOpenRecent={(id) => void project.openRecent(id)}
             onSave={() => void project.save()}
             onDownload={() => void project.download()}
+            onProjectSettings={() => setIsProjectSettingsOpen(true)}
+            onExportSingleHtml={() => void exportSingleHtml()}
             onClose={project.close}
           />
         }
         onOpenArchModal={() => setIsArchModalOpen(true)}
         onOpenEventEditor={() => setIsEventEditorOpen(true)}
-        onOpenExportModal={() => setIsExportModalOpen(true)}
+        onExport={exporter.start}
         isMenuStudioOpen={isMenuStudioOpen}
         onToggleMenuStudio={() => {
           setIsMenuStudioOpen((prev) => {
@@ -776,14 +817,19 @@ export default function App() {
       )}
 
       {/* Game export */}
-      {isExportModalOpen && (
-        <PanelErrorBoundary area="export dialog" onClose={() => setIsExportModalOpen(false)}>
-        <ExportModal
-          isOpen={isExportModalOpen}
-          onClose={() => setIsExportModalOpen(false)}
-          levelState={files.buildCurrentLevelState()}
-          setEngineLog={setEngineLog}
-        />
+      <PanelErrorBoundary area="export" onClose={exporter.dismiss}>
+        <ExportProgress exporter={exporter} />
+        {exporter.state.phase === 'problems' && <ExportProblems problems={exporter.state.problems} onClose={exporter.dismiss} />}
+      </PanelErrorBoundary>
+
+      {isProjectSettingsOpen && (
+        <PanelErrorBoundary area="project settings" onClose={() => setIsProjectSettingsOpen(false)}>
+          <ProjectSettingsDialog
+            doc={doc}
+            readOnly={project.readOnly}
+            onSave={saveProjectSettings}
+            onClose={() => setIsProjectSettingsOpen(false)}
+          />
         </PanelErrorBoundary>
       )}
     </div>

@@ -23,9 +23,10 @@ test('Test Play renders a first frame', async ({ page }) => {
   await expect(page.locator('canvas').first()).toBeVisible();
 });
 
-test('the export dialog opens', async ({ page }) => {
-  await page.getByRole('button', { name: 'Export Game' }).click();
-  await expect(page.getByRole('heading', { name: 'Export Standalone Game' })).toBeVisible();
+test('Project Settings opens from the File menu', async ({ page }) => {
+  await page.getByRole('button', { name: 'File' }).click();
+  await page.getByRole('menuitem', { name: /^Project Settings/ }).click();
+  await expect(page.getByRole('heading', { name: 'Project Settings' })).toBeVisible();
 });
 
 // Proves the shared fixture catches problems: this test must fail.
