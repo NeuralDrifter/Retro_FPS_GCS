@@ -1120,7 +1120,7 @@ cross-area edges                              external packages
 - [x] P6.7 Onboarding and help (Documentation links to the README until P8.4. Open sample opens the first preset until P2.8.)
 - [ ] P6.8 Editor accessibility
 - [ ] P7.1 Editor CSP
-- [ ] P7.2 Import hardening and fuzzing
+- [x] P7.2 Import hardening and fuzzing (The fuzz test is `src/__tests__/projectFuzz.test.ts`: tests in `src/shared` may not import node modules. It runs in about 4 s.)
 - [ ] P7.3 Supply chain gates
 - [ ] P7.4 Performance budgets
 - [ ] P7.5 Sample game complete
