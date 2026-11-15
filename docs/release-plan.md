@@ -1117,7 +1117,7 @@ cross-area edges                              external packages
 - [ ] P6.4 Level editing gaps
 - [ ] P6.5 Validation and playtest
 - [ ] P6.6 Asset browser
-- [ ] P6.7 Onboarding and help
+- [x] P6.7 Onboarding and help (Documentation links to the README until P8.4. Open sample opens the first preset until P2.8.)
 - [ ] P6.8 Editor accessibility
 - [ ] P7.1 Editor CSP
 - [ ] P7.2 Import hardening and fuzzing
