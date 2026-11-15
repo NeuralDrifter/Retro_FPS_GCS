@@ -1089,7 +1089,7 @@ cross-area edges                              external packages
 - [ ] P2.7 Pin and describe the asset library
 - [ ] P2.8 Sample project v1
 - [x] P3.1 Single-player entry (The manifest format lives in `src/shared/project/gameManifest.ts`, because checking its levels needs the sim. The boot sequence is in `src/runtime/boot/bootGame.ts`, with the browser parts passed in so it is unit tested without a DOM.)
-- [ ] P3.2 Prebuilt runtime bundles
+- [x] P3.2 Prebuilt runtime bundles (The dev watcher is a Vite plugin in `vite.config.ts`; the build logic is shared in `scripts/runtimeBundle.ts`. The bundle is 256 KB gzip.)
 - [ ] P3.3 Export worker
 - [ ] P3.4 One-click export UX
 - [ ] P3.5 Credits, notices and license files
