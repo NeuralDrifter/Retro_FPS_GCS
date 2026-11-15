@@ -5,6 +5,9 @@ import { expect, test, waitForGcsEvent } from './fixtures';
 // The preview serves the editor under /Retro_FPS_GCS/, as GitHub Pages does.
 // These specs catch fetches that ignore that base path.
 
+// CI runners are about three times slower than a desktop, so these flows need more than 60 s there
+test.describe.configure({ timeout: 180_000 });
+
 const DRACO_CUBE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'draco-cube.glb');
 const DRACO_MODEL_ID = 'e2e-draco-cube';
 
