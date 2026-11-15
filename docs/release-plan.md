@@ -1111,7 +1111,7 @@ cross-area edges                              external packages
 - [ ] P5.5 Audio
 - [ ] P5.6 Save data
 - [ ] P5.7 Rendering quality and frame budget
-- [ ] P6.1 Error containment
+- [x] P6.1 Error containment (Done ahead of Phase 3's later tasks, which wait on P2.7.)
 - [ ] P6.2 Project Settings dialog
 - [ ] P6.3 Game data editors
 - [ ] P6.4 Level editing gaps
