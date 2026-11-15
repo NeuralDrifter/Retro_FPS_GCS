@@ -24,3 +24,19 @@ test('the pinned library loads, and the texture browser stays within 60 requests
   // The grid shows thumbnails, not the full textures
   expect(opened.filter((u) => u.startsWith('files/') && u.endsWith('.webp'))).toEqual([]);
 });
+
+test('New from Sample opens the Proving Grounds campaign (P2.8)', async ({ page }) => {
+  await page.goto('./');
+  await waitForGcsEvent(page, 'editor-ready');
+  await page.getByRole('button', { name: 'File' }).click();
+  await page.getByRole('menuitem', { name: 'New from Sample' }).click();
+  await expect(page.getByText(/Started a new project from the sample 'Proving Grounds' \(3 levels\)/)).toBeVisible();
+  await expect(page.getByLabel('Select Gameplay Level').locator('option')).toHaveCount(3);
+  const doc = await page.evaluate(() => window.__gcsProbes!.projectDocument!() as { id: string; meta: { title: string } });
+  expect(doc.meta.title).toBe('Proving Grounds');
+  expect(doc.id).not.toBe('proving-grounds');
+
+  // Test Play starts on level 1
+  await page.getByRole('button', { name: 'Test Play' }).click();
+  await waitForGcsEvent(page, 'first-frame');
+});

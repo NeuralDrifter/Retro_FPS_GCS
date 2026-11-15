@@ -8,7 +8,7 @@ import { LevelSerializer } from '../engine/LevelSerializer';
 import { canonicalStringify, createDefaultProject, detectProjectFormat, migrateToV4 } from '../../shared/project';
 import type { ProjectDocV4 } from '../../shared/project';
 import type { DocumentStore } from '../store/documentStore';
-import { EDITOR_VERSION, createInitialProject, randomProjectId } from '../store/useEditorDocument';
+import { EDITOR_VERSION, randomProjectId } from '../store/useEditorDocument';
 import { createAutosaver, pickRecoverable } from './autosave';
 import type { Autosaver } from './autosave';
 import {
@@ -48,6 +48,13 @@ async function projectsOpenElsewhere(): Promise<Set<string>> {
   } catch {
     return new Set();
   }
+}
+
+/** The sample campaign (P2.8), loaded on demand as its own chunk; a copy with a new project id */
+export async function loadSampleProject(): Promise<ProjectDocV4> {
+  const { default: sample } = await import('../../../samples/proving-grounds.gcs.json');
+  const doc = structuredClone(sample) as unknown as ProjectDocV4;
+  return { ...doc, id: randomProjectId(), meta: { ...doc.meta, createdAt: new Date().toISOString() } };
 }
 
 export function createBlankProject(): ProjectDocV4 {
@@ -223,9 +230,17 @@ export function useProjectFiles({
   );
 
   const newProject = useCallback(
-    (kind: 'blank' | 'sample') => {
-      const next = kind === 'blank' ? createBlankProject() : createInitialProject();
-      void openDoc(next, kind === 'blank' ? 'File: Started a new blank project.' : `File: Started a new project from the sample '${next.meta.title}'.`);
+    async (kind: 'blank' | 'sample') => {
+      if (kind === 'blank') {
+        await openDoc(createBlankProject(), 'File: Started a new blank project.');
+        return;
+      }
+      try {
+        const next = await loadSampleProject();
+        await openDoc(next, `File: Started a new project from the sample '${next.meta.title}' (${next.levels.length} levels).`);
+      } catch (err) {
+        logRef.current(`Error: The sample project could not be loaded (${err instanceof Error ? err.message : String(err)}).`);
+      }
     },
     [openDoc]
   );

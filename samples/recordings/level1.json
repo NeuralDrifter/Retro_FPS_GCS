@@ -1,0 +1,17 @@
+{
+  "level": "level-1",
+  "segments": [
+    {
+      "ticks": 143,
+      "input": {
+        "moveForward": 1,
+        "moveRight": 0,
+        "sprint": false,
+        "yawDeltaBam": 0,
+        "pitchDeltaBam": 0,
+        "use": false,
+        "shoot": false
+      }
+    }
+  ]
+}
