@@ -12,6 +12,7 @@
     "build": "npm run build:runtime && vite build",
     "build:runtime": "tsx scripts/build-single-html-runtime.ts && tsx scripts/build-runtime.ts",
     "check:runtime": "tsx scripts/check-runtime-bundle.ts",
+    "check:licenses": "tsx scripts/check-licenses.ts",
     "build:pages": "npm run build -- --base=/Retro_FPS_GCS/",
     "preview": "vite preview",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",

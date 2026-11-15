@@ -40,6 +40,10 @@ jobs:
       # Boundaries first: its report names the broken rule; Oxlint's GitHub annotations do not
       - name: Boundaries
         run: npm run check:boundaries
+      - name: Dependency audit (production, high and above)
+        run: npm audit --omit=dev --audit-level=high
+      - name: Dependency licenses (S-03 allowlist)
+        run: npm run check:licenses
       - name: Lint
         run: npm run lint
       - name: Unit tests
