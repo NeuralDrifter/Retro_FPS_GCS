@@ -12,3 +12,6 @@ blob-report/
 
 # Original asset packs and zips; the converted collections are kept outside the repository
 openart/
+
+# Built by scripts/build-runtime.ts (P3.2)
+public/runtime/

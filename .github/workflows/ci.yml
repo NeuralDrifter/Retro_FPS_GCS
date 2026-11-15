@@ -46,6 +46,8 @@ jobs:
         run: npm test
       - name: Build for GitHub Pages
         run: npm run build:pages
+      - name: Runtime budget and network scan (G-10, G-05)
+        run: npm run check:runtime
 
       - name: Install Chromium for e2e
         run: npx playwright install --with-deps chromium
