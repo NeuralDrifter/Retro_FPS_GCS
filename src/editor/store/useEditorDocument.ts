@@ -14,6 +14,7 @@ import { bindHistoryShortcuts, createDocumentStore } from './documentStore';
 import type { DispatchOptions, DocumentStore } from './documentStore';
 import type { DocumentAction } from './documentActions';
 import { levelView, storedLevelFrom } from './levelView';
+import { registerRecoverySource } from '../components/errors/recovery';
 import type { EditorLevelView } from './levelView';
 
 export const EDITOR_VERSION = '0.1.0';
@@ -221,7 +222,10 @@ export function useEditorDocument(log: (message: string) => void) {
 }
 
 function createDocumentStoreForEditor() {
-  return createDocumentStore(createInitialProject());
+  const store = createDocumentStore(createInitialProject());
+  // The recovery download keeps working even if the editor's React tree crashes (P6.1)
+  registerRecoverySource(() => store.getState().doc);
+  return store;
 }
 
 /** Applies `fn` to every level's entity list; returns `doc` itself when no list changes */

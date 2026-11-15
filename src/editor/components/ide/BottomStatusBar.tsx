@@ -11,6 +11,8 @@ interface BottomStatusBarProps {
   playerTransform: PlayerTransform;
   wallCount: number;
   entityCount: number;
+  problemCount: number;
+  onShowProblems: () => void;
 }
 
 export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
@@ -21,6 +23,8 @@ export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
   playerTransform: documentPlayer,
   wallCount,
   entityCount,
+  problemCount,
+  onShowProblems,
 }) => {
   // The live position while playtesting, the spawn point otherwise
   const playerTransform = usePlaytestPlayer() ?? documentPlayer;
@@ -34,6 +38,15 @@ export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
       </div>
 
       <div className="flex items-center gap-3 font-mono text-[10px] tabular-nums shrink-0">
+        <button
+          type="button"
+          onClick={onShowProblems}
+          className={problemCount > 0 ? 'text-[#f87171] font-semibold' : 'text-[#858585]'}
+          title="Errors this tab ran into"
+        >
+          Problems: {problemCount}
+        </button>
+        <span className="text-[#3e3e42]">|</span>
         <span>
           History:{' '}
           <strong className="text-[#cccccc]">

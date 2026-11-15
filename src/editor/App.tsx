@@ -45,6 +45,9 @@ import { FileMenu } from './components/ide/FileMenu';
 import { RecoveryDialog } from './components/dialogs/RecoveryDialog';
 import { UploadLicenseDialog } from './components/dialogs/UploadLicenseDialog';
 import { useUploadGate } from './library/useUploadGate';
+import { PanelErrorBoundary } from './components/errors/ErrorBoundary';
+import { ProblemsPanel } from './components/errors/ProblemsPanel';
+import { useProblems } from './components/errors/problems';
 import { useProjectFiles } from './persistence/useProjectFiles';
 import { remapEntityModelIds, removeModelCopies } from './engine/modelLibrary/placement';
 import { AssetRegistry } from './engine/AssetRegistry';
@@ -128,6 +131,8 @@ export default function App() {
   allowOverlapRef.current = allowOverlap;
   // The game state a playtest starts from, built from the store when play begins (P1.7)
   const [playSim, setPlaySim] = useState<SimulationState | null>(null);
+  const [showProblems, setShowProblems] = useState(false);
+  const problems = useProblems();
 
   // Keep the selection on the map when it shrinks (resize, undo or redo, preset or file load)
   useEffect(() => {
@@ -480,6 +485,7 @@ export default function App() {
       {/* Middle workspace: Menu Studio, or the 2D map and the 3D viewport */}
       <main ref={workspaceRef} className="ide-workspace">
         {isMenuStudioOpen && !isPlayFullscreen ? (
+          <PanelErrorBoundary area="Menu Studio">
           <MenuStudioWorkspace
             menuPack={campaignSettings.menus || createDefaultMenuPack(levelTitle || 'GRIDFORGE 3D')}
             gameTitle={levelTitle || 'GRIDFORGE 3D'}
@@ -497,11 +503,13 @@ export default function App() {
               );
             }}
           />
+          </PanelErrorBoundary>
         ) : (
           <>
             {!isPlayFullscreen && (
               <>
                 <div style={{ width: `${splitRatioPct}%` }} className="h-full min-w-[220px] shrink-0 overflow-hidden flex flex-col">
+                  <PanelErrorBoundary area="2D map">
                   <LayerBar
                     activeLayer={activeLayer}
                     layerCount={layerCount + 1}
@@ -545,6 +553,7 @@ export default function App() {
                       openDoors={openDoors}
                     />
                   </div>
+                  </PanelErrorBoundary>
                 </div>
 
                 {/* Draggable vertical splitter */}
@@ -560,6 +569,7 @@ export default function App() {
 
             {/* Center pane: the 3D editor, or the game while test playing */}
             <div className="flex-1 h-full min-w-[260px] overflow-hidden">
+              <PanelErrorBoundary area="3D view">
               {viewMode === 'edit' && !isPlayFullscreen ? (
                 <EditorViewport3D
                   level={editorLevel}
@@ -620,6 +630,7 @@ export default function App() {
                   />
                 )
               )}
+              </PanelErrorBoundary>
             </div>
           </>
         )}
@@ -627,6 +638,7 @@ export default function App() {
 
       {/* Right properties inspector */}
       {!isPlayFullscreen && !isMenuStudioOpen && (
+        <PanelErrorBoundary area="inspector" fallbackClassName="ide-inspector">
         <PropertiesInspector
           selectedCell={selectedCell}
           grid={activeLayerData.grid}
@@ -703,6 +715,7 @@ export default function App() {
           gitHubAssetsStats={catalog.gitHubAssetsStats}
           onSyncGitHubAssets={catalog.handleSyncGitHubAssets}
         />
+        </PanelErrorBoundary>
       )}
 
       <BottomStatusBar
@@ -713,20 +726,27 @@ export default function App() {
         playerTransform={spawnTransform}
         wallCount={wallCount}
         entityCount={view.entities.length}
+        problemCount={problems.length}
+        onShowProblems={() => setShowProblems((v) => !v)}
       />
+
+      {showProblems && <ProblemsPanel problems={problems} onClose={() => setShowProblems(false)} />}
 
       {/* Engine architecture and JSON state inspector */}
       {isArchModalOpen && (
+        <PanelErrorBoundary area="architecture dialog" onClose={() => setIsArchModalOpen(false)}>
         <ArchitectureModal
           isOpen={isArchModalOpen}
           onClose={() => setIsArchModalOpen(false)}
           levelState={files.buildCurrentLevelState()}
           onImportLevelState={files.handleRestoreLevelState}
         />
+        </PanelErrorBoundary>
       )}
 
       {/* Visual events and triggers (mounted only while open so each open starts from the level's data) */}
       {isEventEditorOpen && (
+        <PanelErrorBoundary area="events dialog" onClose={() => setIsEventEditorOpen(false)}>
         <EventTriggerEditorModal
           isOpen={isEventEditorOpen}
           onClose={() => setIsEventEditorOpen(false)}
@@ -737,34 +757,41 @@ export default function App() {
           gridSize={view.gridSize}
           onSaveLevelData={files.handleSaveLevelDataFromEditor}
         />
+        </PanelErrorBoundary>
       )}
 
       {uploads.licenseRequest && (
+        <PanelErrorBoundary area="license dialog" onClose={() => uploads.resolveLicense(null)}>
         <UploadLicenseDialog
           kind={uploads.licenseRequest.kind}
           names={uploads.licenseRequest.names}
           onConfirm={uploads.resolveLicense}
           onCancel={() => uploads.resolveLicense(null)}
         />
+        </PanelErrorBoundary>
       )}
 
       {project.recovery && (
+        <PanelErrorBoundary area="recovery dialog" onClose={() => void project.discardRecovery()}>
         <RecoveryDialog
           title={project.recovery.title}
           savedAt={project.recovery.savedAt}
           onRecover={() => void project.recover()}
           onDiscard={() => void project.discardRecovery()}
         />
+        </PanelErrorBoundary>
       )}
 
       {/* Game export */}
       {isExportModalOpen && (
+        <PanelErrorBoundary area="export dialog" onClose={() => setIsExportModalOpen(false)}>
         <ExportModal
           isOpen={isExportModalOpen}
           onClose={() => setIsExportModalOpen(false)}
           levelState={files.buildCurrentLevelState()}
           setEngineLog={setEngineLog}
         />
+        </PanelErrorBoundary>
       )}
     </div>
   );

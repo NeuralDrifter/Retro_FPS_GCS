@@ -22,11 +22,15 @@ declare global {
     __GCS_DEBUG__?: boolean;
     __gcsEvents?: string[];
     __gcsCspViolations?: string[];
+    /** Debug runs only: names a panel that throws while rendering (src/editor/components/errors) */
+    __gcsFault?: string;
   }
 }
 
-export const test = base.extend<{ page: Page }>({
-  page: async ({ page, baseURL }, use) => {
+export const test = base.extend<{ page: Page; expectedProblems: RegExp[] }>({
+  /** Errors a test causes on purpose (fault injection); matching problems are not failures */
+  expectedProblems: [[], { option: true }],
+  page: async ({ page, baseURL, expectedProblems }, use) => {
     const problems: string[] = [];
     const allowedOrigins = new Set([
       new URL(baseURL!).origin,
@@ -71,7 +75,8 @@ export const test = base.extend<{ page: Page }>({
       .evaluate(() => window.__gcsCspViolations ?? [])
       .catch(() => [] as string[]);
     problems.push(...cspViolations.map((violation) => `CSP violation: ${violation}`));
-    expect(problems, 'browser problems recorded during the test').toEqual([]);
+    const unexpected = problems.filter((p) => !expectedProblems.some((re) => re.test(p)));
+    expect(unexpected, 'browser problems recorded during the test').toEqual([]);
   },
 });
 

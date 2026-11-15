@@ -20,6 +20,7 @@ import {
 import type { ProjectLock } from './browserStorage';
 import { addAutosave, deleteAutosaves, listAutosaves, listProjects, loadProject, saveProject } from './db';
 import type { AutosaveRecord, ProjectSummary } from './db';
+import { downloadText } from './download';
 import { embedUploadedTextures, importUserAssets, prepareForDownload, prepareForStorage } from './projectAssets';
 import { MAX_PROJECT_FILE_BYTES, formatMB } from '../library/uploadIntake';
 
@@ -46,17 +47,6 @@ async function projectsOpenElsewhere(): Promise<Set<string>> {
   } catch {
     return new Set();
   }
-}
-
-function downloadText(text: string, filename: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
 }
 
 export function createBlankProject(): ProjectDocV4 {
