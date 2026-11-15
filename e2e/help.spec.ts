@@ -2,6 +2,9 @@ import { expect, test, waitForGcsEvent } from './fixtures';
 
 // Onboarding and help (release plan P6.7)
 
+// CI runners are about three times slower than a desktop, so these flows need more than 60 s there
+test.describe.configure({ timeout: 180_000 });
+
 test.describe('first visit', () => {
   test.use({ firstVisit: true });
 

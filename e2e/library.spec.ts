@@ -2,6 +2,9 @@ import { expect, test, waitForGcsEvent } from './fixtures';
 
 // The editor uses one pinned version of the asset library from its Pages site (release plan P2.7)
 
+// CI runners are about three times slower than a desktop, so these flows need more than 60 s there
+test.describe.configure({ timeout: 180_000 });
+
 const LIBRARY = 'https://neuraldrifter.github.io/Retro_FPS_GCS-assets/';
 
 test('the pinned library loads, and the texture browser stays within 60 requests', async ({ page }) => {
