@@ -1121,7 +1121,7 @@ cross-area edges                              external packages
 - [ ] P6.8 Editor accessibility
 - [ ] P7.1 Editor CSP
 - [x] P7.2 Import hardening and fuzzing (The fuzz test is `src/__tests__/projectFuzz.test.ts`: tests in `src/shared` may not import node modules. It runs in about 4 s.)
-- [ ] P7.3 Supply chain gates
+- [ ] P7.3 Supply chain gates (In progress: the audit and license gates and Dependabot are in CI. Provenance attestations wait for the P8.1 release workflow. Secret scanning with push protection is a repository setting the owner turns on.)
 - [ ] P7.4 Performance budgets
 - [ ] P7.5 Sample game complete
 - [ ] P7.6 Manual QA and cross-browser pass
