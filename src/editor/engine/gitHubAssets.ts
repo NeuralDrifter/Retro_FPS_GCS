@@ -138,6 +138,10 @@ export function buildGitHubRawUrl(
  */
 export function buildAssetsFromRepoPaths(params: {
   spec: GitHubRepoSpec;
+  /** Where a path is served from; defaults to raw.githubusercontent.com for `spec` */
+  urlFor?: (path: string) => string;
+  /** A small preview image for a texture path, when one is published */
+  thumbFor?: (path: string) => string | undefined;
   paths: readonly string[];
   modelSizes?: Record<string, { width: number; depth: number }>;
 }): {
@@ -145,6 +149,7 @@ export function buildAssetsFromRepoPaths(params: {
   models: Model3DAsset[];
 } {
   const { spec, paths, modelSizes = {} } = params;
+  const urlFor = params.urlFor ?? ((path: string) => buildGitHubRawUrl(spec, path));
   const textures: TextureAsset[] = [];
   const models: Model3DAsset[] = [];
 
@@ -158,7 +163,8 @@ export function buildAssetsFromRepoPaths(params: {
         id,
         name,
         sourceType: 'file',
-        previewUrl: buildGitHubRawUrl(spec, clean),
+        previewUrl: urlFor(clean),
+        ...(params.thumbFor?.(clean) ? { thumbnailUrl: params.thumbFor(clean) } : {}),
         recommendedSurface: 'any',
         fromProject: true,
         ...(folderPath ? { folderPath } : {}),
@@ -172,7 +178,7 @@ export function buildAssetsFromRepoPaths(params: {
           id: diskModelId(relModelPath),
           measuredSizeMeters: modelSizes[relModelPath],
           name: `${formatFilenameToLabel(relModelPath)} (.glb)`,
-          url: buildGitHubRawUrl(spec, clean),
+          url: urlFor(clean),
           category,
           folderPath,
           folderAtRoot: atRoot,

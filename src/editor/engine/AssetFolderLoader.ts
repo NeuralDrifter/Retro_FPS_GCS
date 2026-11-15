@@ -19,7 +19,6 @@
 
 import { Model3DAsset, TextureAsset } from '../types/engine';
 import { AssetRegistry } from './AssetRegistry';
-import bundledGitHubIndex from './bundledGitHubAssetsIndex.json';
 import { isModelCategoryId } from './modelLibrary/categories';
 import { diskModelId, parseModelDiskPath } from './modelLibrary/diskPaths';
 import { publicFileUrl } from './basePath';
@@ -87,23 +86,6 @@ const shippedModelSizes = (Object.values(
   import.meta.glob('/src/assets/models/model-sizes.json', { eager: true, import: 'default' })
 )[0] ?? {}) as Record<string, { width: number; depth: number }>;
 
-// 2. Baked-in GitHub asset index for NeuralDrifter/Retro_FPS_GCS-assets@main
-const BUNDLED_GITHUB_SPEC: GitHubRepoSpec = {
-  owner: 'NeuralDrifter',
-  repo: 'Retro_FPS_GCS-assets',
-  branch: bundledGitHubIndex.branch || DEFAULT_GITHUB_ASSETS_BRANCH,
-};
-
-const BUNDLED_GITHUB_ASSETS = buildAssetsFromRepoPaths({
-  spec: BUNDLED_GITHUB_SPEC,
-  paths: bundledGitHubIndex.paths || [],
-  modelSizes:
-    (bundledGitHubIndex.modelSizes as Record<
-      string,
-      { width: number; depth: number }
-    >) || {},
-});
-
 function slugifyPath(filePath: string): string {
   const base = filePath.split('/').pop() || filePath;
   return base
@@ -144,33 +126,15 @@ export class AssetFolderLoader {
   }
 
   /**
-   * Returns the baked-in GitHub repository asset counts (`NeuralDrifter/Retro_FPS_GCS-assets@main`).
-   */
-  public static getBundledGitHubAssetsStats(): {
-    repoLabel: string;
-    textures: number;
-    models: number;
-  } {
-    return {
-      repoLabel: `${BUNDLED_GITHUB_SPEC.owner}/${BUNDLED_GITHUB_SPEC.repo}@${BUNDLED_GITHUB_SPEC.branch}`,
-      textures: BUNDLED_GITHUB_ASSETS.textures.length,
-      models: BUNDLED_GITHUB_ASSETS.models.length,
-    };
-  }
-
-  /**
-   * Synchronously returns all baked-in GitHub pack textures & 3D `.glb` models
-   * (`NeuralDrifter/Retro_FPS_GCS-assets`) merged with any local files inside
-   * `/src/assets/textures/` and `/src/assets/models/`, and registers them in `AssetRegistry`.
+   * Synchronously returns the textures and `.glb` models inside `/src/assets/textures/` and
+   * `/src/assets/models/`, registered in `AssetRegistry`. The asset library loads separately
+   * from its pinned published version (src/editor/library/libraryIndex.ts).
    */
   public static getAutoDiscoveredSrcAssets(): {
     textures: TextureAsset[];
     models: Model3DAsset[];
   } {
     const texturesById = new Map<string, TextureAsset>();
-    for (const tex of BUNDLED_GITHUB_ASSETS.textures) {
-      texturesById.set(tex.id, tex);
-    }
 
     for (const [filePath, resolvedUrl] of Object.entries(globTextureUrls)) {
       const { id, name, folderPath } = parseTextureDiskPath(filePath);
@@ -186,9 +150,6 @@ export class AssetFolderLoader {
     }
 
     const modelsById = new Map<string, Model3DAsset>();
-    for (const model of BUNDLED_GITHUB_ASSETS.models) {
-      modelsById.set(model.id, model);
-    }
 
     for (const [filePath, resolvedUrl] of Object.entries(globModelUrls)) {
       const { category, folderPath, atRoot } = parseModelDiskPath(filePath);
@@ -325,20 +286,9 @@ export class AssetFolderLoader {
           }
         }
       } catch {
-        // Proceed to bundled or network fetch if cache read fails
+        // Proceed to the network if the cache cannot be read
       }
 
-      if (
-        spec.owner.toLowerCase() === BUNDLED_GITHUB_SPEC.owner.toLowerCase() &&
-        spec.repo.toLowerCase() === BUNDLED_GITHUB_SPEC.repo.toLowerCase() &&
-        spec.branch === BUNDLED_GITHUB_SPEC.branch
-      ) {
-        return {
-          ...BUNDLED_GITHUB_ASSETS,
-          spec,
-          fromCache: true,
-        };
-      }
     }
 
     try {

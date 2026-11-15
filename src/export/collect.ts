@@ -17,6 +17,8 @@
  * tests inject file bytes through `readFile` and `dracoFiles`.
  */
 
+import { LibraryIntegrityError, libraryFileRecord } from '../shared/libraryIntegrity';
+import { sha256Hex } from '../shared/bytes';
 import {
   ActionSpec,
   LevelDataV3,
@@ -505,13 +507,30 @@ export async function resolveAssetBytes(
     // Remote or local URL
     const fetched = await fetchUrlToBytes(directUrl, options.baseUrl, options.readFile);
     const isDraco = type === 'model' && detectDracoCompression(fetched.bytes);
+
+    // A file from the pinned asset library must match its published SHA-256 (P2.7)
+    const library = libraryFileRecord(directUrl);
+    if (library) {
+      if (fetched.bytes.length !== library.size || (await sha256Of(fetched.bytes)) !== library.sha256) {
+        throw new LibraryIntegrityError(library);
+      }
+      return {
+        bytes: fetched.bytes,
+        mimeType: fetched.mimeType,
+        source: library.pack.source,
+        license: `${library.pack.license} (${library.pack.title}, by ${library.pack.author})`,
+        name: assetName,
+        draco: isDraco,
+        warnLicense: false,
+      };
+    }
+
+    // Other repositories record no license (Q9: a custom repository needs a packs.json first)
     const isGithub =
       directUrl.includes('github.com') ||
       directUrl.includes('raw.githubusercontent.com') ||
       directUrl.includes('Retro_FPS_GCS-assets');
-    const license = isGithub
-      ? 'MIT (NeuralDrifter/Retro_FPS_GCS-assets)'
-      : 'Unknown';
+    const license = isGithub ? 'Unknown (the repository has no published packs.json)' : 'Unknown';
 
     return {
       bytes: fetched.bytes,
@@ -520,13 +539,22 @@ export async function resolveAssetBytes(
       license,
       name: assetName,
       draco: isDraco,
-      warnLicense: !isGithub,
+      warnLicense: true,
     };
   }
 
   throw new Error(
     `Failed to resolve asset '${id}' (${type}): no registered data URL, Blob, or URL found.`
   );
+}
+
+/** SHA-256 in hex, with the browser's implementation when there is one */
+async function sha256Of(bytes: Uint8Array): Promise<string> {
+  if (globalThis.crypto?.subtle) {
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes as Uint8Array<ArrayBuffer>));
+    return Array.from(digest, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  return sha256Hex(bytes);
 }
 
 /**

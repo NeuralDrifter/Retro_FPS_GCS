@@ -23,6 +23,7 @@ import type { AutosaveRecord, ProjectSummary } from './db';
 import { downloadText } from './download';
 import { embedUploadedTextures, importUserAssets, prepareForDownload, prepareForStorage } from './projectAssets';
 import { MAX_PROJECT_FILE_BYTES, formatMB } from '../library/uploadIntake';
+import { LIBRARY_ID, LIBRARY_VERSION } from '../library/libraryIndex';
 
 export interface UseProjectFilesOptions {
   store: DocumentStore;
@@ -50,7 +51,8 @@ async function projectsOpenElsewhere(): Promise<Set<string>> {
 }
 
 export function createBlankProject(): ProjectDocV4 {
-  return createDefaultProject({ id: randomProjectId(), title: 'Untitled Game', now: new Date().toISOString(), editorVersion: EDITOR_VERSION });
+  const doc = createDefaultProject({ id: randomProjectId(), title: 'Untitled Game', now: new Date().toISOString(), editorVersion: EDITOR_VERSION });
+  return { ...doc, assetLibrary: { id: LIBRARY_ID, version: LIBRARY_VERSION } };
 }
 
 export function useProjectFiles({
@@ -83,7 +85,12 @@ export function useProjectFiles({
   /** The document as stored and downloaded: uploaded textures embedded, times updated */
   const snapshot = useCallback((): ProjectDocV4 => {
     const current = store.getState().doc;
-    const stamped = { ...current, meta: { ...current.meta, updatedAt: new Date().toISOString(), editorVersion: EDITOR_VERSION } };
+    // Records the editor and the asset library version the project was saved with (P2.7)
+    const stamped = {
+      ...current,
+      meta: { ...current.meta, updatedAt: new Date().toISOString(), editorVersion: EDITOR_VERSION },
+      assetLibrary: { id: LIBRARY_ID, version: LIBRARY_VERSION },
+    };
     return embedUploadedTextures(stamped, texturesRef.current);
   }, [store]);
 

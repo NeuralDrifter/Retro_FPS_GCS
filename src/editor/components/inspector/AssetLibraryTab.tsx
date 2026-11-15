@@ -569,7 +569,7 @@ const AssetLibraryTabView: React.FC<AssetLibraryTabProps> = ({
                     >
                       <div className="relative w-full aspect-square bg-[#111111] overflow-hidden">
                         <img
-                          src={tex.previewUrl}
+                          src={tex.thumbnailUrl ?? tex.previewUrl}
                           alt={tex.name}
                           draggable={false}
                           loading="lazy"

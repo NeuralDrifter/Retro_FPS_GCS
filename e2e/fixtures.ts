@@ -11,8 +11,8 @@ import { test as base, expect, type Page } from '@playwright/test';
 
 /** Origins other than the preview server that pages may contact. */
 const ALLOWED_EXTERNAL_ORIGINS: readonly string[] = [
-  // The asset library. P2.7 pins it and decides where it is served from.
-  'https://raw.githubusercontent.com',
+  // The pinned asset library on GitHub Pages (P2.7)
+  'https://neuraldrifter.github.io',
 ];
 
 type GcsEventName = 'first-frame' | 'editor-ready';

@@ -1,0 +1,26 @@
+import { expect, test, waitForGcsEvent } from './fixtures';
+
+// The editor uses one pinned version of the asset library from its Pages site (release plan P2.7)
+
+const LIBRARY = 'https://neuraldrifter.github.io/Retro_FPS_GCS-assets/';
+
+test('the pinned library loads, and the texture browser stays within 60 requests', async ({ page }) => {
+  const requests: string[] = [];
+  page.on('request', (r) => {
+    if (r.url().startsWith(LIBRARY)) requests.push(r.url().slice(LIBRARY.length));
+  });
+  await page.goto('./');
+  await waitForGcsEvent(page, 'editor-ready');
+  await expect(page.getByText(/Asset library v\d+\.\d+: \d+ textures and \d+ models\./)).toBeVisible({ timeout: 30_000 });
+
+  // Only the pinned version's index and pack list, and content-named files, are ever requested
+  for (const url of requests) expect(url).toMatch(/^(?:v\d+\.\d+\/(?:index|packs)\.json|(?:files|thumbs)\/[0-9a-f]{16}\.\w+)$/);
+
+  const before = requests.length;
+  await page.getByRole('button', { name: 'Asset Library' }).click();
+  await page.waitForLoadState('networkidle');
+  const opened = requests.slice(before);
+  expect(opened.length).toBeLessThanOrEqual(60);
+  // The grid shows thumbnails, not the full textures
+  expect(opened.filter((u) => u.startsWith('files/') && u.endsWith('.webp'))).toEqual([]);
+});

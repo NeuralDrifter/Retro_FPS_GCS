@@ -12,7 +12,9 @@ import {
   TextureAsset,
 } from '../types/engine';
 import { EntityLoader, TextureGenerator } from '../../runtime';
-import { AssetFolderLoader } from '../engine/AssetFolderLoader';
+import { AssetFolderLoader, parseGitHubRepoSpec } from '../engine/AssetFolderLoader';
+import { DEFAULT_GITHUB_ASSETS_REPO } from '../engine/gitHubAssets';
+import { LIBRARY_VERSION, fetchLibrary } from '../library/libraryIndex';
 import { AssetRegistry } from '../engine/AssetRegistry';
 import { useModelLibrary } from '../components/inspector/modelLibrary/useModelLibrary';
 import { resolveModelSettings, setModelSettings } from '../engine/modelLibrary/libraryState';
@@ -34,6 +36,12 @@ export interface UseAssetCatalogOptions {
   onModelIdsRenamed: (renamed: Record<string, string>) => void;
   /** Switches the editor to the model placement tool */
   onUseModelTool: () => void;
+}
+
+/** True for the default assets repository, which the editor uses only as the pinned library */
+function isLibraryRepo(input: string): boolean {
+  const spec = parseGitHubRepoSpec(input);
+  return Boolean(spec && `${spec.owner}/${spec.repo}`.toLowerCase() === DEFAULT_GITHUB_ASSETS_REPO.toLowerCase());
 }
 
 function mergeById<T extends { id: string }>(prev: T[], incoming: T[]): T[] {
@@ -122,10 +130,38 @@ export function useAssetCatalog({
     textures: number;
     models: number;
     error?: string;
-  }>(() => AssetFolderLoader.getBundledGitHubAssetsStats());
+  }>(() => ({ repoLabel: `Asset library ${LIBRARY_VERSION}`, textures: 0, models: 0 }));
+
+  /** Loads the pinned version of the asset library (P2.7) */
+  const loadPinnedLibrary = useCallback(async () => {
+    setIsSyncingGitHubAssets(true);
+    try {
+      const library = await fetchLibrary();
+      for (const t of library.textures) AssetRegistry.registerTexture(t);
+      for (const m of library.models) AssetRegistry.registerModel(m);
+      setCustomTextures((prev) => mergeById(prev, library.textures));
+      setCustomModel3DAssets((prev) => mergeById(prev, library.models));
+      const repoLabel = `Asset library ${library.version}`;
+      setGitHubAssetsStats({ repoLabel, textures: library.textures.length, models: library.models.length });
+      logRef.current(`Asset library ${library.version}: ${library.textures.length} textures and ${library.models.length} models.`);
+    } catch (err) {
+      const error = `The asset library could not be loaded (${err instanceof Error ? err.message : String(err)}).`;
+      setGitHubAssetsStats((prev) => ({ ...prev, error }));
+      logRef.current(error);
+    } finally {
+      setIsSyncingGitHubAssets(false);
+    }
+  }, []);
 
   const handleSyncGitHubAssets = useCallback(async (repoToLoad: string, forceRefresh = false) => {
     const targetRepo = repoToLoad.trim() || AssetFolderLoader.getSavedGitHubRepoInput();
+    if (isLibraryRepo(targetRepo)) {
+      // The default repository is the published library, always at its pinned version
+      AssetFolderLoader.setSavedGitHubRepoInput(DEFAULT_GITHUB_ASSETS_REPO);
+      setGitHubRepoInput(DEFAULT_GITHUB_ASSETS_REPO);
+      await loadPinnedLibrary();
+      return;
+    }
     setIsSyncingGitHubAssets(true);
     const res = await AssetFolderLoader.fetchGitHubRepoAssets(targetRepo, { forceRefresh });
     setIsSyncingGitHubAssets(false);
@@ -152,9 +188,9 @@ export function useAssetCatalog({
         res.fromCache ? ' (cached)' : ''
       }.`
     );
-  }, []);
+  }, [loadPinnedLibrary]);
 
-  // Load any external assets listed in /public/assets/manifest.json and the GitHub Assets repo on mount
+  // On mount: assets listed in /public/assets/manifest.json, the pinned library, and a custom repo if one was chosen
   useEffect(() => {
     let active = true;
     AssetFolderLoader.fetchPublicManifestAssets().then((manifestAssets) => {
@@ -168,18 +204,13 @@ export function useAssetCatalog({
         setCustomModel3DAssets((prev) => addMissing(prev, manifestAssets.models));
       }
     });
+    void loadPinnedLibrary();
     const savedRepo = AssetFolderLoader.getSavedGitHubRepoInput();
-    const bundledRepo = AssetFolderLoader.getBundledGitHubAssetsStats().repoLabel;
-    if (
-      savedRepo.toLowerCase() !== bundledRepo.toLowerCase() &&
-      `${savedRepo.toLowerCase()}@main` !== bundledRepo.toLowerCase()
-    ) {
-      void handleSyncGitHubAssets(savedRepo, false);
-    }
+    if (!isLibraryRepo(savedRepo)) void handleSyncGitHubAssets(savedRepo, false);
     return () => {
       active = false;
     };
-  }, [handleSyncGitHubAssets]);
+  }, [handleSyncGitHubAssets, loadPinnedLibrary]);
 
   // ------------------------------------------------------------- model library
   const onModelRemovedRef = useRef(onModelRemoved);

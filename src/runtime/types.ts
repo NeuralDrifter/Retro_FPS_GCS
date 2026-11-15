@@ -82,6 +82,8 @@ export interface TextureAsset {
   folderPath?: string;
   /** Has see-through parts: drawn double-sided with fully transparent pixels cut out */
   hasAlpha?: boolean;
+  /** A small preview for asset browsers (the published library's 128 px thumbnails) */
+  thumbnailUrl?: string;
 }
 
 /**

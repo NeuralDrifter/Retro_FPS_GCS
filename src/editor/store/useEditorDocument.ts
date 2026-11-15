@@ -15,6 +15,7 @@ import type { DispatchOptions, DocumentStore } from './documentStore';
 import type { DocumentAction } from './documentActions';
 import { levelView, storedLevelFrom } from './levelView';
 import { registerRecoverySource } from '../components/errors/recovery';
+import { LIBRARY_ID, LIBRARY_VERSION } from '../library/libraryIndex';
 import type { EditorLevelView } from './levelView';
 
 export const EDITOR_VERSION = '0.1.0';
@@ -76,6 +77,7 @@ export function createInitialProject(): ProjectDocV4 {
   });
   return {
     ...doc,
+    assetLibrary: { id: LIBRARY_ID, version: LIBRARY_VERSION },
     levels: [{ id: 'level-1', title: preset.name, data: presetLevelData(preset, DEFAULT_LOOK) }],
     campaign: {
       carryOverHealth: true,
