@@ -11,6 +11,7 @@ import { base64ToBytes, sha256Hex } from '../../shared/bytes';
 import type { ProjectDocV4, UserAsset, UserAssetMimeType } from '../../shared/project';
 import { AssetRegistry } from '../engine/AssetRegistry';
 import { bytesToBase64, sha256OfBytes } from '../library/uploadIntake';
+import { checkGlb } from '../library/gltfSanitizer';
 import { getAssetBlob, putAssetBlob } from './db';
 
 /** Every texture id the project's levels and menus use */
@@ -180,6 +181,9 @@ export async function importUserAssets(doc: ProjectDocV4): Promise<{ ok: true; r
       continue;
     }
     if (asset.mimeType === 'model/gltf-binary') {
+      // A model from someone else's project gets the same checks as an upload (P7.2)
+      const glb = checkGlb(bytes, asset.name);
+      if (!glb.ok) return { ok: false, error: `${glb.error} The project was not opened.` };
       AssetRegistry.registerModelFile(asset.id, new Blob([bytes as Uint8Array<ArrayBuffer>], { type: asset.mimeType }));
       models.push(AssetRegistry.registerModel(modelFor(asset)));
     } else {

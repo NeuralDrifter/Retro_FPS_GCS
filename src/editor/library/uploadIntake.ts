@@ -6,7 +6,9 @@
 import { sha256Hex } from '../../shared/bytes';
 import { PROJECT_LIMITS } from '../../shared/project';
 import type { UserAssetMimeType } from '../../shared/project';
-import { downscaleImage } from './imageDownscale';
+import { decodeImage } from './imageDecode';
+import { checkGlb } from './gltfSanitizer';
+import { exceedsDecodeLimits, imageHeaderSize } from './imageHeader';
 
 export const MAX_TEXTURE_SIDE = 2048;
 export const MAX_PROJECT_FILE_BYTES = 64 * 1024 * 1024;
@@ -58,17 +60,6 @@ export function bytesToBase64(bytes: Uint8Array): string {
 
 export const contentId = (kind: UploadKind, sha256: string) => `${kind === 'texture' ? 'tex' : 'glb'}-${sha256.slice(0, 16)}`;
 
-async function imageSize(blob: Blob): Promise<{ width: number; height: number } | null> {
-  try {
-    const bitmap = await createImageBitmap(blob);
-    const size = { width: bitmap.width, height: bitmap.height };
-    bitmap.close();
-    return size;
-  } catch {
-    return null;
-  }
-}
-
 /** Checks one uploaded file; textures larger than MAX_TEXTURE_SIDE come back scaled down */
 export async function intakeUpload(file: File, kind: UploadKind): Promise<IntakeResult> {
   const max = PROJECT_LIMITS.MAX_ASSET_BYTES;
@@ -84,18 +75,31 @@ export async function intakeUpload(file: File, kind: UploadKind): Promise<Intake
     return { ok: false, error: `'${file.name}' is not a GLB model (binary glTF), so it was not added.` };
   }
 
+  if (kind === 'model') {
+    const glb = checkGlb(bytes, file.name);
+    if (!glb.ok) return { ok: false, error: glb.error };
+  }
+
   let kept: Blob = file;
   let scaledFrom: AcceptedUpload['scaledFrom'];
   if (kind === 'texture') {
-    const size = await imageSize(file);
-    if (!size) return { ok: false, error: `'${file.name}' could not be read as an image.` };
-    if (Math.max(size.width, size.height) > MAX_TEXTURE_SIDE) {
-      const scaled = await downscaleImage(file, MAX_TEXTURE_SIDE, mimeType!);
-      if (!scaled) return { ok: false, error: `'${file.name}' is ${size.width}x${size.height}; textures can be at most ${MAX_TEXTURE_SIDE} px per side, and scaling it down failed.` };
-      kept = scaled;
-      bytes = new Uint8Array(await scaled.arrayBuffer());
+    // The header's size is checked before anything decodes the image (P7.2)
+    const declared = imageHeaderSize(bytes, mimeType!);
+    if (!declared) return { ok: false, error: `'${file.name}' could not be read as an image.` };
+    if (exceedsDecodeLimits(declared)) {
+      return { ok: false, error: `'${file.name}' is ${declared.width}x${declared.height}, too large to open; textures can be at most ${MAX_TEXTURE_SIDE} px per side.` };
+    }
+    let decoded;
+    try {
+      decoded = await decodeImage(file, MAX_TEXTURE_SIDE, mimeType!);
+    } catch {
+      return { ok: false, error: `'${file.name}' could not be read as an image.` };
+    }
+    if (decoded.scaled) {
+      kept = decoded.scaled;
+      bytes = new Uint8Array(await decoded.scaled.arrayBuffer());
       mimeType = sniffMimeType(bytes) ?? 'image/png';
-      scaledFrom = size;
+      scaledFrom = { width: decoded.width, height: decoded.height };
       if (bytes.length > max) return { ok: false, error: `'${file.name}' is still over ${formatMB(max)} after scaling it down.` };
     }
   }

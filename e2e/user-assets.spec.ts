@@ -99,3 +99,27 @@ test('uploads that are too large or not the claimed type are refused with a mess
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect((await project(page)).userAssets).toEqual([]);
 });
+
+test('a model that points at an outside image is refused and nothing is requested (P7.2)', async ({ page }) => {
+  // The fixture fails the test on any request outside the allowlist, so example.com must stay untouched
+  await openEditor(page);
+  await page.getByRole('button', { name: 'Asset Library' }).click();
+  const glb = buildGlbFile({ asset: { version: '2.0' }, images: [{ uri: 'https://example.com/x.png' }] });
+  await page.getByLabel('Upload model files').setInputFiles({ name: 'tracker.glb', mimeType: 'model/gltf-binary', buffer: glb });
+  await expect(page.getByText(/'tracker\.glb' refers to an outside image \('https:\/\/example\.com\/x\.png'\)/)).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect((await project(page)).userAssets).toEqual([]);
+});
+
+/** A GLB holding only a JSON chunk (enough for the sanitizer to read) */
+function buildGlbFile(json: object): Buffer {
+  let text = JSON.stringify(json);
+  while (text.length % 4 !== 0) text += ' ';
+  const header = Buffer.alloc(20);
+  header.writeUInt32LE(0x46546c67, 0);
+  header.writeUInt32LE(2, 4);
+  header.writeUInt32LE(20 + text.length, 8);
+  header.writeUInt32LE(text.length, 12);
+  header.writeUInt32LE(0x4e4f534a, 16);
+  return Buffer.concat([header, Buffer.from(text)]);
+}
