@@ -1088,7 +1088,7 @@ cross-area edges                              external packages
 - [x] P2.6 Portable user assets and import hardening (The custom-texture rules live in `src/editor/project/legacy.ts`, where the legacy converter moved in P1.3, and the validator refuses user assets with built-in ids; AssetRegistry is unchanged. Uploaded models also stay in the model library's own browser store, as before.)
 - [ ] P2.7 Pin and describe the asset library
 - [ ] P2.8 Sample project v1
-- [ ] P3.1 Single-player entry
+- [x] P3.1 Single-player entry (The manifest format lives in `src/shared/project/gameManifest.ts`, because checking its levels needs the sim. The boot sequence is in `src/runtime/boot/bootGame.ts`, with the browser parts passed in so it is unit tested without a DOM.)
 - [ ] P3.2 Prebuilt runtime bundles
 - [ ] P3.3 Export worker
 - [ ] P3.4 One-click export UX
