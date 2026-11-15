@@ -125,10 +125,10 @@ export function useLevelPersistence({
             { type: 'variables/set', levelId, variables: updated.variables },
           ],
         },
-        'Edit Visual Triggers & Events'
+        'Edit events'
       );
       onEventsSaved();
-      log(`Visual Triggers: Updated ${updated.events.length} events, ${updated.regions.length} regions.`);
+      log(`Events: Updated ${updated.events.length} events, ${updated.regions.length} regions.`);
     },
     [ctx, onEventsSaved, log]
   );

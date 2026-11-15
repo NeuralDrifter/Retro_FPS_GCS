@@ -46,13 +46,14 @@ import { RecoveryDialog } from './components/dialogs/RecoveryDialog';
 import { UploadLicenseDialog } from './components/dialogs/UploadLicenseDialog';
 import { useUploadGate } from './library/useUploadGate';
 import { PanelErrorBoundary } from './components/errors/ErrorBoundary';
+import { HelpMenu } from './components/help/HelpMenu';
 import { ProblemsPanel } from './components/errors/ProblemsPanel';
 import { useProblems } from './components/errors/problems';
 import { useProjectFiles } from './persistence/useProjectFiles';
 import { remapEntityModelIds, removeModelCopies } from './engine/modelLibrary/placement';
-import { AssetRegistry } from './engine/AssetRegistry';
 import { buildRuntimeLevel, runtimeLevelOf } from './store/levelView';
 import { campaignMenus, mapAllEntities, useEditorDocument } from './store/useEditorDocument';
+import { useDocumentDebugProbes } from './store/debugProbes';
 import { useAssetCatalog } from './hooks/useAssetCatalog';
 import { useCampaignManager } from './hooks/useCampaignManager';
 import { useEntityCommands } from './hooks/useEntityCommands';
@@ -75,21 +76,7 @@ export default function App() {
   );
   const { store, doc, past, future, view, activeIndex, setActiveLevelId, ctx, undo, redo, setReadOnly } =
     useEditorDocument(setEngineLog);
-  // Debug runs let the e2e suite read the project and the active level
-  useEffect(() => registerDebugProbe('projectDocument', () => store.getState().doc), [store]);
-  useEffect(() => registerDebugProbe('activeLevelId', () => view.id), [view.id]);
-  useEffect(() => registerDebugProbe('undoDepth', () => store.getState().past.length), [store]);
-  // Which user assets the editor can show (a texture it registered, or a model file it holds)
-  useEffect(
-    () =>
-      registerDebugProbe('userAssetStatus', () =>
-        store.getState().doc.userAssets.map((a) => ({
-          id: a.id,
-          ready: Boolean(AssetRegistry.getTexture(a.id) || AssetRegistry.getModelFile(a.id)),
-        }))
-      ),
-    [store]
-  );
+  useDocumentDebugProbes(store, view.id);
 
   // --------------------------------------------------------------------------
   // EDITOR UI STATE (the project itself is in the store)
@@ -423,6 +410,12 @@ export default function App() {
         activeLevelIndex={activeIndex}
         onSelectCampaignLevel={campaign.handleSelectCampaignLevel}
         onAddCampaignLevel={campaign.handleAddCampaignLevel}
+        helpMenu={
+          <HelpMenu
+            canWelcome={project.startupChecked && !project.recovery}
+            welcome={{ recent: project.recent, onNew: project.newProject, onOpenFile: project.openFile, onOpenRecent: (id) => void project.openRecent(id) }}
+          />
+        }
         fileMenu={
           <FileMenu
             recent={project.recent}

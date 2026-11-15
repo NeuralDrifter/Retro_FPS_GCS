@@ -69,6 +69,7 @@ test('a project with an uploaded texture and model opens in another browser prof
   try {
     const pageB = await other.newPage();
     await pageB.addInitScript(() => {
+      localStorage.setItem('gcs:welcomed', '1');
       window.__GCS_DEBUG__ = true;
       window.__gcsEvents = [];
       window.addEventListener('gcs:editor-ready', () => window.__gcsEvents!.push('editor-ready'));

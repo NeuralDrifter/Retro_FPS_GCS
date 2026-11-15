@@ -27,6 +27,8 @@ interface TopMenuBarProps {
   onAddCampaignLevel: () => void;
   /** The File menu, rendered first in the bar */
   fileMenu: React.ReactNode;
+  /** The Help menu, rendered last */
+  helpMenu: React.ReactNode;
   onOpenArchModal: () => void;
   onOpenEventEditor: () => void;
   onOpenExportModal: () => void;
@@ -50,6 +52,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
   onSelectCampaignLevel,
   onAddCampaignLevel,
   fileMenu,
+  helpMenu,
   onOpenArchModal,
   onOpenEventEditor,
   onOpenExportModal,
@@ -133,7 +136,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
             type="button"
             onClick={onAddCampaignLevel}
             className="ide-btn !h-[20px] !px-1.5 text-[#38bdf8]"
-            title="Add a new gameplay level to the campaign (configure carry-over in World tab)"
+            title="Add a level to the campaign (health and ammo carry-over is in the World tab)"
           >
             <Plus className="w-3 h-3" />
             <span>Level</span>
@@ -160,7 +163,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
           type="button"
           onClick={onOpenExportModal}
           className="ide-btn !h-[20px] text-[#38bdf8] hover:text-[#7dd3fc] font-medium"
-          title="Export Standalone Game (Vite/Three.js ZIP or Single Offline HTML)"
+          title="Export the game as files you can upload to a website"
         >
           <PackageCheck className="w-3 h-3 text-[#38bdf8]" />
           <span>Export Game</span>
@@ -170,7 +173,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
           type="button"
           onClick={onOpenArchModal}
           className="ide-btn !h-[20px]"
-          title="Inspect Modular Engine Architecture & Raw JSON State"
+          title="See how the engine is organized and the project's raw JSON"
         >
           <FileCode2 className="w-3 h-3" />
           <span>JSON / Docs</span>
@@ -180,10 +183,10 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
           type="button"
           onClick={onOpenEventEditor}
           className="ide-btn !h-[20px] text-[#4ec9b0]"
-          title="Open Phase 4 Visual Event & Trigger Authoring IDE"
+          title="Edit this level's events: what happens when the player enters a cell, uses a switch or picks something up"
         >
           <Sliders className="w-3 h-3" />
-          <span>Visual Triggers</span>
+          <span>Events</span>
         </button>
 
         <button
@@ -194,7 +197,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
               ? '!bg-amber-500 !text-zinc-950 !border-amber-400 font-semibold'
               : 'text-amber-400 hover:text-amber-300 border-amber-500/40'
           }`}
-          title="Open UI Menu Studio (Out-of-Game Main Menu Studio & In-Game Overlay Builder)"
+          title="Design the game's main menu and pause screens"
         >
           <LayoutTemplate className="w-3 h-3" />
           <span>{isMenuStudioOpen ? 'Level Editor' : 'UI Menu Studio'}</span>
@@ -208,7 +211,7 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
           className={`ide-btn !h-[20px] ${
             isPlayFullscreen ? 'ide-btn--active' : ''
           }`}
-          title="Toggle between Split Editor Layout and Fullscreen 3D Game View"
+          title="Switch between the editor layout and a full-window game view"
         >
           {isPlayFullscreen ? (
             <>
@@ -227,11 +230,12 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
           type="button"
           onClick={onRespawnPlayer}
           className="ide-btn !h-[20px]"
-          title="Respawn Player at Start Pad"
+          title="Put the player back at the spawn point"
         >
           <RotateCcw className="w-3 h-3" />
           <span>Respawn</span>
         </button>
+        {helpMenu}
       </div>
     </header>
   );

@@ -27,10 +27,12 @@ declare global {
   }
 }
 
-export const test = base.extend<{ page: Page; expectedProblems: RegExp[] }>({
+export const test = base.extend<{ page: Page; expectedProblems: RegExp[]; firstVisit: boolean }>({
+  /** False (the default) marks the welcome screen as seen, so it does not cover the editor */
+  firstVisit: [false, { option: true }],
   /** Errors a test causes on purpose (fault injection); matching problems are not failures */
   expectedProblems: [[], { option: true }],
-  page: async ({ page, baseURL, expectedProblems }, use) => {
+  page: async ({ page, baseURL, expectedProblems, firstVisit }, use) => {
     const problems: string[] = [];
     const allowedOrigins = new Set([
       new URL(baseURL!).origin,
@@ -57,6 +59,15 @@ export const test = base.extend<{ page: Page; expectedProblems: RegExp[] }>({
       problems.push(`request failed (${request.failure()?.errorText}): ${request.url()}`);
     });
 
+    if (!firstVisit) {
+      await page.addInitScript(() => {
+        try {
+          localStorage.setItem('gcs:welcomed', '1');
+        } catch {
+          // Storage may be blocked; the welcome screen then shows
+        }
+      });
+    }
     await page.addInitScript(() => {
       window.__GCS_DEBUG__ = true;
       window.__gcsEvents = [];

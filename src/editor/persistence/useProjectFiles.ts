@@ -70,6 +70,8 @@ export function useProjectFiles({
   const [recent, setRecent] = useState<ProjectSummary[]>([]);
   const [quotaWarning, setQuotaWarning] = useState<string | null>(null);
   const [storageOk, setStorageOk] = useState(true);
+  // True once the startup recovery check has finished (the welcome screen waits for it)
+  const [startupChecked, setStartupChecked] = useState(false);
 
   const logRef = useRef(log);
   logRef.current = log;
@@ -176,6 +178,7 @@ export function useProjectFiles({
       } catch {
         if (active) setStorageOk(false);
       }
+      if (active) setStartupChecked(true);
       await checkQuota();
     })();
     return () => {
@@ -337,6 +340,7 @@ export function useProjectFiles({
   }, [save]);
 
   return {
+    startupChecked,
     readOnly,
     storageOk,
     quotaWarning,

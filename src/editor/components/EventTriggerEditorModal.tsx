@@ -130,7 +130,7 @@ export const EventTriggerEditorModal: React.FC<EventTriggerEditorModalProps> = (
           <div className="flex items-center gap-2">
             <Sliders className="w-5 h-5 text-[#478cbf]" />
             <h2 className="font-semibold text-white text-base">
-              Event & Trigger Visual Authoring System (Phase 4)
+              Events
             </h2>
           </div>
           <div className="flex items-center gap-3">
