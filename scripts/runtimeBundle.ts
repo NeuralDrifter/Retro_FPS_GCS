@@ -8,23 +8,14 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { BuildOptions, Plugin } from 'esbuild';
+import { RUNTIME_MANIFEST_FILE } from '../src/export/runtimeFiles';
+import type { RuntimeFileEntry, RuntimeManifest } from '../src/export/runtimeFiles';
 
 export const RUNTIME_OUT_DIR = 'public/runtime';
-export const RUNTIME_MANIFEST_FILE = 'runtime-manifest.json';
 const DRACO_SOURCE_DIR = 'public/draco';
 
-export interface RuntimeFileEntry {
-  /** Relative to public/runtime/ */
-  file: string;
-  sha256: string;
-  size: number;
-}
-
-export interface RuntimeManifest {
-  runtimeVersion: string;
-  entry: RuntimeFileEntry;
-  draco: RuntimeFileEntry[];
-}
+export { RUNTIME_MANIFEST_FILE };
+export type { RuntimeFileEntry, RuntimeManifest };
 
 const sha256 = (bytes: Uint8Array) => crypto.createHash('sha256').update(bytes).digest('hex');
 

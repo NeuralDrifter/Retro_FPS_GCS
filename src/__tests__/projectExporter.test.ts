@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import JSZip from 'jszip';
+import { strFromU8, unzipSync } from 'fflate';
 import {
   exportProjectZip,
   generateExportPackageJson,
@@ -149,35 +149,35 @@ describe('Phase 4 Acceptance: Standalone Project (ZIP) Export', () => {
     assert.equal(result.filename, 'minimal-arena-test-level.zip');
 
     const zipBuffer = await result.generateUint8Array();
-    const unzipped = await JSZip.loadAsync(zipBuffer);
+    const unzipped = unzipSync(zipBuffer);
 
     const prefix = `${result.slug}/`;
     // Verify core files exist in ZIP
-    assert.ok(unzipped.file(`${prefix}package.json`) !== null);
-    assert.ok(unzipped.file(`${prefix}vite.config.js`) !== null);
-    assert.ok(unzipped.file(`${prefix}index.html`) !== null);
-    assert.ok(unzipped.file(`${prefix}src/main.js`) !== null);
-    assert.ok(unzipped.file(`${prefix}src/runtime/startGame.ts`) !== null);
-    assert.ok(unzipped.file(`${prefix}src/sim/trigTable.ts`) !== null);
-    assert.ok(unzipped.file(`${prefix}public/manifest.json`) !== null);
-    assert.ok(unzipped.file(`${prefix}README.md`) !== null);
-    assert.ok(unzipped.file(`${prefix}LICENSE`) !== null);
-    assert.ok(unzipped.file(`${prefix}ASSET_LICENSES.md`) !== null);
+    assert.ok(unzipped[`${prefix}package.json`] !== undefined);
+    assert.ok(unzipped[`${prefix}vite.config.js`] !== undefined);
+    assert.ok(unzipped[`${prefix}index.html`] !== undefined);
+    assert.ok(unzipped[`${prefix}src/main.js`] !== undefined);
+    assert.ok(unzipped[`${prefix}src/runtime/startGame.ts`] !== undefined);
+    assert.ok(unzipped[`${prefix}src/sim/trigTable.ts`] !== undefined);
+    assert.ok(unzipped[`${prefix}public/manifest.json`] !== undefined);
+    assert.ok(unzipped[`${prefix}README.md`] !== undefined);
+    assert.ok(unzipped[`${prefix}LICENSE`] !== undefined);
+    assert.ok(unzipped[`${prefix}ASSET_LICENSES.md`] !== undefined);
 
     // No Draco files for Level 1 since Level 1 has no Draco models
-    assert.equal(unzipped.file(`${prefix}public/draco/draco_decoder.wasm`), null);
+    assert.equal(unzipped[`${prefix}public/draco/draco_decoder.wasm`], undefined);
 
     // The exported Vite project should not warn about the expected ~900 kB Three.js bundle
-    const viteConfig = await unzipped.file(`${prefix}vite.config.js`)!.async('string');
+    const viteConfig = strFromU8(unzipped[`${prefix}vite.config.js`]);
     assert.match(viteConfig, /chunkSizeWarningLimit:\s*\d+/);
 
     // Exported runtime must be readable source, never minified code cut from a bundle
-    const runtimeFiles = Object.keys(unzipped.files).filter(
+    const runtimeFiles = Object.keys(unzipped).filter(
       (p) => /^[^/]+\/src\/(runtime|sim|shared)\//.test(p) && p.endsWith('.ts')
     );
     assert.ok(runtimeFiles.length > 0);
     for (const p of runtimeFiles) {
-      const text = await unzipped.file(p)!.async('string');
+      const text = strFromU8(unzipped[p]);
       const longest = Math.max(...text.split('\n').map((line) => line.length));
       assert.ok(longest <= 1000, `${p} has a ${longest}-char line; it looks minified`);
     }
@@ -228,22 +228,22 @@ describe('Phase 4 Acceptance: Standalone Project (ZIP) Export', () => {
     assert.equal(result.bundle.hasDraco, true);
 
     const zipBuffer = await result.generateUint8Array();
-    const unzipped = await JSZip.loadAsync(zipBuffer);
+    const unzipped = unzipSync(zipBuffer);
     const prefix = `${result.slug}/`;
 
     // 1. Draco decoders are packed in public/draco/
-    assert.ok(unzipped.file(`${prefix}public/draco/draco_decoder.wasm`) !== null);
-    assert.ok(unzipped.file(`${prefix}public/draco/draco_decoder.js`) !== null);
-    assert.ok(unzipped.file(`${prefix}public/draco/draco_wasm_wrapper.js`) !== null);
+    assert.ok(unzipped[`${prefix}public/draco/draco_decoder.wasm`] !== undefined);
+    assert.ok(unzipped[`${prefix}public/draco/draco_decoder.js`] !== undefined);
+    assert.ok(unzipped[`${prefix}public/draco/draco_wasm_wrapper.js`] !== undefined);
 
     // 2. Textures and models are packed in public/assets/
     assert.ok(
-      Object.keys(unzipped.files).some((f) =>
+      Object.keys(unzipped).some((f) =>
         f.startsWith(`${prefix}public/assets/textures/`)
       )
     );
     assert.ok(
-      Object.keys(unzipped.files).some((f) =>
+      Object.keys(unzipped).some((f) =>
         f.startsWith(`${prefix}public/assets/models/`)
       )
     );
@@ -252,13 +252,11 @@ describe('Phase 4 Acceptance: Standalone Project (ZIP) Export', () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gridforge-export-test-'));
     try {
       // Unpack all files from ZIP
-      for (const [filePath, fileObj] of Object.entries(unzipped.files)) {
-        if (fileObj.dir) continue;
+      for (const [filePath, fileBytes] of Object.entries(unzipped)) {
         const relativeInside = filePath.replace(prefix, '');
         const outPath = path.join(tempDir, relativeInside);
         fs.mkdirSync(path.dirname(outPath), { recursive: true });
-        const buf = await fileObj.async('nodebuffer');
-        fs.writeFileSync(outPath, buf);
+        fs.writeFileSync(outPath, fileBytes);
       }
 
       // Link node_modules so vite build can run
@@ -298,9 +296,9 @@ describe('Phase 4 Acceptance: Standalone Project (ZIP) Export', () => {
       }
 
       // Verify zero occurrences of legacy "pie3d" string across all text files in the exported ZIP
-      for (const [filePath, fileObj] of Object.entries(unzipped.files)) {
-        if (fileObj.dir || /\.(png|jpg|webp|glb|wasm)$/i.test(filePath)) continue;
-        const textContent = await fileObj.async('string');
+      for (const [filePath, fileBytes] of Object.entries(unzipped)) {
+        if (/\.(png|jpg|webp|glb|wasm)$/i.test(filePath)) continue;
+        const textContent = strFromU8(fileBytes);
         assert.equal(
           /pie3d/i.test(textContent),
           false,

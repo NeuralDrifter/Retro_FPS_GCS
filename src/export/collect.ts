@@ -19,10 +19,7 @@
 
 import { LibraryIntegrityError, libraryFileRecord } from '../shared/libraryIntegrity';
 import { sha256Hex } from '../shared/bytes';
-import {
-  ActionSpec,
-  LevelDataV3,
-} from '../sim';
+import { LevelDataV3 } from '../sim';
 import {
   GameManifest,
   LevelStateData,
@@ -32,44 +29,23 @@ import {
 import { AssetRegistry } from '../runtime/AssetRegistry';
 import { createGameManifest, loadGameManifest } from '../runtime/manifest';
 import { collectMenuTextureIds } from '../runtime/menu/types';
+import { detectDracoCompression } from './glb';
+import {
+  BUILTIN_PROCEDURAL_MODEL_IDS,
+  BUILTIN_PROCEDURAL_TEXTURE_IDS,
+  isBuiltInModel,
+  isBuiltInTexture,
+  walkActions,
+} from './references';
 
-export const BUILTIN_PROCEDURAL_TEXTURE_IDS = new Set<string>([
-  'default-grid',
-  'techbase-panel',
-  'dungeon-stone',
-  'stone-dungeon',
-  'labyrinth-check',
-  'floor-obsidian',
-  'ceiling-coffer',
-  'grate-alpha',
-  'brick',
-  'metal',
-  'stone',
-  'scifi',
-  'wood',
-  'grid-floor',
-  'door',
-  'retro-nebula',
-  'starry-void',
-  'crimson-dusk',
-  'emerald-grid',
-]);
-
-export const BUILTIN_PROCEDURAL_MODEL_IDS = new Set<string>([
-  'sentinel-bot',
-  'turret-guardian',
-  'supply-crate',
-]);
-
-export function isBuiltInTexture(id: string): boolean {
-  if (!id) return true;
-  return BUILTIN_PROCEDURAL_TEXTURE_IDS.has(id.toLowerCase());
-}
-
-export function isBuiltInModel(id: string): boolean {
-  if (!id) return true;
-  return BUILTIN_PROCEDURAL_MODEL_IDS.has(id.toLowerCase());
-}
+export {
+  BUILTIN_PROCEDURAL_MODEL_IDS,
+  BUILTIN_PROCEDURAL_TEXTURE_IDS,
+  detectDracoCompression,
+  isBuiltInModel,
+  isBuiltInTexture,
+  walkActions,
+};
 
 export function slugify(text: string): string {
   const s = String(text || '')
@@ -78,31 +54,6 @@ export function slugify(text: string): string {
     .replace(/[^a-z0-9_-]+/g, '-')
     .replace(/^-+|-+$/g, '');
   return s || 'asset';
-}
-
-/**
- * Traverses an ActionSpec array recursively, walking into nested if_then_else
- * and random_branch action trees.
- */
-export function walkActions(
-  actions: readonly ActionSpec[] | undefined,
-  visitor: (action: ActionSpec) => void
-): void {
-  if (!actions || !Array.isArray(actions)) return;
-  for (const act of actions) {
-    if (!act || typeof act !== 'object') continue;
-    visitor(act);
-    if (act.type === 'if_then_else') {
-      walkActions(act.then_actions, visitor);
-      walkActions(act.else_actions, visitor);
-    } else if (act.type === 'random_branch') {
-      if (Array.isArray(act.branches)) {
-        for (const branch of act.branches) {
-          walkActions(branch.actions, visitor);
-        }
-      }
-    }
-  }
 }
 
 export interface ReferencedAssets {
@@ -302,44 +253,6 @@ export function decodeDataUrl(dataUrl: string): {
     return { bytes, mimeType };
   }
   throw new Error('No base64 decoder available in runtime environment');
-}
-
-/**
- * Detects whether a GLB / glTF model requires Draco mesh compression
- * by inspecting the JSON header for `KHR_draco_mesh_compression`.
- */
-export function detectDracoCompression(
-  modelBytesOrText: Uint8Array | string
-): boolean {
-  if (typeof modelBytesOrText === 'string') {
-    return modelBytesOrText.includes('KHR_draco_mesh_compression');
-  }
-  const bytes = modelBytesOrText;
-  if (!bytes || bytes.length === 0) return false;
-
-  // If binary GLB: magic 0x46546C67 ("glTF")
-  const isGlb =
-    bytes.length >= 20 &&
-    bytes[0] === 0x67 &&
-    bytes[1] === 0x6c &&
-    bytes[2] === 0x54 &&
-    bytes[3] === 0x46;
-
-  if (isGlb) {
-    const chunk0Len =
-      bytes[12] | (bytes[13] << 8) | (bytes[14] << 16) | (bytes[15] << 24);
-    const jsonLen = Math.min(chunk0Len, bytes.length - 20);
-    const jsonBytes = bytes.subarray(20, 20 + jsonLen);
-    const jsonText = new TextDecoder('utf-8', { fatal: false }).decode(jsonBytes);
-    return jsonText.includes('KHR_draco_mesh_compression');
-  }
-
-  // Fallback: scan first 64KB as text
-  const scanLimit = Math.min(bytes.length, 65536);
-  const headerText = new TextDecoder('utf-8', { fatal: false }).decode(
-    bytes.subarray(0, scanLimit)
-  );
-  return headerText.includes('KHR_draco_mesh_compression');
 }
 
 export function extensionFromMimeType(mimeType: string, defaultExt = 'bin'): string {

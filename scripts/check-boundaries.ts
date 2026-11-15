@@ -54,7 +54,7 @@ const RULES: Rule[] = [
   {
     name: 'pure-no-platform',
     applies: (from) => PURE.includes(from),
-    breaks: (t) => t.kind === 'node' || isPackage(t, [...UI_PACKAGES, 'three', 'jszip']),
+    breaks: (t) => t.kind === 'node' || isPackage(t, [...UI_PACKAGES, 'three', 'fflate']),
     why: 'sim, shared and net/protocol run anywhere: no Node, Three.js, React or UI packages',
   },
   {

@@ -13,7 +13,6 @@
  *  - Never contains editor code, React, lucide, @google/genai, or API keys.
  */
 
-import JSZip from 'jszip';
 import {
   GameManifest,
   LevelDataV3,
@@ -25,9 +24,11 @@ import {
   slugify,
 } from './collect';
 import { assertExportPayloadIsSafe } from './safetyScanner';
+import { buildZip } from './zip';
 
 export interface ExportProjectResult {
-  zip: JSZip;
+  /** Every file in the zip by path, under the `<slug>/` folder */
+  files: Map<string, Uint8Array>;
   slug: string;
   filename: string;
   manifest: GameManifest;
@@ -423,7 +424,7 @@ export interface ExportProjectOptions extends BundleOptions {
 
 /**
  * Phase 4 Core Function:
- * Generates the complete JSZip structure for the standalone project.
+ * Generates the complete zip contents for the standalone project.
  */
 export async function exportProjectZip(
   levelInput: GameManifest | LevelDataV3,
@@ -434,8 +435,13 @@ export async function exportProjectZip(
   const slug = slugify(manifest.meta.title) || 'my-game';
   const filename = `${slug}.zip`;
 
-  const zip = new JSZip();
-  const root = zip.folder(slug) || zip;
+  const files = new Map<string, Uint8Array>();
+  const encoder = new TextEncoder();
+  const root = {
+    file(path: string, content: string | Uint8Array) {
+      files.set(`${slug}/${path}`, typeof content === 'string' ? encoder.encode(content) : content);
+    },
+  };
 
   // 1. Root configuration & build files
   root.file('package.json', generateExportPackageJson(slug));
@@ -511,23 +517,13 @@ export async function exportProjectZip(
   assertExportPayloadIsSafe(filesToScan);
 
   return {
-    zip,
+    files,
     slug,
     filename,
     manifest,
     bundle,
-    generateBlob: () =>
-      zip.generateAsync({
-        type: 'blob',
-        compression: 'DEFLATE',
-        compressionOptions: { level: 6 },
-      }),
-    generateUint8Array: () =>
-      zip.generateAsync({
-        type: 'uint8array',
-        compression: 'DEFLATE',
-        compressionOptions: { level: 6 },
-      }),
+    generateBlob: async () => new Blob([buildZip(files) as Uint8Array<ArrayBuffer>], { type: 'application/zip' }),
+    generateUint8Array: async () => buildZip(files),
   };
 }
 
