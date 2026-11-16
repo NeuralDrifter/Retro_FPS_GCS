@@ -1,11 +1,13 @@
 /**
  * The license and notice files every export ships (release plan P3.5): `THIRD_PARTY_NOTICES.txt`
- * for the software the runtime includes (three.js always, the Draco decoder only when it ships),
+ * for the software the runtime includes (three.js and Lucide's icon shapes always, the Draco
+ * decoder only when it ships),
  * `LICENSE-runtime.txt` for the runtime itself, and `README.txt` on publishing the game. Line
  * endings are normalised so a checkout with CRLF files still gives the same zip bytes.
  */
 import runtimeLicense from '../../LICENSE?raw';
 import apacheLicense from './templates/notices/apache-2.0.txt?raw';
+import lucideLicense from './templates/notices/lucide-isc.txt?raw';
 import threeLicense from './templates/notices/three-mit.txt?raw';
 import readmeTemplate from './templates/README.txt?raw';
 
@@ -28,6 +30,14 @@ export function renderThirdPartyNotices(options: { runtimeFile: string; draco: b
       'License: MIT',
       '',
       lf(threeLicense).trimEnd(),
+    ].join('\n'),
+    [
+      'Lucide icons (the shapes of the HUD and menu icons)',
+      `Used in: ${options.runtimeFile}`,
+      'Source: https://github.com/lucide-icons/lucide',
+      'License: ISC, with parts from Feather under MIT',
+      '',
+      lf(lucideLicense).trimEnd(),
     ].join('\n'),
   ];
   if (options.draco) {

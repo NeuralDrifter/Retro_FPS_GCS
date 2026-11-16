@@ -342,7 +342,7 @@ describe('export worker pipeline (P3.3)', () => {
 });
 
 /** SHA-256 of the fixture's zip; it changes only with the zip format, the templates, the license texts or fflate */
-const GOLDEN_SHA256 = 'cc07db8a74c862bd16a5ed0e2bb646b7fabd218c4ff99e36b6781bc5f6cf45d7';
+const GOLDEN_SHA256 = 'f1b24286387f7136d38a1f429e69f2438db1f06aba98baf1760693847db6862e';
 
 describe('export credits and notices (P3.5)', () => {
   const unzipText = (zip: Record<string, Uint8Array>, file: string) => {
@@ -400,6 +400,7 @@ describe('export credits and notices (P3.5)', () => {
     assert.equal(unzipText(zip, 'LICENSE-runtime.txt').trimEnd(), read('LICENSE'));
     assert.ok(read('LICENSE').includes('Michael P. Burgus'));
     assert.ok(unzipText(zip, 'THIRD_PARTY_NOTICES.txt').includes(read('node_modules/three/LICENSE')), 'the three.js license matches the installed package');
+    assert.ok(unzipText(zip, 'THIRD_PARTY_NOTICES.txt').includes(read('node_modules/lucide-react/LICENSE')), 'the Lucide license matches the installed package');
   });
 
   it('refuses any asset it cannot credit, before downloading anything', async () => {
