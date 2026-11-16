@@ -50,7 +50,7 @@ function withDracoModel(doc: Doc): Doc {
   return doc;
 }
 
-test('the single HTML export plays from disk and over HTTP, with a Draco model and no requests', async ({ page }) => {
+test('the single HTML export plays from disk and over HTTP, with a Draco model and no requests', async ({ page, context }) => {
   await page.goto('./');
   await waitForGcsEvent(page, 'editor-ready');
   await expect(page.getByText(/Asset library v\d+\.\d+: \d+ textures and \d+ models\./)).toBeVisible({ timeout: 60_000 });
@@ -76,6 +76,10 @@ test('the single HTML export plays from disk and over HTTP, with a Draco model a
   await expect(settings).toHaveCount(0);
 
   const first = await exportFromEditor(page);
+  const second = await exportFromEditor(page);
+  expect(second.sha256).toBe(first.sha256);
+  // Close the editor before any game opens: two software-rendered 3D views at once double the memory
+  await page.close({ runBeforeUnload: false });
   expect(first.fileName).toMatch(/^proving-grounds-\d+\.\d+\.\d+\.html$/);
   const htmlFile = path.join(folder, first.fileName);
   fs.writeFileSync(htmlFile, first.bytes);
@@ -84,7 +88,7 @@ test('the single HTML export plays from disk and over HTTP, with a Draco model a
   try {
     // From disk, playing the level 1 recording through to level 2
     const fileUrl = pathToFileURL(htmlFile).href;
-    const fromDisk = await openGame(page, fileUrl, { allowRequest: (url) => url === fileUrl, replay: true });
+    const fromDisk = await openGame(context, fileUrl, { allowRequest: (url) => url === fileUrl, replay: true });
     await playLevel1ThroughToLevel2(fromDisk.game, 3);
     const a = await fromDisk.finish();
     expect(a.problems, 'problems in the game opened from disk').toEqual([]);
@@ -93,7 +97,7 @@ test('the single HTML export plays from disk and over HTTP, with a Draco model a
 
     // Over HTTP
     const pageUrl = `${server.url}${first.fileName}`;
-    const overHttp = await openGame(page, pageUrl, { allowRequest: (url) => url === pageUrl });
+    const overHttp = await openGame(context, pageUrl, { allowRequest: (url) => url === pageUrl });
     await expect.poll(() => overHttp.workers(), { timeout: 60_000 }).toBeGreaterThan(0);
     const b = await overHttp.finish();
     expect(b.problems, 'problems in the game served over HTTP').toEqual([]);
@@ -103,6 +107,4 @@ test('the single HTML export plays from disk and over HTTP, with a Draco model a
     fs.rmSync(folder, { recursive: true, force: true });
   }
 
-  const second = await exportFromEditor(page);
-  expect(second.sha256).toBe(first.sha256);
 });

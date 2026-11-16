@@ -13,7 +13,7 @@ import { unzipToFolder } from './helpers/unzip';
 
 test.describe.configure({ timeout: 600_000 });
 
-test('the exported sample plays from a subfolder and from a site root, and exports the same bytes twice', async ({ page }) => {
+test('the exported sample plays from a subfolder and from a site root, and exports the same bytes twice', async ({ page, context }) => {
   await page.goto('./');
   await waitForGcsEvent(page, 'editor-ready');
   await expect(page.getByText(/Asset library v\d+\.\d+: \d+ textures and \d+ models\./)).toBeVisible({ timeout: 60_000 });
@@ -22,6 +22,10 @@ test('the exported sample plays from a subfolder and from a site root, and expor
   await expect(page.getByText(/Started a new project from the sample 'Proving Grounds'/)).toBeVisible();
 
   const first = await exportFromEditor(page);
+  const second = await exportFromEditor(page);
+  expect(second.sha256).toBe(first.sha256);
+  // Close the editor before any game opens: two software-rendered 3D views at once double the memory
+  await page.close({ runBeforeUnload: false });
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'gcs-export-sp-'));
   const files = unzipToFolder(first.bytes, folder);
   expect(files).toContain('index.html');
@@ -30,13 +34,13 @@ test('the exported sample plays from a subfolder and from a site root, and expor
   const root = await serveFolder(folder, '/');
   try {
     // A subfolder of one origin, playing the level 1 recording through to level 2
-    const inSubfolder = await openGame(page, subfolder.url, { allowRequest: (url) => url.startsWith(subfolder.url), replay: true });
+    const inSubfolder = await openGame(context, subfolder.url, { allowRequest: (url) => url.startsWith(subfolder.url), replay: true });
     await playLevel1ThroughToLevel2(inSubfolder.game, 3);
     const a = await inSubfolder.finish();
     expect(a.problems, 'problems in the game served from a subfolder').toEqual([]);
 
     // The root of a second origin
-    const atRoot = await openGame(page, root.url, { allowRequest: (url) => new URL(url).origin === root.origin });
+    const atRoot = await openGame(context, root.url, { allowRequest: (url) => new URL(url).origin === root.origin });
     const b = await atRoot.finish();
     expect(b.problems, 'problems in the game served from a site root').toEqual([]);
     expect(b.requests.length).toBeGreaterThan(files.length / 2);
@@ -46,6 +50,4 @@ test('the exported sample plays from a subfolder and from a site root, and expor
     fs.rmSync(folder, { recursive: true, force: true });
   }
 
-  const second = await exportFromEditor(page);
-  expect(second.sha256).toBe(first.sha256);
 });

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Page } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
 import { expect, waitForGcsEvent } from '../fixtures';
 
 /**
@@ -37,8 +37,8 @@ export interface GamePageOptions {
  * Opens the game at `url` in a new tab, waits for its first frame, and records every console
  * error, uncaught error, model load failure, CSP violation and disallowed request
  */
-export async function openGame(page: Page, url: string, options: GamePageOptions) {
-  const game = await page.context().newPage();
+export async function openGame(context: BrowserContext, url: string, options: GamePageOptions) {
+  const game = await context.newPage();
   const problems: string[] = [];
   const requests: string[] = [];
   const pending = new Set<unknown>();

@@ -6,6 +6,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/__tests__/*.test.ts'],
+    // A Node process per worker; four keep a local run light without slowing it much
+    maxWorkers: process.env.CI ? undefined : 4,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],

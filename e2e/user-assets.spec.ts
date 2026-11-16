@@ -1,4 +1,7 @@
 import type { Page } from '@playwright/test';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test, waitForGcsEvent } from './fixtures';
 
@@ -64,8 +67,12 @@ test('a project with an uploaded texture and model opens in another browser prof
   await page.getByRole('menuitem', { name: 'Download Project File' }).click();
   const file = await (await downloadPromise).path();
 
-  // Profile B: a separate browser context with its own empty storage
-  const other = await browser.newContext();
+  // Profile A's work is done; close it so two editors never render at once
+  const viewport = page.viewportSize() ?? undefined;
+  await page.close({ runBeforeUnload: false });
+
+  // Profile B: a separate browser context with its own empty storage, at the configured size
+  const other = await browser.newContext({ viewport });
   try {
     const pageB = await other.newPage();
     await pageB.addInitScript(() => {
@@ -94,8 +101,16 @@ test('uploads that are too large or not the claimed type are refused with a mess
   await input.setInputFiles({ name: 'notes.png', mimeType: 'image/png', buffer: Buffer.from('<html>hello</html>') });
   await expect(page.getByText(/'notes\.png' is not a PNG, JPEG or WebP image/)).toBeVisible();
 
-  await input.setInputFiles({ name: 'huge.png', mimeType: 'image/png', buffer: Buffer.alloc(16 * 1024 * 1024 + 1) });
-  await expect(page.getByText(/'huge\.png' is 16\.0 MB; uploads can be at most 16\.0 MB/)).toBeVisible();
+  // From a file on disk: a buffer would cross the protocol as base64 and be copied in the page
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gcs-huge-'));
+  const huge = path.join(dir, 'huge.png');
+  try {
+    fs.writeFileSync(huge, Buffer.alloc(16 * 1024 * 1024 + 1));
+    await input.setInputFiles(huge);
+    await expect(page.getByText(/'huge\.png' is 16\.0 MB; uploads can be at most 16\.0 MB/)).toBeVisible();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect((await project(page)).userAssets).toEqual([]);
 });
