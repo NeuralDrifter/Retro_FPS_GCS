@@ -7,19 +7,25 @@
  * 3. reads the creator's uploads, checking each SHA-256;
  * 4. stores each unique file once;
  * 5. names it `assets/<first 16 hex of SHA-256>.<ext>`;
- * 6. builds the game manifest and the page;
+ * 6. builds the game manifest, the page, the credits and the license notices (P3.5);
  * 7. zips everything under the determinism rules.
+ *
+ * An asset with no file, or one the export cannot credit (no pack in the library's license list,
+ * or an upload with no recorded license), stops it before any download.
  *
  * The same project and runtime always give the same zip bytes.
  */
 import { base64ToBytes } from '../shared/bytes';
-import type { ProjectDocV4, UserAssetMimeType } from '../shared/project';
+import type { ProjectDocV4, UserAssetLicense, UserAssetMimeType } from '../shared/project';
 import { GAME_ASSET_PATH } from '../shared/project/gameManifest';
-import type { GameAssetEntry, GameAssetKind } from '../shared/project/gameManifest';
+import type { GameAssetEntry } from '../shared/project/gameManifest';
+import { buildCredits, checkCreditable, renderCreditsText } from './credits';
+import type { CreditPack, CreditedAsset } from './credits';
 import { ExportError } from './errors';
 import { detectDracoCompression } from './glb';
 import { contentName, sha256 } from './hash';
 import { buildGameManifest, gameDataFile, renderIndexHtml } from './manifestBuilder';
+import { renderReadme, renderRuntimeLicense, renderThirdPartyNotices } from './notices';
 import { projectAssetIds } from './references';
 import { RUNTIME_MANIFEST_FILE, readRuntimeManifest } from './runtimeFiles';
 import type { RuntimeFileEntry } from './runtimeFiles';
@@ -28,10 +34,22 @@ import { buildZip } from './zip';
 
 /** Where an asset's bytes come from; the editor fills this in for every id the project uses */
 export type AssetSource =
-  /** A file of the pinned asset library, checked against the index's SHA-256 and size */
-  | { type: 'library'; url: string; sha256: string; size: number; path: string }
+  /** A file of the pinned asset library, checked against the index's SHA-256 and size, credited to its pack */
+  | { type: 'library'; url: string; sha256: string; size: number; path: string; pack?: CreditPack }
   /** A creator upload: bytes, a stored blob or base64, checked against the recorded SHA-256 */
-  | { type: 'user'; name: string; mimeType: UserAssetMimeType; sha256: string; size: number; bytes?: Uint8Array; blob?: Blob; base64?: string }
+  | {
+      type: 'user';
+      name: string;
+      mimeType: UserAssetMimeType;
+      sha256: string;
+      size: number;
+      bytes?: Uint8Array;
+      blob?: Blob;
+      base64?: string;
+      /** Missing for a texture embedded before uploads recorded licenses; the export refuses it */
+      license?: UserAssetLicense;
+      attribution?: string;
+    }
   /** A file with no license the export can credit (a repository without a packs.json) */
   | { type: 'unlicensed'; name: string; url: string };
 
@@ -146,13 +164,17 @@ const extOf = (url: string) => {
 
 interface LoadedAsset {
   id: string;
-  kind: GameAssetKind;
+  kind: 'texture' | 'model';
   bytes: Uint8Array;
   sha256: string;
   ext: string;
+  credit: CreditedAsset['source'];
 }
 
-async function loadAsset(id: string, kind: 'texture' | 'model', source: AssetSource | undefined, deps: ExportDeps): Promise<LoadedAsset> {
+type CreditableSource = Exclude<AssetSource, { type: 'unlicensed' }>;
+
+/** Checks that `source` exists and can be credited; returns its credit */
+function creditFor(id: string, kind: 'texture' | 'model', source: AssetSource | undefined): { source: CreditableSource; credit: CreditedAsset['source'] } {
   if (!source) {
     throw new ExportError('missing-asset', `The ${kind} '${id}' is used in the project, but the editor has no file for it.`);
   }
@@ -163,6 +185,16 @@ async function loadAsset(id: string, kind: 'texture' | 'model', source: AssetSou
       source.url
     );
   }
+  const credit: CreditedAsset['source'] =
+    source.type === 'library'
+      ? { type: 'library', path: source.path, pack: source.pack }
+      : { type: 'user', name: source.name, license: source.license, attribution: source.attribution };
+  checkCreditable(id, kind, credit);
+  return { source, credit };
+}
+
+async function loadAsset(id: string, kind: 'texture' | 'model', input: AssetSource | undefined, deps: ExportDeps): Promise<LoadedAsset> {
+  const { source, credit } = creditFor(id, kind, input);
 
   let bytes: Uint8Array;
   let ext: string;
@@ -191,7 +223,7 @@ async function loadAsset(id: string, kind: 'texture' | 'model', source: AssetSou
   if (kind === 'texture' ? !TEXTURE_EXT.has(ext) : ext !== 'glb') {
     throw new ExportError('invalid-project', `The ${kind} '${id}' is not a file type a game can use (.${ext || '?'}).`);
   }
-  return { id, kind, bytes, sha256: sha, ext };
+  return { id, kind, bytes, sha256: sha, ext, credit };
 }
 
 async function runtimeFile(base: string, entry: RuntimeFileEntry, deps: ExportDeps): Promise<Uint8Array> {
@@ -217,6 +249,8 @@ export async function exportGame(request: ExportRequest, deps: ExportDeps): Prom
     ...used.textures.map((id) => ({ id, kind: 'texture' as const })),
     ...used.models.map((id) => ({ id, kind: 'model' as const })),
   ];
+  // Every asset needs a file and a license before anything downloads
+  for (const { id, kind } of wanted) creditFor(id, kind, request.sources[id]);
   report('collect', 1, 1);
 
   // 2-3. Library downloads and uploads, six at a time
@@ -232,6 +266,7 @@ export async function exportGame(request: ExportRequest, deps: ExportDeps): Prom
   // 4-5. One file per unique content, named after its hash
   const files = new Map<string, Uint8Array>();
   const entries: GameAssetEntry[] = [];
+  const credited: CreditedAsset[] = [];
   let needsDraco = false;
   for (const asset of loaded) {
     const path = `assets/${contentName(asset.sha256, asset.ext)}`;
@@ -240,7 +275,9 @@ export async function exportGame(request: ExportRequest, deps: ExportDeps): Prom
     const draco = asset.kind === 'model' && detectDracoCompression(asset.bytes);
     needsDraco ||= draco;
     entries.push({ id: asset.id, kind: asset.kind, path, sha256: asset.sha256, size: asset.bytes.length, ...(draco ? { draco: true } : {}) });
+    credited.push({ id: asset.id, kind: asset.kind, path, source: asset.credit });
   }
+  const credits = buildCredits(credited);
 
   // The runtime, and the Draco decoder only when a model needs it
   report('runtime', 0, 1);
@@ -261,13 +298,18 @@ export async function exportGame(request: ExportRequest, deps: ExportDeps): Prom
   }
   throwIfCancelled(deps.signal);
 
-  // 6. Manifest and page
+  // 6. Manifest, page, credits and notices
   report('package', 0, 1);
-  const manifest = buildGameManifest(doc, entries, runtime.runtimeVersion);
+  const manifest = buildGameManifest(doc, entries, runtime.runtimeVersion, credits);
   const data = await gameDataFile(manifest);
   files.set(data.path, data.bytes);
   const html = renderIndexHtml(indexTemplate, { title: doc.meta.title, manifestPath: data.path, runtimePath: runtime.entry.file });
-  files.set('index.html', new TextEncoder().encode(html));
+  const text = (s: string) => new TextEncoder().encode(s);
+  files.set('index.html', text(html));
+  files.set('CREDITS.txt', text(renderCreditsText(credits, doc.meta)));
+  files.set('THIRD_PARTY_NOTICES.txt', text(renderThirdPartyNotices({ runtimeFile: runtime.entry.file, draco: needsDraco })));
+  files.set('LICENSE-runtime.txt', text(renderRuntimeLicense()));
+  files.set('README.txt', text(renderReadme(doc.meta.title)));
   report('package', 1, 1);
   throwIfCancelled(deps.signal);
 

@@ -345,19 +345,17 @@ export async function resolveAssetBytes(
           src.source.includes('raw.githubusercontent.com') ||
           src.source.includes('Retro_FPS_GCS-assets'));
       const isUserUpload = src.source === 'User Upload';
+      // Being on GitHub says nothing about a file's license (ED-8): without one, warn
       const warnLicense =
-        src.license === 'Unknown' ||
+        !src.license ||
+        src.license.startsWith('Unknown') ||
         Boolean(!isGithub && !isUserUpload && src.source && src.source.startsWith('http'));
 
       return {
         bytes,
         mimeType,
         source: src.source || 'Custom Source',
-        license:
-          src.license ||
-          (isGithub
-            ? 'MIT (NeuralDrifter/Retro_FPS_GCS-assets)'
-            : 'Unspecified, owned by creator'),
+        license: src.license || (isGithub || !isUserUpload ? 'Unknown (no license recorded)' : 'Unspecified, owned by creator'),
         name: src.name || id,
         draco: isDraco,
         warnLicense: Boolean(warnLicense),
@@ -555,7 +553,7 @@ export function generateAssetLicensesMarkdown(
     lines.push('| (None) | - | - | Built-in Procedural Only | MIT Runtime | Clean |');
   } else {
     for (const a of assets) {
-      const status = a.warnLicense ? '⚠️ Warning: Unverified License' : '✅ Verified';
+      const status = a.warnLicense ? 'Warning: no verified license' : 'License recorded';
       lines.push(
         `| **${a.name}** | \`${a.type}\` | \`${a.exportPath}\` | ${a.source} | ${a.license} | ${status} |`
       );

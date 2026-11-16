@@ -37,7 +37,15 @@ test('one click exports the sample with no further input', async ({ page }) => {
   const zip = unzipSync(new Uint8Array(zipBytes));
   expect(Object.keys(zip)).toContain('index.html');
   const data = Object.keys(zip).find((p) => p.startsWith('data/'))!;
-  expect((JSON.parse(strFromU8(zip[data])) as { levels: unknown[] }).levels).toHaveLength(3);
+  const manifest = JSON.parse(strFromU8(zip[data])) as { levels: unknown[]; assets: { path: string }[]; credits: { packs: unknown[] } };
+  expect(manifest.levels).toHaveLength(3);
+  // Every bundled file is credited to its library pack (P3.5)
+  const credits = strFromU8(zip['CREDITS.txt']);
+  expect(manifest.credits.packs.length).toBeGreaterThan(0);
+  for (const asset of manifest.assets) expect(credits).toContain(`(${asset.path})`);
+  expect(strFromU8(zip['THIRD_PARTY_NOTICES.txt'])).toContain('three.js');
+  expect(strFromU8(zip['LICENSE-runtime.txt'])).toContain('MIT License');
+  expect(strFromU8(zip['README.txt'])).toContain('PUBLISH ON ITCH.IO');
   await done.getByRole('button', { name: 'Close' }).click();
   await expect(done).toHaveCount(0);
 });

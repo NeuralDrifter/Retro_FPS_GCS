@@ -5,10 +5,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { strFromU8, unzipSync } from 'fflate';
 import type { SimPlacedEntityV3 } from '../sim';
-import { createDefaultProject } from '../shared/project';
+import { IMPORTED_LICENSE_NOT_RECORDED, LICENSE_NOT_RECORDED, createDefaultProject } from '../shared/project';
 import type { ProjectDocV4 } from '../shared/project';
 import { checkGameManifest } from '../shared/project/gameManifest';
+import type { GameManifestV1 } from '../shared/project/gameManifest';
 import { buildGlb } from '../editor/library/gltfSanitizer';
+import { buildCredits } from '../export/credits';
+import type { CreditedAsset } from '../export/credits';
 import { ExportError } from '../export/errors';
 import { exportGame } from '../export/exportGame';
 import type { AssetSource, ExportDeps, ExportRequest } from '../export/exportGame';
@@ -61,6 +64,8 @@ const entity = (id: string, modelAssetId: string): SimPlacedEntityV3 =>
     attackDamage: 0,
   }) as SimPlacedEntityV3;
 
+const PACK = { title: 'Test Walls', author: 'Pack Author', license: 'CC0-1.0', source: 'https://example.test/walls' };
+
 /** A one-level project: two library textures with the same bytes, an uploaded texture and an uploaded model */
 function fixtureProject(model = GLB): ProjectDocV4 {
   const doc = createDefaultProject({ id: 'export-fixture', title: 'Export Fixture', author: 'Tester', now: '2026-11-15T00:00:00Z', editorVersion: '0.1.0' });
@@ -78,15 +83,23 @@ function fixtureProject(model = GLB): ProjectDocV4 {
 }
 
 function fixtureRequest(model = GLB): ExportRequest {
-  const library = (file: string, b: Uint8Array): AssetSource => ({ type: 'library', url: LIBRARY + file, sha256: sha(b), size: b.length, path: `textures/${file}` });
+  const library = (file: string, b: Uint8Array): AssetSource => ({ type: 'library', url: LIBRARY + file, sha256: sha(b), size: b.length, path: `textures/${file}`, pack: PACK });
   return {
     doc: fixtureProject(model),
     runtimeBaseUrl: RUNTIME,
     sources: {
       'folder-tex-a': library('files/aaaaaaaaaaaaaaaa.png', PNG_A),
       'folder-tex-b': library('files/bbbbbbbbbbbbbbbb.png', PNG_A),
-      'tex-0123456789abcdef': { type: 'user', name: 'Upload', mimeType: 'image/png', sha256: sha(PNG_UPLOAD), size: PNG_UPLOAD.length, blob: new Blob([PNG_UPLOAD]) },
-      'glb-crate': { type: 'user', name: 'Crate', mimeType: 'model/gltf-binary', sha256: sha(model), size: model.length, bytes: model },
+      'tex-0123456789abcdef': {
+        type: 'user',
+        name: 'Upload',
+        mimeType: 'image/png',
+        sha256: sha(PNG_UPLOAD),
+        size: PNG_UPLOAD.length,
+        blob: new Blob([PNG_UPLOAD]),
+        license: 'own-work',
+      },
+      'glb-crate': { type: 'user', name: 'Crate', mimeType: 'model/gltf-binary', sha256: sha(model), size: model.length, bytes: model, license: 'CC0-1.0' },
     },
   };
 }
@@ -286,7 +299,7 @@ describe('export worker pipeline (P3.3)', () => {
         const b = kind === 'texture' ? new Uint8Array([...PNG_A, ...bytesOf(id)]) : buildGlb({ asset: { version: '2.0' }, extras: { id } }, new Uint8Array(0));
         const file = `files/${sha(b).slice(0, 16)}.${kind === 'texture' ? 'webp' : 'glb'}`;
         files.set(LIBRARY + file, b);
-        sources[id] = { type: 'library', url: LIBRARY + file, sha256: sha(b), size: b.length, path: id };
+        sources[id] = { type: 'library', url: LIBRARY + file, sha256: sha(b), size: b.length, path: id, pack: PACK };
       }
     }
     const progress: string[] = [];
@@ -310,5 +323,110 @@ describe('export worker pipeline (P3.3)', () => {
   });
 });
 
-/** SHA-256 of the fixture's zip; it changes only with the zip format, the template or fflate */
-const GOLDEN_SHA256 = '0ac45dbb96ae8285a4836647a80cb966d6c96f49d2c53ca0a0925239cf5e3c3d';
+/** SHA-256 of the fixture's zip; it changes only with the zip format, the templates, the license texts or fflate */
+const GOLDEN_SHA256 = 'cc07db8a74c862bd16a5ed0e2bb646b7fabd218c4ff99e36b6781bc5f6cf45d7';
+
+describe('export credits and notices (P3.5)', () => {
+  const unzipText = (zip: Record<string, Uint8Array>, file: string) => {
+    assert.ok(zip[file], `${file} is in the zip`);
+    return strFromU8(zip[file]);
+  };
+  const manifestOf = (zip: Record<string, Uint8Array>) =>
+    JSON.parse(strFromU8(zip[Object.keys(zip).find((p) => p.startsWith('data/'))!])) as GameManifestV1;
+  const NOTICE_FILES = ['CREDITS.txt', 'THIRD_PARTY_NOTICES.txt', 'LICENSE-runtime.txt', 'README.txt'];
+
+  it('writes the four files, and credits every bundled asset in CREDITS.txt and the manifest', async () => {
+    const zip = unzipSync((await exportGame(fixtureRequest(), deps(fakeFetch(servedFiles()).fn))).bytes);
+    for (const file of NOTICE_FILES) {
+      assert.doesNotMatch(unzipText(zip, file), /\r/, `${file} uses LF line endings`);
+    }
+
+    const manifest = manifestOf(zip);
+    const credits = unzipText(zip, 'CREDITS.txt');
+    assert.ok(manifest.credits);
+    const creditedPaths = new Set([
+      ...manifest.credits.packs.flatMap((p) => p.files.map((f) => f.path)),
+      ...manifest.credits.uploads.map((u) => u.path),
+    ]);
+    for (const asset of manifest.assets) {
+      assert.ok(credits.includes(`(${asset.path})`) || credits.includes(`File: ${asset.path}`), `${asset.id} (${asset.path}) is in CREDITS.txt`);
+      assert.ok(creditedPaths.has(asset.path), `${asset.id} is in the manifest credits`);
+    }
+    for (const text of [PACK.title, `Author: ${PACK.author}`, `License: ${PACK.license}`, `Source: ${PACK.source}`, 'textures/files/aaaaaaaaaaaaaaaa.png']) {
+      assert.ok(credits.includes(text), text);
+    }
+    assert.match(credits, /Upload\n {2}License: The game author's own work/);
+    assert.match(credits, /Crate\n {2}License: CC0 1\.0/);
+    assert.match(credits, /^Export Fixture: credits\n/);
+    assert.match(unzipText(zip, 'README.txt'), /^Export Fixture\n/);
+    assert.doesNotMatch(unzipText(zip, 'README.txt'), /\{\{/);
+  });
+
+  it('includes the Draco notice exactly when the Draco files ship', async () => {
+    for (const model of [GLB, DRACO_GLB]) {
+      const zip = unzipSync((await exportGame(fixtureRequest(model), deps(fakeFetch(servedFiles()).fn))).bytes);
+      const hasDraco = Object.keys(zip).some((p) => p.startsWith('draco/'));
+      assert.equal(hasDraco, model === DRACO_GLB);
+      const notices = unzipText(zip, 'THIRD_PARTY_NOTICES.txt');
+      assert.equal(notices.includes('Draco 3D data compression'), hasDraco);
+      assert.equal(notices.includes('Apache License'), hasDraco);
+      assert.match(notices, /three\.js\nUsed in: game\.[0-9a-f]{16}\.js/);
+      assert.match(notices, /Copyright © 2010-\d{4} three\.js authors/);
+      assert.match(notices, /Retro FPS GCS game runtime/);
+    }
+  });
+
+  it('ships the license texts unchanged from their sources', async () => {
+    const zip = unzipSync((await exportGame(fixtureRequest(DRACO_GLB), deps(fakeFetch(servedFiles()).fn))).bytes);
+    const read = (file: string) => fs.readFileSync(path.join(process.cwd(), file), 'utf-8').replace(/\r\n?/g, '\n').trimEnd();
+    assert.equal(unzipText(zip, 'LICENSE-runtime.txt').trimEnd(), read('LICENSE'));
+    assert.ok(read('LICENSE').includes('Michael P. Burgus'));
+    assert.ok(unzipText(zip, 'THIRD_PARTY_NOTICES.txt').includes(read('node_modules/three/LICENSE')), 'the three.js license matches the installed package');
+  });
+
+  it('refuses any asset it cannot credit, before downloading anything', async () => {
+    const cases: [string, (r: ExportRequest) => void][] = [
+      ['a library file outside every pack', (r) => delete (r.sources['folder-tex-a'] as { pack?: unknown }).pack],
+      ['a pack with an unknown license', (r) => Object.assign(r.sources['folder-tex-a'], { pack: { ...PACK, license: 'Unknown' } })],
+      ['an upload with no license', (r) => delete (r.sources['glb-crate'] as { license?: unknown }).license],
+      ['an upload from before licenses', (r) => Object.assign(r.sources['glb-crate'], { license: 'other', attribution: LICENSE_NOT_RECORDED })],
+      ['an upload imported from a version 3 file', (r) => Object.assign(r.sources['glb-crate'], { license: 'other', attribution: IMPORTED_LICENSE_NOT_RECORDED })],
+      ['a CC BY upload with no attribution', (r) => Object.assign(r.sources['glb-crate'], { license: 'CC-BY-4.0', attribution: ' ' })],
+    ];
+    for (const [label, change] of cases) {
+      const request = fixtureRequest();
+      change(request);
+      const served = fakeFetch(servedFiles());
+      await expectExportError(exportGame(request, deps(served.fn)), 'unlicensed-asset');
+      assert.equal(served.calls.size, 0, `${label}: nothing downloaded`);
+    }
+  });
+
+  it('credits an attribution, and gives the same credits for the same assets in any order', async () => {
+    const request = fixtureRequest();
+    Object.assign(request.sources['glb-crate'], { license: 'CC-BY-4.0', attribution: 'Crate by A. Modeller' });
+    const credits = unzipText(unzipSync((await exportGame(request, deps(fakeFetch(servedFiles()).fn))).bytes), 'CREDITS.txt');
+    assert.match(credits, /Crate\n {2}License: CC BY 4\.0\n {2}Attribution: Crate by A\. Modeller\n {2}File: assets\/[0-9a-f]{16}\.glb/);
+
+    const assets: CreditedAsset[] = [
+      { id: 'b', kind: 'texture', path: 'assets/bbbbbbbbbbbbbbbb.png', source: { type: 'library', path: 'textures/b.png', pack: PACK } },
+      { id: 'a', kind: 'texture', path: 'assets/aaaaaaaaaaaaaaaa.png', source: { type: 'library', path: 'textures/a.png', pack: PACK } },
+      { id: 'u', kind: 'model', path: 'assets/cccccccccccccccc.glb', source: { type: 'user', name: 'Thing', license: 'CC0-1.0' } },
+    ];
+    assert.deepEqual(buildCredits(assets), buildCredits([...assets].reverse()));
+    assert.deepEqual(
+      buildCredits(assets).packs[0].files.map((f) => f.name),
+      ['textures/a.png', 'textures/b.png']
+    );
+  });
+
+  it('lets the runtime refuse a manifest with malformed credits', async () => {
+    const manifest = manifestOf(unzipSync((await exportGame(fixtureRequest(), deps(fakeFetch(servedFiles()).fn))).bytes));
+    assert.ok(checkGameManifest(manifest).ok);
+    const withoutCredits: Partial<GameManifestV1> = { ...manifest };
+    delete withoutCredits.credits;
+    assert.ok(checkGameManifest(withoutCredits).ok, 'games exported before P3.5 still load');
+    const bad = { ...manifest, credits: { packs: [{ title: 'x', author: 'y', license: 'z', source: 's', files: [{ name: 'n', path: '../x' }] }], uploads: [] } };
+    assert.equal(checkGameManifest(bad).ok, false);
+  });
+});

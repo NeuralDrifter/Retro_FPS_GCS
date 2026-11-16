@@ -4,9 +4,11 @@
  * export worker still checks every file it packs.
  */
 import { SimCellType } from '../../sim';
+import { checkCreditable } from '../../export/credits';
+import { ExportError } from '../../export/errors';
 import type { ExportRequest } from '../../export/exportGame';
 import { projectAssetIds } from '../../export/references';
-import { LICENSE_NOT_RECORDED, PROJECT_LIMITS } from '../../shared/project';
+import { PROJECT_LIMITS, isLicenseUnrecorded } from '../../shared/project';
 import type { ProjectDocV4 } from '../../shared/project';
 
 export interface ExportProblem {
@@ -39,8 +41,8 @@ export function checkBeforeExport(doc: ProjectDocV4, request: ExportRequest): Ex
     for (const id of ids) {
       const upload = uploads.get(id);
       const source = request.sources[id];
-      const name = upload?.name ?? (source && 'name' in source ? source.name : id);
-      if (upload && upload.license === 'other' && upload.attribution === LICENSE_NOT_RECORDED) {
+      const name = upload?.name ?? (!source ? id : source.type === 'library' ? source.path : source.name);
+      if (upload && isLicenseUnrecorded(upload)) {
         problems.push({
           where: name,
           message: `This ${kind} was uploaded before the editor asked for a license, so the export cannot credit it. Upload it again and choose its license.`,
@@ -52,6 +54,20 @@ export function checkBeforeExport(doc: ProjectDocV4, request: ExportRequest): Ex
           where: name,
           message: `This ${kind} comes from an asset repository that publishes no license list (packs.json), so the export cannot credit it. Replace it with a library or uploaded ${kind}.`,
         });
+      } else {
+        // A library file outside every pack, or an embedded texture with no license record
+        try {
+          checkCreditable(
+            id,
+            kind,
+            source.type === 'library'
+              ? { type: 'library', path: source.path, pack: source.pack }
+              : { type: 'user', name, license: source.license, attribution: source.attribution }
+          );
+        } catch (err) {
+          if (!(err instanceof ExportError)) throw err;
+          problems.push({ where: name, message: err.message });
+        }
       }
     }
   }

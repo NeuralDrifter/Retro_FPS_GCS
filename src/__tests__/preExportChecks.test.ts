@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
-import { createDefaultProject, LICENSE_NOT_RECORDED } from '../shared/project';
+import { IMPORTED_LICENSE_NOT_RECORDED, LICENSE_NOT_RECORDED, createDefaultProject } from '../shared/project';
 import type { ProjectDocV4 } from '../shared/project';
 import { SimCellType } from '../sim';
 import type { ExportRequest } from '../export/exportGame';
@@ -9,6 +9,7 @@ import { checkBeforeExport } from '../editor/export/preExportChecks';
 // Pre-export checks (release plan P3.4): problems stop the export before anything downloads
 
 const SHA = 'a'.repeat(64);
+const PACK = { title: 'Walls', author: 'Someone', license: 'CC0-1.0', source: 'https://example.test/walls' };
 
 function project(): ProjectDocV4 {
   const doc = createDefaultProject({ id: 'checks', title: 'Checks', now: '2026-11-15T00:00:00Z', editorVersion: '0.1.0' });
@@ -23,8 +24,8 @@ function request(doc: ProjectDocV4): ExportRequest {
     doc,
     runtimeBaseUrl: 'https://editor.test/runtime/',
     sources: {
-      'tex-0123456789abcdef': { type: 'user', name: 'Floor', mimeType: 'image/png', sha256: SHA, size: 10, base64: 'AAAA' },
-      'folder-tex-wall': { type: 'library', url: 'https://library.test/files/0123456789abcdef.webp', sha256: SHA, size: 10, path: 'textures/wall.webp' },
+      'tex-0123456789abcdef': { type: 'user', name: 'Floor', mimeType: 'image/png', sha256: SHA, size: 10, base64: 'AAAA', license: 'own-work' },
+      'folder-tex-wall': { type: 'library', url: 'https://library.test/files/0123456789abcdef.webp', sha256: SHA, size: 10, path: 'textures/wall.webp', pack: PACK },
     },
   };
 }
@@ -61,5 +62,26 @@ describe('pre-export checks (P3.4)', () => {
     assert.equal(messages.length, 2);
     assert.ok(messages.some((m) => /no file for this texture/.test(m)));
     assert.ok(messages.some((m) => /publishes no license list/.test(m)));
+  });
+
+  it('refuses an upload imported from a version 3 file, and a library file outside every pack (P3.5)', () => {
+    const doc = project();
+    doc.userAssets[0] = { ...doc.userAssets[0], license: 'other', attribution: IMPORTED_LICENSE_NOT_RECORDED };
+    const req = request(doc);
+    delete (req.sources['folder-tex-wall'] as { pack?: unknown }).pack;
+    const problems = checkBeforeExport(doc, req);
+    assert.equal(problems.length, 2);
+    assert.match(problems.find((p) => p.where === 'Floor')!.message, /before the editor asked for a license/);
+    assert.match(problems.find((p) => p.where === 'textures/wall.webp')!.message, /no pack in the asset library's license list/);
+  });
+
+  it('refuses an embedded texture with no license record (P3.5)', () => {
+    const doc = project();
+    doc.userAssets = [];
+    const req = request(doc);
+    delete (req.sources['tex-0123456789abcdef'] as { license?: unknown }).license;
+    const problems = checkBeforeExport(doc, req);
+    assert.equal(problems.length, 1);
+    assert.match(problems[0].message, /no recorded license/);
   });
 });

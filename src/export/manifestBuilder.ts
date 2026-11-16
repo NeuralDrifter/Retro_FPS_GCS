@@ -6,12 +6,12 @@
 import { sortKeysDeep } from '../shared/hash';
 import type { ProjectDocV4 } from '../shared/project';
 import { GAME_MANIFEST_FORMAT, GAME_MANIFEST_SCHEMA_VERSION, checkGameManifest } from '../shared/project/gameManifest';
-import type { GameAssetEntry, GameManifestV1 } from '../shared/project/gameManifest';
+import type { GameAssetEntry, GameCredits, GameManifestV1 } from '../shared/project/gameManifest';
 import { ExportError } from './errors';
 import { sha256 } from './hash';
 
 /** The game manifest for a project whose asset files are already named */
-export function buildGameManifest(doc: ProjectDocV4, assets: readonly GameAssetEntry[], runtimeVersion: string): GameManifestV1 {
+export function buildGameManifest(doc: ProjectDocV4, assets: readonly GameAssetEntry[], runtimeVersion: string, credits: GameCredits): GameManifestV1 {
   const manifest: GameManifestV1 = {
     format: GAME_MANIFEST_FORMAT,
     schemaVersion: GAME_MANIFEST_SCHEMA_VERSION,
@@ -26,6 +26,7 @@ export function buildGameManifest(doc: ProjectDocV4, assets: readonly GameAssetE
     campaign: doc.campaign,
     gameData: doc.gameData,
     assets: [...assets].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+    credits,
   };
   // The export refuses to write a game the runtime would refuse to start
   const checked = checkGameManifest(JSON.parse(JSON.stringify(manifest)), runtimeVersion);

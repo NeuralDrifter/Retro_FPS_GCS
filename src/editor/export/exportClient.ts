@@ -35,7 +35,15 @@ function timed<T>(work: () => T): T {
 
 /** An upload's bytes: the stored blob, the document's base64, or what the editor holds in memory */
 async function userSource(asset: UserAsset): Promise<AssetSource> {
-  const base = { type: 'user' as const, name: asset.name, mimeType: asset.mimeType, sha256: asset.sha256, size: asset.size };
+  const base = {
+    type: 'user' as const,
+    name: asset.name,
+    mimeType: asset.mimeType,
+    sha256: asset.sha256,
+    size: asset.size,
+    license: asset.license,
+    ...(asset.attribution !== undefined ? { attribution: asset.attribution } : {}),
+  };
   const blob = await getAssetBlob(asset.sha256).catch(() => undefined);
   if (blob) return { ...base, blob };
   if (asset.data) return { ...base, base64: asset.data };
@@ -45,7 +53,7 @@ async function userSource(asset: UserAsset): Promise<AssetSource> {
   return match ? { ...base, base64: match[2].replace(/\s+/g, '') } : base;
 }
 
-/** A texture embedded as a data URL before uploads were recorded in the project (pre-P2.6 files) */
+/** A texture embedded as a data URL before uploads were recorded in the project (pre-P2.6 files); it has no license */
 async function dataUrlSource(id: string, url: string): Promise<AssetSource | undefined> {
   const match = DATA_URL.exec(url);
   const bytes = match ? timed(() => base64ToBytes(match[2].replace(/\s+/g, ''))) : null;
@@ -60,7 +68,7 @@ async function catalogSource(id: string, kind: 'texture' | 'model'): Promise<Ass
   if (!url) return undefined;
   if (url.startsWith('data:')) return dataUrlSource(id, url);
   const record = libraryFileRecord(url);
-  if (record) return { type: 'library', url, sha256: record.sha256, size: record.size, path: record.path };
+  if (record) return { type: 'library', url, sha256: record.sha256, size: record.size, path: record.path, pack: record.pack };
   return { type: 'unlicensed', name: texture?.name || model?.name || id, url };
 }
 

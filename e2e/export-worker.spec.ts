@@ -51,7 +51,8 @@ test('the export worker zips the sample off the main thread, the same way twice'
   expect(paths.some((p) => /^game\.[0-9a-f]{16}\.js$/.test(p))).toBe(true);
   expect(paths.filter((p) => /^data\/game\.[0-9a-f]{16}\.json$/.test(p))).toHaveLength(1);
   expect(paths.filter((p) => p.startsWith('assets/')).length).toBeGreaterThan(5);
-  expect(paths.every((p) => /^(?:index\.html|game\.[0-9a-f]{16}\.js|data\/game\.[0-9a-f]{16}\.json|assets\/[0-9a-f]{16}\.(?:png|jpg|webp|glb)|draco\/\w+\.(?:js|wasm))$/.test(p))).toBe(true);
+  expect(paths.every((p) => /^(?:index\.html|game\.[0-9a-f]{16}\.js|data\/game\.[0-9a-f]{16}\.json|assets\/[0-9a-f]{16}\.(?:png|jpg|webp|glb)|draco\/\w+\.(?:js|wasm)|CREDITS\.txt|THIRD_PARTY_NOTICES\.txt|LICENSE-runtime\.txt|README\.txt)$/.test(p))).toBe(true);
+  expect(paths).toEqual(expect.arrayContaining(['CREDITS.txt', 'THIRD_PARTY_NOTICES.txt', 'LICENSE-runtime.txt', 'README.txt']));
   expect(summary.fileCount).toBe(paths.length);
   expect(summary.mainThreadMaxMs).toBeLessThan(50);
 

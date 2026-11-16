@@ -13,7 +13,7 @@ import type { LevelDataV3 } from '../../sim';
 import { base64ToBytes, sha256Hex } from '../bytes';
 import { SAFE_ASSET_ID_REGEX } from '../assetIds';
 import { createDefaultGameData, slugify } from './defaults';
-import { PROJECT_ID_PATTERN, PROJECT_SCHEMA_VERSION } from './schema';
+import { IMPORTED_LICENSE_NOT_RECORDED, PROJECT_ID_PATTERN, PROJECT_SCHEMA_VERSION } from './schema';
 import type { ProjectCampaign, ProjectDocV4, ProjectLevel, UserAsset, UserAssetMimeType } from './schema';
 import { validateProjectV4 } from './validate';
 
@@ -87,9 +87,9 @@ function textureToUserAsset(texture: LegacyTexture, notes: string[]): UserAsset 
     mimeType,
     sha256: sha256Hex(bytes),
     size: bytes.length,
-    // Older projects did not record a license; the creator confirms it before export (P2.6, P3.5)
+    // Older projects did not record a license; the export refuses it until it is uploaded again (P3.5)
     license: 'other',
-    attribution: 'Imported from an older project file; license not recorded.',
+    attribution: IMPORTED_LICENSE_NOT_RECORDED,
     data: match[2].replace(/\s+/g, ''),
   };
 }

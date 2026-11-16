@@ -28,6 +28,20 @@ export interface GameAssetEntry {
   draco?: boolean;
 }
 
+/** One file a credit covers: its name in the editor and its path in the game */
+export interface GameCreditFile {
+  name: string;
+  path: string;
+}
+
+/** Who made the bundled assets (release plan P3.5); `CREDITS.txt` and the Credits screen show it */
+export interface GameCredits {
+  /** Asset library packs, sorted by title */
+  packs: { title: string; author: string; license: string; source: string; files: GameCreditFile[] }[];
+  /** The creator's uploads, sorted by name then path */
+  uploads: { name: string; path: string; license: string; attribution: string }[];
+}
+
 export interface GameManifestV1 {
   format: typeof GAME_MANIFEST_FORMAT;
   schemaVersion: number;
@@ -38,6 +52,8 @@ export interface GameManifestV1 {
   campaign: ProjectCampaign;
   gameData: GameData;
   assets: GameAssetEntry[];
+  /** Missing in games exported before P3.5 */
+  credits?: GameCredits;
 }
 
 /** Paths an export may use: inside assets/, content-named, with a known extension */
@@ -50,6 +66,29 @@ export type GameManifestCheck =
 type Json = Record<string, unknown>;
 const isObject = (v: unknown): v is Json => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isText = (v: unknown, max: number) => typeof v === 'string' && v.length <= max;
+
+const MAX_CREDIT_ENTRIES = 4096;
+const isCreditFile = (v: unknown) => isObject(v) && isText(v.name, 200) && isText(v.path, 64) && GAME_ASSET_PATH.test(v.path as string);
+
+function isCredits(v: unknown): v is GameCredits {
+  if (!isObject(v) || !Array.isArray(v.packs) || !Array.isArray(v.uploads)) return false;
+  if (v.packs.length > MAX_CREDIT_ENTRIES || v.uploads.length > MAX_CREDIT_ENTRIES) return false;
+  const packsOk = v.packs.every(
+    (p) =>
+      isObject(p) &&
+      isText(p.title, 200) &&
+      isText(p.author, 200) &&
+      isText(p.license, 200) &&
+      isText(p.source, 2000) &&
+      Array.isArray(p.files) &&
+      p.files.length <= MAX_CREDIT_ENTRIES &&
+      p.files.every(isCreditFile)
+  );
+  const uploadsOk = v.uploads.every(
+    (u) => isCreditFile(u) && isText((u as Json).license, 200) && isText((u as Json).attribution, 1000)
+  );
+  return packsOk && uploadsOk;
+}
 
 /** Checks untrusted manifest JSON; never throws */
 export function checkGameManifest(raw: unknown, runtimeVersion = RUNTIME_VERSION): GameManifestCheck {
@@ -109,6 +148,8 @@ export function checkGameManifest(raw: unknown, runtimeVersion = RUNTIME_VERSION
       if (a.kind === 'texture') textureIds.add(a.id);
       if (a.kind === 'model') modelIds.add(a.id);
     }
+
+    if (raw.credits !== undefined && !isCredits(raw.credits)) return invalid('The game file has invalid credits.');
 
     if (!Array.isArray(raw.levels) || raw.levels.length < 1 || raw.levels.length > 64) {
       return invalid('The game file has no levels.');

@@ -149,6 +149,15 @@ export const USER_ASSET_LICENSES: readonly UserAssetLicense[] = ['own-work', 'CC
  * Their license is unknown, so the export refuses them until they are uploaded again (P3.4).
  */
 export const LICENSE_NOT_RECORDED = 'Uploaded before the editor recorded licenses.';
+/** The attribution recorded for textures carried over from a version 3 project file (P2.1) */
+export const IMPORTED_LICENSE_NOT_RECORDED = 'Imported from an older project file; license not recorded.';
+
+/** True when an upload carries no license the export can credit (see the two markers above) */
+export function isLicenseUnrecorded(asset: { license?: string; attribution?: string }): boolean {
+  if (!asset.license || !(USER_ASSET_LICENSES as readonly string[]).includes(asset.license)) return true;
+  if (asset.license === 'other' && (asset.attribution === LICENSE_NOT_RECORDED || asset.attribution === IMPORTED_LICENSE_NOT_RECORDED)) return true;
+  return (asset.license === 'CC-BY-4.0' || asset.license === 'other') && !asset.attribution?.trim();
+}
 
 export interface UserAsset {
   id: string;
