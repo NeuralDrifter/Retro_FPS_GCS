@@ -62,26 +62,34 @@ const SHARED_HITBOX_MATERIAL = new THREE.MeshBasicMaterial({
   visible: false,
 });
 
+/** Where the Draco decoder is: a folder URL, or the wrapper script's and wasm file's own URLs */
+export type DracoDecoderLocation = string | { js: string; wasm: string };
+
+/** DRACOLoader takes either form, although three's types name only the string */
+function setDecoderLocation(loader: DRACOLoader, location: DracoDecoderLocation): void {
+  (loader.setDecoderPath as (path: DracoDecoderLocation) => DRACOLoader).call(loader, location);
+}
+
 export class EntityLoader {
   private static gltfLoader: GLTFLoader | null = null;
   private static dracoLoader: DRACOLoader | null = null;
   // Relative to the page, so a game finds the decoder in its own draco/ folder.
   // The editor sets its base path explicitly at startup (src/main.tsx).
-  private static dracoDecoderPath = 'draco/';
+  private static dracoDecoderPath: DracoDecoderLocation = 'draco/';
   private static assetBaseUrl = '';
   // Models the current world uses; WorldBuilder frees the rest on every build
   private static assetCache = new ModelCache<CachedGltfAsset>((asset) =>
     EntityLoader.disposeGltfScene(asset.scene)
   );
 
-  public static setDracoDecoderPath(decoderPath: string): void {
+  /** A folder with the decoder files, or the files' own URLs (a single-HTML game's blob URLs, P3.9) */
+  public static setDracoDecoderPath(decoderPath: DracoDecoderLocation): void {
     if (!decoderPath) return;
-    const normalized = decoderPath.endsWith('/')
-      ? decoderPath
-      : `${decoderPath}/`;
+    const normalized =
+      typeof decoderPath !== 'string' ? decoderPath : decoderPath.endsWith('/') ? decoderPath : `${decoderPath}/`;
     this.dracoDecoderPath = normalized;
     if (this.dracoLoader) {
-      this.dracoLoader.setDecoderPath(normalized);
+      setDecoderLocation(this.dracoLoader, normalized);
     }
   }
 
@@ -166,7 +174,7 @@ export class EntityLoader {
       loader.setCrossOrigin('anonymous');
 
       const dracoLoader = new DRACOLoader();
-      dracoLoader.setDecoderPath(this.dracoDecoderPath);
+      setDecoderLocation(dracoLoader, this.dracoDecoderPath);
       loader.setDRACOLoader(dracoLoader);
       this.dracoLoader = dracoLoader;
 

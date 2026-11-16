@@ -26,6 +26,20 @@ export const HOST_LIMITS: readonly HostLimit[] = [
 
 const mb = (bytes: number) => `${(bytes / MB).toFixed(bytes < 10 * MB ? 1 : 0)} MB`;
 
+/** Above this, a single HTML file loads slowly and strains the browser (G-19) */
+export const SINGLE_HTML_WARNING_BYTES = 50 * MB;
+
+/** Every warning about an exported game: host limits, and the size of a single HTML file */
+export function exportWarnings(result: { format: 'zip' | 'single-html'; size: number; files: readonly { path: string; size: number }[] }): string[] {
+  const warnings = hostLimitWarnings(result.files);
+  if (result.format === 'single-html' && result.size > SINGLE_HTML_WARNING_BYTES) {
+    warnings.push(
+      `The HTML file is ${mb(result.size)}. Files above ${mb(SINGLE_HTML_WARNING_BYTES)} load slowly and can run out of memory on phones; the web package (zip) format suits large games better.`
+    );
+  }
+  return warnings;
+}
+
 /** One plain sentence per limit the game's files pass; empty when every host takes it */
 export function hostLimitWarnings(files: readonly { path: string; size: number }[], limits: readonly HostLimit[] = HOST_LIMITS): string[] {
   const warnings: string[] = [];

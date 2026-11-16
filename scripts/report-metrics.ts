@@ -126,7 +126,15 @@ ${buildOutput}`);
   rows.push(['Other JS chunks', `${otherJs.length} file(s), ${kb(bytes(otherJs))}`]);
   fs.rmSync(outDir, { recursive: true, force: true });
 }
-rows.push(['Prebuilt runtime (`public/single-html-runtime.js`)', sizePair(path.join(root, 'public/single-html-runtime.js'))]);
+// The game runtime an export ships (P3.2): the ES module for zips, the classic script for single HTML files (P3.9)
+const runtimeManifestPath = path.join(root, 'public/runtime/runtime-manifest.json');
+if (fs.existsSync(runtimeManifestPath)) {
+  const runtime = JSON.parse(fs.readFileSync(runtimeManifestPath, 'utf-8')) as { entry: { file: string }; classic: { file: string } };
+  rows.push(['Game runtime (`public/runtime/game.*.js`)', sizePair(path.join(root, 'public/runtime', runtime.entry.file))]);
+  rows.push(['Game runtime, classic script (`game-classic.*.js`)', sizePair(path.join(root, 'public/runtime', runtime.classic.file))]);
+} else {
+  rows.push(['Game runtime', 'not built; run `npm run build:runtime`']);
+}
 
 // --- Dependencies -----------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf-8')) as {

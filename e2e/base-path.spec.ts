@@ -11,23 +11,6 @@ test.describe.configure({ timeout: 180_000 });
 const DRACO_CUBE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'draco-cube.glb');
 const DRACO_MODEL_ID = 'e2e-draco-cube';
 
-test('single-HTML export works from the Pages base path', async ({ page }) => {
-  // The export downloads every referenced texture from the asset library.
-  test.slow();
-  await page.goto('./');
-  await waitForGcsEvent(page, 'editor-ready');
-
-  // The legacy single-HTML export stays in the File menu until P3.9 moves it onto the export worker
-  const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'File' }).click();
-  await page.getByRole('menuitem', { name: 'Export Single HTML (legacy)' }).click();
-  const download = await downloadPromise;
-
-  expect(download.suggestedFilename()).toMatch(/\.html$/);
-  const filePath = await download.path();
-  expect(filePath).toBeTruthy();
-});
-
 test('a Draco model loads its decoder from the base path', async ({ page, baseURL }) => {
   // Register a Draco-compressed cube through the public asset manifest.
   await page.route('**/assets/manifest.json', (route) =>

@@ -91,6 +91,35 @@ export function base64ToBytes(text: string): Uint8Array | null {
   return out.subarray(0, index);
 }
 
+const BASE64_CODES = Uint8Array.from(BASE64_ALPHABET, (c) => c.charCodeAt(0));
+const PAD = 61; // '='
+
+/** Encodes bytes as standard, padded base64; fast enough for files of tens of megabytes */
+export function bytesToBase64(bytes: Uint8Array): string {
+  const out = new Uint8Array(Math.ceil(bytes.length / 3) * 4);
+  let o = 0;
+  let i = 0;
+  for (; i + 2 < bytes.length; i += 3) {
+    const n = (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2];
+    out[o++] = BASE64_CODES[(n >> 18) & 63];
+    out[o++] = BASE64_CODES[(n >> 12) & 63];
+    out[o++] = BASE64_CODES[(n >> 6) & 63];
+    out[o++] = BASE64_CODES[n & 63];
+  }
+  const rest = bytes.length - i;
+  if (rest > 0) {
+    const n = (bytes[i] << 16) | (rest === 2 ? bytes[i + 1] << 8 : 0);
+    out[o++] = BASE64_CODES[(n >> 18) & 63];
+    out[o++] = BASE64_CODES[(n >> 12) & 63];
+    out[o++] = rest === 2 ? BASE64_CODES[(n >> 6) & 63] : PAD;
+    out[o++] = PAD;
+  }
+  // ASCII only, so character codes are the bytes; chunks keep the argument lists short
+  const parts: string[] = [];
+  for (let c = 0; c < out.length; c += 0x8000) parts.push(String.fromCharCode(...out.subarray(c, c + 0x8000)));
+  return parts.join('');
+}
+
 /** UTF-8 bytes of a string */
 export function utf8Bytes(text: string): Uint8Array {
   const out: number[] = [];

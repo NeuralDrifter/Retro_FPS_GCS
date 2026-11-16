@@ -8,7 +8,7 @@
  * 4. stores each unique file once;
  * 5. names it `assets/<first 16 hex of SHA-256>.<ext>`;
  * 6. builds the game manifest, the page, the credits and the license notices (P3.5);
- * 7. zips everything under the determinism rules.
+ * 7. zips everything under the determinism rules, or writes one HTML file holding it all (P3.9).
  *
  * An asset with no file, or one the export cannot credit (no pack in the library's license list,
  * or an upload with no recorded license), stops it before any download.
@@ -16,7 +16,8 @@
  * The same project and runtime always give the same zip bytes.
  */
 import { base64ToBytes } from '../shared/bytes';
-import type { ProjectDocV4, UserAssetLicense, UserAssetMimeType } from '../shared/project';
+import { exportFormatOf } from '../shared/project/schema';
+import type { ExportFormat, ProjectDocV4, UserAssetLicense, UserAssetMimeType } from '../shared/project';
 import { GAME_ASSET_PATH } from '../shared/project/gameManifest';
 import type { GameAssetEntry } from '../shared/project/gameManifest';
 import { buildCredits, checkCreditable, renderCreditsText } from './credits';
@@ -27,6 +28,7 @@ import { contentName, sha256 } from './hash';
 import { buildGameManifest, gameDataFile, renderIndexHtml } from './manifestBuilder';
 import { renderReadme, renderRuntimeLicense, renderThirdPartyNotices } from './notices';
 import { scanExportPayload } from './safetyScanner';
+import { renderSingleHtml } from './singleHtml';
 import { projectAssetIds } from './references';
 import { RUNTIME_MANIFEST_FILE, readRuntimeManifest } from './runtimeFiles';
 import type { RuntimeFileEntry } from './runtimeFiles';
@@ -71,13 +73,15 @@ export interface ExportProgress {
 }
 
 export interface ExportResult {
+  format: ExportFormat;
   fileName: string;
+  mimeType: 'application/zip' | 'text/html';
   bytes: Uint8Array;
   sha256: string;
   size: number;
   fileCount: number;
   runtimeVersion: string;
-  /** Every file in the zip, sorted by path */
+  /** Every file in the zip, sorted by path; for one HTML file, that file */
   files: { path: string; size: number }[];
 }
 
@@ -280,7 +284,9 @@ export async function exportGame(request: ExportRequest, deps: ExportDeps): Prom
   }
   const credits = buildCredits(credited);
 
-  // The runtime, and the Draco decoder only when a model needs it
+  // The runtime (an ES module for the zip, a classic script for one HTML file), and the Draco
+  // decoder only when a model needs it
+  const format = exportFormatOf(doc);
   report('runtime', 0, 1);
   const runtimeBase = request.runtimeBaseUrl.endsWith('/') ? request.runtimeBaseUrl : `${request.runtimeBaseUrl}/`;
   let runtimeManifestRaw: unknown;
@@ -292,29 +298,42 @@ export async function exportGame(request: ExportRequest, deps: ExportDeps): Prom
   }
   const runtime = readRuntimeManifest(runtimeManifestRaw);
   if (!runtime) throw new ExportError('runtime', "The editor's game runtime is missing or damaged. Reload the editor and try again.");
-  const runtimeEntries = [runtime.entry, ...(needsDraco ? runtime.draco : [])];
+  const runtimeEntry = format === 'single-html' ? runtime.classic : runtime.entry;
+  const runtimeEntries = [runtimeEntry, ...(needsDraco ? runtime.draco : [])];
+  const runtimeBytes = new Map<string, Uint8Array>();
   for (const [i, entry] of runtimeEntries.entries()) {
-    files.set(entry.file, await runtimeFile(runtimeBase, entry, deps));
+    runtimeBytes.set(entry.file, await runtimeFile(runtimeBase, entry, deps));
     report('runtime', i + 1, runtimeEntries.length);
   }
+  for (const entry of runtime.draco) if (runtimeBytes.has(entry.file)) files.set(entry.file, runtimeBytes.get(entry.file)!);
   throwIfCancelled(deps.signal);
 
-  // 6. Manifest, page, credits and notices
+  // 6. Manifest, credits and notices
   report('package', 0, 1);
   const manifest = buildGameManifest(doc, entries, runtime.runtimeVersion, credits);
   const data = await gameDataFile(manifest);
   files.set(data.path, data.bytes);
-  const html = renderIndexHtml(indexTemplate, { title: doc.meta.title, manifestPath: data.path, runtimePath: runtime.entry.file });
-  const text = (s: string) => new TextEncoder().encode(s);
-  files.set('index.html', text(html));
-  files.set('CREDITS.txt', text(renderCreditsText(credits, doc.meta)));
-  files.set('THIRD_PARTY_NOTICES.txt', text(renderThirdPartyNotices({ runtimeFile: runtime.entry.file, draco: needsDraco })));
-  files.set('LICENSE-runtime.txt', text(renderRuntimeLicense()));
-  files.set('README.txt', text(renderReadme(doc.meta.title)));
-  // A key or password typed into the project would ship to every player; the text files carry
+  const notices = new Map<string, string>([
+    ['CREDITS.txt', renderCreditsText(credits, doc.meta)],
+    [
+      'THIRD_PARTY_NOTICES.txt',
+      renderThirdPartyNotices({ runtimeFile: format === 'single-html' ? 'the script inside this page' : runtimeEntry.file, draco: needsDraco }),
+    ],
+    ['LICENSE-runtime.txt', renderRuntimeLicense()],
+  ]);
+  const page =
+    format === 'zip'
+      ? renderIndexHtml(indexTemplate, { title: doc.meta.title, manifestPath: data.path, runtimePath: runtimeEntry.file })
+      : null;
+  if (page !== null) notices.set('README.txt', renderReadme(doc.meta.title));
+
+  // A key or password typed into the project would ship to every player; these text files carry
   // everything the creator wrote (P3.6)
-  const textFiles = Object.fromEntries([...files].filter(([p]) => /\.(?:html|json|txt)$/.test(p)));
-  const scan = scanExportPayload(textFiles);
+  const scan = scanExportPayload({
+    [data.path]: data.bytes,
+    ...Object.fromEntries(notices),
+    ...(page !== null ? { 'index.html': page } : {}),
+  });
   if (!scan.safe) {
     const where = [...new Set(scan.violations.map((v) => v.file))].join(', ');
     throw new ExportError(
@@ -326,19 +345,40 @@ export async function exportGame(request: ExportRequest, deps: ExportDeps): Prom
   report('package', 1, 1);
   throwIfCancelled(deps.signal);
 
-  // 7. The zip
+  // 7. One zip, or one HTML file
   report('zip', 0, 1);
-  const bytes = buildZip(files);
+  const text = (t: string) => new TextEncoder().encode(t);
+  const baseName = `${safeFilePart(doc.export.slug, 'game')}-${safeFilePart(doc.meta.version, '1.0.0')}`;
+  let bytes: Uint8Array;
+  let listed: Map<string, Uint8Array>;
+  if (page !== null) {
+    files.set(runtimeEntry.file, runtimeBytes.get(runtimeEntry.file)!);
+    files.set('index.html', text(page));
+    for (const [name, body] of notices) files.set(name, text(body));
+    bytes = buildZip(files);
+    listed = files;
+  } else {
+    bytes = await renderSingleHtml({
+      title: doc.meta.title,
+      manifestPath: data.path,
+      runtime: runtimeBytes.get(runtimeEntry.file)!,
+      files,
+      notices,
+    });
+    listed = new Map([[`${baseName}.html`, bytes]]);
+  }
   report('zip', 1, 1);
   throwIfCancelled(deps.signal);
 
   return {
-    fileName: `${safeFilePart(doc.export.slug, 'game')}-${safeFilePart(doc.meta.version, '1.0.0')}.zip`,
+    format,
+    fileName: `${baseName}.${format === 'zip' ? 'zip' : 'html'}`,
+    mimeType: format === 'zip' ? 'application/zip' : 'text/html',
     bytes,
     sha256: await sha256(bytes),
     size: bytes.length,
-    fileCount: files.size,
+    fileCount: listed.size,
     runtimeVersion: runtime.runtimeVersion,
-    files: [...files.entries()].map(([path, b]) => ({ path, size: b.length })).sort((a, b) => (a.path < b.path ? -1 : 1)),
+    files: [...listed.entries()].map(([path, b]) => ({ path, size: b.length })).sort((a, b) => (a.path < b.path ? -1 : 1)),
   };
 }

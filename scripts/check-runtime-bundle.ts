@@ -1,5 +1,6 @@
 /**
- * Release gates for the single-player runtime (release plan P3.2):
+ * Release gates for the single-player runtime (release plan P3.2), for both builds: the ES module
+ * a zip loads and the classic script a single HTML file inlines (P3.9):
  *   G-10  the runtime JavaScript is at most 300 KB gzip
  *   G-05  it contains none of the network APIs a single-player game must not use
  * Reads public/runtime/runtime-manifest.json, so run `npm run build:runtime` first.
@@ -25,22 +26,23 @@ export const FORBIDDEN_IDENTIFIERS = [
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.join(root, RUNTIME_OUT_DIR);
 const manifest = JSON.parse(fs.readFileSync(path.join(outDir, RUNTIME_MANIFEST_FILE), 'utf-8')) as RuntimeManifest;
-const code = fs.readFileSync(path.join(outDir, manifest.entry.file));
 const problems: string[] = [];
-
-const gzip = zlib.gzipSync(code, { level: 9 }).length;
-if (gzip > GZIP_BUDGET_BYTES) {
-  problems.push(`G-10: ${manifest.entry.file} is ${(gzip / 1024).toFixed(1)} KB gzip, over the ${GZIP_BUDGET_BYTES / 1024} KB budget`);
-}
-const text = code.toString('utf-8');
-for (const name of FORBIDDEN_IDENTIFIERS) {
-  if (new RegExp(`\\b${name}\\b`).test(text)) problems.push(`G-05: ${manifest.entry.file} contains ${name}`);
+const summary: string[] = [];
+for (const entry of [manifest.entry, manifest.classic]) {
+  const code = fs.readFileSync(path.join(outDir, entry.file));
+  const gzip = zlib.gzipSync(code, { level: 9 }).length;
+  if (gzip > GZIP_BUDGET_BYTES) {
+    problems.push(`G-10: ${entry.file} is ${(gzip / 1024).toFixed(1)} KB gzip, over the ${GZIP_BUDGET_BYTES / 1024} KB budget`);
+  }
+  const text = code.toString('utf-8');
+  for (const name of FORBIDDEN_IDENTIFIERS) {
+    if (new RegExp(`\\b${name}\\b`).test(text)) problems.push(`G-05: ${entry.file} contains ${name}`);
+  }
+  summary.push(`${entry.file} ${(gzip / 1024).toFixed(1)} KB gzip`);
 }
 
 if (problems.length > 0) {
   console.error(problems.join('\n'));
   process.exit(1);
 }
-console.log(
-  `Runtime bundle OK: ${manifest.entry.file}, ${(gzip / 1024).toFixed(1)} KB gzip of ${GZIP_BUDGET_BYTES / 1024} KB, no network APIs`
-);
+console.log(`Runtime bundles OK: ${summary.join(', ')} (budget ${GZIP_BUDGET_BYTES / 1024} KB each), no network APIs`);

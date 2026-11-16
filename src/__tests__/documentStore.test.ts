@@ -50,6 +50,7 @@ function exampleActions(doc: ProjectDocV4): Record<DocumentActionType, DocumentA
     },
     'userAsset/remove': { type: 'userAsset/remove', assetId: 'tex-a' },
     'export/setSlug': { type: 'export/setSlug', slug: 'store-test-2' },
+    'export/setFormat': { type: 'export/setFormat', format: 'single-html' },
     batch: {
       type: 'batch',
       actions: [

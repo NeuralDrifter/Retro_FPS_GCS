@@ -56,6 +56,12 @@ export interface GameManifestV1 {
   credits?: GameCredits;
 }
 
+/**
+ * A single-HTML game (P3.9) carries each file in a `<script type="application/octet-stream">`
+ * with this attribute naming the file's path, and its base64 as the text
+ */
+export const EMBEDDED_FILE_ATTRIBUTE = 'data-gcs-file';
+
 /** Paths an export may use: inside assets/, content-named, with a known extension */
 export const GAME_ASSET_PATH = /^assets\/[0-9a-f]{16}\.(?:png|jpg|webp|glb|ogg|mp3)$/;
 

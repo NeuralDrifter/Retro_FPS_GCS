@@ -1,16 +1,17 @@
 /**
- * Minimal Project Settings (release plan P3.4): the title, author, description and slug an export
- * uses. P6.2 extends it with more tabs. Saving is one undoable step.
+ * Minimal Project Settings (release plan P3.4): the title, author, description, slug and format
+ * (P3.9) an export uses. P6.2 extends it with more tabs. Saving is one undoable step.
  */
 import React, { useState } from 'react';
-import { PROJECT_LIMITS, SLUG_PATTERN, slugify } from '../../../shared/project';
-import type { ProjectDocV4 } from '../../../shared/project';
+import { PROJECT_LIMITS, SLUG_PATTERN, exportFormatOf, slugify } from '../../../shared/project';
+import type { ExportFormat, ProjectDocV4 } from '../../../shared/project';
 
 export interface ProjectSettingsValues {
   title: string;
   author: string;
   description: string;
   slug: string;
+  format: ExportFormat;
 }
 
 export interface ProjectSettingsDialogProps {
@@ -25,6 +26,8 @@ export const ProjectSettingsDialog: React.FC<ProjectSettingsDialogProps> = ({ do
   const [author, setAuthor] = useState(doc.meta.author);
   const [description, setDescription] = useState(doc.meta.description);
   const [slug, setSlug] = useState(doc.export.slug);
+  const multiplayer = doc.multiplayer?.enabled === true;
+  const [format, setFormat] = useState<ExportFormat>(exportFormatOf(doc));
 
   const effectiveSlug = slug.trim() || slugify(title);
   const errors: string[] = [];
@@ -44,7 +47,7 @@ export const ProjectSettingsDialog: React.FC<ProjectSettingsDialogProps> = ({ do
         onSubmit={(e) => {
           e.preventDefault();
           if (errors.length > 0 || readOnly) return;
-          onSave({ title: title.trim(), author: author.trim(), description: description.trim(), slug: effectiveSlug });
+          onSave({ title: title.trim(), author: author.trim(), description: description.trim(), slug: effectiveSlug, format: multiplayer ? 'zip' : format });
         }}
         onKeyDown={(e) => {
           if (e.key === 'Escape') onClose();
@@ -78,9 +81,35 @@ export const ProjectSettingsDialog: React.FC<ProjectSettingsDialogProps> = ({ do
             <label className={label} htmlFor="ps-slug">Export file name</label>
             <input id="ps-slug" className={field} value={slug} placeholder={slugify(title)} maxLength={64} onChange={(e) => setSlug(e.target.value)} />
             <p className="mt-1 text-[10px] text-[#858585]">
-              Exports as <code>{effectiveSlug}-{doc.meta.version}.zip</code>
+              Exports as <code>{effectiveSlug}-{doc.meta.version}.{format === 'single-html' ? 'html' : 'zip'}</code>
             </p>
           </div>
+          <fieldset>
+            <legend className={label}>Export format</legend>
+            {(
+              [
+                ['zip', 'Web package (zip)', 'For itch.io, GitHub Pages and other web hosts.'],
+                ['single-html', 'Single HTML file', 'One file that also plays when opened from disk. Single-player games only.'],
+              ] as const
+            ).map(([value, optionLabel, hint]) => (
+              <label key={value} className="flex items-start gap-2 py-0.5 text-[12px] text-[#d4d4d4]">
+                <input
+                  type="radio"
+                  name="ps-format"
+                  value={value}
+                  checked={format === value}
+                  disabled={multiplayer && value === 'single-html'}
+                  onChange={() => setFormat(value)}
+                  className="mt-0.5"
+                />
+                <span>
+                  {optionLabel}
+                  <span className="block text-[10px] text-[#858585]">{hint}</span>
+                </span>
+              </label>
+            ))}
+            {multiplayer && <p className="mt-1 text-[10px] text-[#858585]">Multiplayer games always export as a web package.</p>}
+          </fieldset>
           {errors.length > 0 && (
             <ul role="alert" className="text-[11px] text-[#f87171] space-y-0.5">
               {errors.map((e) => (

@@ -11,6 +11,10 @@ import { checkGameManifest } from '../shared/project/gameManifest';
 import type { GameManifestV1 } from '../shared/project/gameManifest';
 import { buildGlb } from '../editor/library/gltfSanitizer';
 import { buildCredits } from '../export/credits';
+import { inlineScriptText } from '../export/singleHtml';
+import { base64ToBytes, bytesToBase64 } from '../shared/bytes';
+import { pagePath } from '../runtime/boot/embedded';
+import { EMBEDDED_FILE_ATTRIBUTE } from '../shared/project/gameManifest';
 import type { CreditedAsset } from '../export/credits';
 import { ExportError } from '../export/errors';
 import { exportGame } from '../export/exportGame';
@@ -34,9 +38,13 @@ const dracoFiles = {
   'draco/draco_wasm_wrapper.js': bytesOf('// wrapper\n'),
 };
 const runtimeEntryFile = `game.${sha(runtimeJs).slice(0, 16)}.js`;
+/** The classic-script runtime; it holds the sequences the single-HTML packager must escape */
+const classicJs = bytesOf('window.__classic="</script><!--";\n');
+const classicFile = `game-classic.${sha(classicJs).slice(0, 16)}.js`;
 const runtimeManifest = {
   runtimeVersion: '0.1.0',
   entry: { file: runtimeEntryFile, sha256: sha(runtimeJs), size: runtimeJs.length },
+  classic: { file: classicFile, sha256: sha(classicJs), size: classicJs.length },
   draco: Object.entries(dracoFiles).map(([file, b]) => ({ file, sha256: sha(b), size: b.length })),
 };
 
@@ -125,6 +133,7 @@ function servedFiles(): Map<string, Uint8Array> {
     [LIBRARY + 'files/bbbbbbbbbbbbbbbb.png', PNG_A],
     [RUNTIME + 'runtime-manifest.json', bytesOf(JSON.stringify(runtimeManifest))],
     [RUNTIME + runtimeEntryFile, runtimeJs],
+    [RUNTIME + classicFile, classicJs],
   ]);
   for (const [file, b] of Object.entries(dracoFiles)) files.set(RUNTIME + file, b);
   return files;
@@ -437,5 +446,109 @@ describe('export credits and notices (P3.5)', () => {
     assert.ok(checkGameManifest(withoutCredits).ok, 'games exported before P3.5 still load');
     const bad = { ...manifest, credits: { packs: [{ title: 'x', author: 'y', license: 'z', source: 's', files: [{ name: 'n', path: '../x' }] }], uploads: [] } };
     assert.equal(checkGameManifest(bad).ok, false);
+  });
+});
+
+describe('single-HTML export (P3.9)', () => {
+  const htmlRequest = (model = GLB) => {
+    const request = fixtureRequest(model);
+    request.doc.export.format = 'single-html';
+    return request;
+  };
+  /** The page's embedded files, by path */
+  const embeddedFiles = (html: string) => {
+    const files = new Map<string, Uint8Array>();
+    const re = new RegExp(`<script type="application/octet-stream" ${EMBEDDED_FILE_ATTRIBUTE}="([^"]+)">([^<]*)</script>`, 'g');
+    for (const m of html.matchAll(re)) files.set(m[1], base64ToBytes(m[2])!);
+    return files;
+  };
+
+  it('writes one deterministic HTML file named after the slug and version', async () => {
+    const first = await exportGame(htmlRequest(), deps(fakeFetch(servedFiles()).fn));
+    const second = await exportGame(htmlRequest(), deps(fakeFetch(servedFiles()).fn, { concurrency: 1 }));
+    assert.equal(first.format, 'single-html');
+    assert.equal(first.mimeType, 'text/html');
+    assert.equal(first.fileName, 'export-fixture-0.1.0.html');
+    assert.equal(first.sha256, second.sha256);
+    assert.deepEqual(first.files, [{ path: 'export-fixture-0.1.0.html', size: first.size }]);
+  });
+
+  it('carries the manifest, every asset, the credits and the notices, and refers to nothing outside itself', async () => {
+    const html = strFromU8((await exportGame(htmlRequest(), deps(fakeFetch(servedFiles()).fn))).bytes);
+    const files = embeddedFiles(html);
+    const manifestPath = /<meta name="gcs:manifest" content="([^"]+)" \/>/.exec(html)![1];
+    const checked = checkGameManifest(JSON.parse(strFromU8(files.get(manifestPath)!)));
+    assert.ok(checked.ok, checked.ok ? '' : checked.message);
+    for (const asset of checked.manifest.assets) assert.equal(sha(files.get(asset.path)!), asset.sha256, asset.path);
+    assert.ok(![...files.keys()].some((p) => p.startsWith('draco/')), 'no Draco decoder without a Draco model');
+    for (const name of ['CREDITS.txt', 'THIRD_PARTY_NOTICES.txt', 'LICENSE-runtime.txt']) assert.match(html, new RegExp(`<pre data-file="${name}">`));
+    assert.doesNotMatch(html, /README\.txt/);
+    assert.match(html, /Used in: the script inside this page/);
+    assert.deepEqual([...html.matchAll(/\s(?:src|href)="([^"]*)"/g)].map((m) => m[1]), ['data:,'], 'nothing loads except the empty icon');
+    const outsideNotices = html.replace(/<template id="gcs-notices">[\s\S]*?<\/template>/, '');
+    assert.doesNotMatch(outsideNotices, /https?:\/\//, 'addresses appear only as text in the credits and notices');
+  });
+
+  it('allows only its own inline runtime, by hash, and escapes it', async () => {
+    const html = strFromU8((await exportGame(htmlRequest(), deps(fakeFetch(servedFiles()).fn))).bytes);
+    const policy = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html)![1];
+    assert.match(policy, /default-src 'none'/);
+    assert.match(policy, /connect-src data: blob:;/);
+    assert.doesNotMatch(policy, /'self'|'unsafe-eval'|https?:/);
+    const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    assert.equal(scripts.length, 1);
+    assert.equal(scripts[0], inlineScriptText(strFromU8(classicJs)));
+    assert.equal(scripts[0], 'window.__classic="<\\/script><\\!--";\n');
+    const hash = crypto.createHash('sha256').update(scripts[0]).digest('base64');
+    assert.match(policy, new RegExp(`script-src 'sha256-${hash.replace(/[+/]/g, (c) => `\\${c}`)}'`));
+  });
+
+  it('embeds the Draco decoder exactly when a model needs it', async () => {
+    const html = strFromU8((await exportGame(htmlRequest(DRACO_GLB), deps(fakeFetch(servedFiles()).fn))).bytes);
+    const files = embeddedFiles(html);
+    assert.deepEqual([...files.keys()].filter((p) => p.startsWith('draco/')), Object.keys(dracoFiles).sort());
+    assert.match(html, /Draco 3D data compression/);
+  });
+
+  it('boots the game from the files inside the page', async () => {
+    const html = strFromU8((await exportGame(htmlRequest(), deps(fakeFetch(servedFiles()).fn))).bytes);
+    const files = embeddedFiles(html);
+    const base = 'file:///C:/Games/export-fixture-0.1.0.html';
+    let started = false;
+    const screen: BootScreen = { progress() {}, error: (title, detail) => assert.fail(`${title}: ${detail}`), hide() {} };
+    const ok = await bootGame({
+      manifestPath: /<meta name="gcs:manifest" content="([^"]+)" \/>/.exec(html)![1],
+      baseURI: base,
+      fetchBytes: async (url) => {
+        const file = files.get(pagePath(url, base));
+        if (!file) throw new Error(`no ${url}`);
+        return file;
+      },
+      toObjectUrl: () => 'blob:x',
+      screen,
+      start: (manifest) => {
+        started = manifest.levels.length === 1 && manifest.assets.length === 4;
+      },
+      runtimeVersion: '0.1.0',
+    });
+    assert.equal(ok, true);
+    assert.equal(started, true);
+  });
+
+  it('exports multiplayer projects as a zip whatever the setting says', async () => {
+    const request = htmlRequest();
+    request.doc.multiplayer = { enabled: true, mode: 'coop', maxPlayers: 4 } as NonNullable<ProjectDocV4['multiplayer']>;
+    const result = await exportGame(request, deps(fakeFetch(servedFiles()).fn));
+    assert.equal(result.format, 'zip');
+    assert.match(result.fileName, /\.zip$/);
+  });
+
+  it('encodes base64 the same way the runtime decodes it', () => {
+    for (const length of [0, 1, 2, 3, 4, 5, 100_001]) {
+      const bytes = Uint8Array.from({ length }, (_, i) => (i * 37 + 11) & 0xff);
+      const encoded = bytesToBase64(bytes);
+      assert.equal(encoded, Buffer.from(bytes).toString('base64'), `length ${length}`);
+      assert.deepEqual(base64ToBytes(encoded), bytes);
+    }
   });
 });

@@ -41,7 +41,7 @@ export async function gameDataFile(manifest: GameManifestV1): Promise<{ path: st
 }
 
 const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
+export const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
 
 /** Fills the page template; every value is HTML-escaped */
 export function renderIndexHtml(template: string, values: { title: string; manifestPath: string; runtimePath: string }): string {

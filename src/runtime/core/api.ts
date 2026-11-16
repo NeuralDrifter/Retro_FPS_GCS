@@ -25,6 +25,7 @@ import {
 import {
   RuntimeAppState,
 } from '../menu';
+import type { DracoDecoderLocation } from '../EntityLoader';
 
 export interface TickInputProvider {
   nextInput: (tick: number) => PlayerTickInput | undefined;
@@ -38,7 +39,7 @@ export type InputSourceOption =
 
 export interface StartGameOptions {
   assetBaseUrl?: string;
-  dracoDecoderPath?: string;
+  dracoDecoderPath?: DracoDecoderLocation;
   inputSource?: InputSourceOption;
   hudRoot?: HTMLElement | null;
   autoLockPointerOnClick?: boolean;

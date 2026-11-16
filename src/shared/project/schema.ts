@@ -50,7 +50,7 @@ export interface ProjectDocV4 {
   gameData: GameData;
   /** Textures and models the creator uploaded */
   userAssets: UserAsset[];
-  export: { slug: string };
+  export: ProjectExportSettings;
   /** Present and `enabled: true` only for multiplayer games (section 3.5) */
   multiplayer?: MultiplayerSettings;
 }
@@ -140,6 +140,21 @@ export const USER_ASSET_MIME_TYPES: readonly UserAssetMimeType[] = [
   'image/webp',
   'model/gltf-binary',
 ];
+
+/** How Export Game packages a game (release plan P3.9, Q7): a zip, or one HTML file for single-player games */
+export type ExportFormat = 'zip' | 'single-html';
+export const EXPORT_FORMATS: readonly ExportFormat[] = ['zip', 'single-html'];
+
+export interface ProjectExportSettings {
+  slug: string;
+  /** Missing means `zip`; multiplayer games always export as a zip */
+  format?: ExportFormat;
+}
+
+/** The format Export Game uses for `doc` */
+export function exportFormatOf(doc: { export: ProjectExportSettings; multiplayer?: { enabled: boolean } }): ExportFormat {
+  return doc.multiplayer?.enabled === true ? 'zip' : (doc.export.format ?? 'zip');
+}
 
 export type UserAssetLicense = 'own-work' | 'CC0-1.0' | 'CC-BY-4.0' | 'other';
 export const USER_ASSET_LICENSES: readonly UserAssetLicense[] = ['own-work', 'CC0-1.0', 'CC-BY-4.0', 'other'];

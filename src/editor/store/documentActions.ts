@@ -15,6 +15,7 @@ import type {
   VariableRegistrySpec,
 } from '../../sim';
 import type {
+  ExportFormat,
   GameData,
   MultiplayerSettings,
   ProjectCampaign,
@@ -83,6 +84,7 @@ export type DocumentAction =
   | { type: 'userAsset/add'; asset: UserAsset }
   | { type: 'userAsset/remove'; assetId: string }
   | { type: 'export/setSlug'; slug: string }
+  | { type: 'export/setFormat'; format: ExportFormat }
   | { type: 'multiplayer/set'; multiplayer: MultiplayerSettings | undefined }
   /** Several edits applied as one undo step */
   | { type: 'batch'; actions: DocumentAction[] };
@@ -288,7 +290,9 @@ export function reduceDocument(doc: ProjectDocV4, action: DocumentAction): Proje
       if (!doc.userAssets.some((a) => a.id === action.assetId)) return doc;
       return { ...doc, userAssets: doc.userAssets.filter((a) => a.id !== action.assetId) };
     case 'export/setSlug':
-      return doc.export.slug === action.slug ? doc : { ...doc, export: { slug: action.slug } };
+      return doc.export.slug === action.slug ? doc : { ...doc, export: { ...doc.export, slug: action.slug } };
+    case 'export/setFormat':
+      return (doc.export.format ?? 'zip') === action.format ? doc : { ...doc, export: { ...doc.export, format: action.format } };
     case 'batch':
       return action.actions.reduce(reduceDocument, doc);
     case 'multiplayer/set': {

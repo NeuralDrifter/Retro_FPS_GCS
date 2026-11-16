@@ -41,8 +41,6 @@ import { ExportProblems } from './components/export/ExportProblems';
 import { ProjectSettingsDialog } from './components/settings/ProjectSettingsDialog';
 import type { ProjectSettingsValues } from './components/settings/ProjectSettingsDialog';
 import { useExport } from './export/useExport';
-import { createGameManifestFromEditor } from './project/legacy';
-import { downloadSingleHtml } from '../export/singleHtmlExporter';
 import { TopMenuBar } from './components/ide/TopMenuBar';
 import { LeftToolPalette } from './components/ide/LeftToolPalette';
 import { BottomStatusBar } from './components/ide/BottomStatusBar';
@@ -214,27 +212,13 @@ export default function App() {
         actions: [
           { type: 'meta/update', patch: { title: values.title, author: values.author, description: values.description } },
           { type: 'export/setSlug', slug: values.slug },
+          { type: 'export/setFormat', format: values.format },
         ],
       },
       'Project settings'
     );
     setIsProjectSettingsOpen(false);
-    setEngineLog(`Project settings saved: '${values.title}' exports as ${values.slug}.`);
-  };
-  // The legacy single-HTML export, until P3.9 moves it onto the export worker
-  const exportSingleHtml = async () => {
-    const { meta } = store.getState().doc;
-    try {
-      const manifest = createGameManifestFromEditor(files.buildCurrentLevelState(), {
-        title: meta.title,
-        author: meta.author,
-        description: meta.description,
-      });
-      const filename = await downloadSingleHtml(manifest);
-      setEngineLog(`Export: downloaded the single HTML file '${filename}'.`);
-    } catch (err) {
-      setEngineLog(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
+    setEngineLog(`Project settings saved: '${values.title}' exports as ${values.slug} (${values.format === 'single-html' ? 'single HTML file' : 'zip'}).`);
   };
 
   const project = useProjectFiles({
@@ -467,7 +451,6 @@ export default function App() {
             onSave={() => void project.save()}
             onDownload={() => void project.download()}
             onProjectSettings={() => setIsProjectSettingsOpen(true)}
-            onExportSingleHtml={() => void exportSingleHtml()}
             onClose={project.close}
           />
         }

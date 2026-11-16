@@ -7,6 +7,7 @@
 import { validateLevelDataV3 } from '../../sim';
 import type { ValidationErrorItem, ValidationResult } from '../../sim';
 import {
+  EXPORT_FORMATS,
   PROJECT_ID_PATTERN,
   PROJECT_LIMITS,
   PROJECT_SCHEMA_VERSION,
@@ -365,8 +366,9 @@ function validate(input: unknown, c: Checker): void {
   checkGameData(input.gameData, c);
   checkUserAssets(input.userAssets, c);
   if (c.object(input.export, '$.export')) {
-    c.keys(input.export, '$.export', ['slug']);
+    c.keys(input.export, '$.export', ['slug'], ['format']);
     c.string(input.export.slug, '$.export.slug', 64, SLUG_PATTERN);
+    if ('format' in input.export) c.oneOf(input.export.format, '$.export.format', EXPORT_FORMATS);
   }
   if ('multiplayer' in input) checkMultiplayer(input.multiplayer, c);
 }

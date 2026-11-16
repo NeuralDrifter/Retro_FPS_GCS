@@ -18,7 +18,6 @@ export interface FileMenuProps {
   onDownload: () => void;
   onProjectSettings: () => void;
   /** The legacy single-HTML export, until P3.9 moves it onto the export worker */
-  onExportSingleHtml: () => void;
   onClose: () => void;
 }
 
@@ -35,7 +34,6 @@ export const FileMenu: React.FC<FileMenuProps> = ({
   onSave,
   onDownload,
   onProjectSettings,
-  onExportSingleHtml,
   onClose,
 }) => {
   const [open, setOpen] = useState(false);
@@ -134,9 +132,6 @@ export const FileMenu: React.FC<FileMenuProps> = ({
           <div className="my-1 border-t border-[#3e3e42]" />
           <button type="button" role="menuitem" className={item} onClick={choose(onProjectSettings)}>
             Project Settings…
-          </button>
-          <button type="button" role="menuitem" className={item} onClick={choose(onExportSingleHtml)}>
-            Export Single HTML (legacy)
           </button>
           <div className="my-1 border-t border-[#3e3e42]" />
           <button type="button" role="menuitem" className={item} onClick={choose(onClose)}>

@@ -11,7 +11,7 @@
     "dev": "npm run build:runtime && vite --port=3000",
     "dev:lan": "npm run build:runtime && vite --port=3000 --host=0.0.0.0",
     "build": "npm run build:runtime && vite build",
-    "build:runtime": "tsx scripts/build-single-html-runtime.ts && tsx scripts/build-runtime.ts",
+    "build:runtime": "tsx scripts/build-runtime.ts",
     "check:runtime": "tsx scripts/check-runtime-bundle.ts",
     "check:licenses": "tsx scripts/check-licenses.ts",
     "build:sample": "tsx scripts/build-sample.ts",

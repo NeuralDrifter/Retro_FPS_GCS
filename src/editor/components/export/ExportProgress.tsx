@@ -5,7 +5,7 @@
  */
 import React, { useState } from 'react';
 import type { ExportStage } from '../../../export/exportGame';
-import { hostLimitWarnings } from '../../../export/hostLimits';
+import { exportWarnings } from '../../../export/hostLimits';
 import type { ExportController } from '../../export/useExport';
 
 const STAGE_LABELS: Record<ExportStage, string> = {
@@ -13,17 +13,24 @@ const STAGE_LABELS: Record<ExportStage, string> = {
   download: 'Gathering textures and models',
   runtime: 'Adding the game runtime',
   package: 'Writing the game data',
-  zip: 'Zipping',
+  zip: 'Writing the game file',
 };
 
 const formatSize = (bytes: number) =>
   bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
-const PUBLISH_STEPS = [
-  'itch.io: create an HTML project, upload the zip as is, and tick "This file will be played in the browser".',
-  'GitHub Pages or any static host: unzip it and upload the files; index.html must stay at the top.',
-  'To test it on your computer, serve the unzipped folder with any static file server. Opening index.html directly from a folder does not work in most browsers.',
-];
+const PUBLISH_STEPS = {
+  zip: [
+    'itch.io: create an HTML project, upload the zip as is, and tick "This file will be played in the browser".',
+    'GitHub Pages or any static host: unzip it and upload the files; index.html must stay at the top.',
+    'To test it on your computer, serve the unzipped folder with any static file server. Opening index.html directly from a folder does not work in most browsers.',
+  ],
+  'single-html': [
+    'Open the file in a browser to play; it needs no server and no network.',
+    'To publish it, upload the one file to any static host, or rename it index.html, zip it, and upload the zip to itch.io as an HTML project.',
+    'The credits and license notices are inside the file; view its source to read them.',
+  ],
+} as const;
 
 const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <div className="flex gap-2">
@@ -98,7 +105,7 @@ export const ExportProgress: React.FC<{ exporter: ExportController }> = ({ expor
   }
 
   const { summary } = state;
-  const hostWarnings = hostLimitWarnings(summary.files);
+  const hostWarnings = exportWarnings(summary);
   return (
     <div role="dialog" aria-labelledby="export-done-title" className={panel}>
       <div className="ide-panel-header">
@@ -128,7 +135,7 @@ export const ExportProgress: React.FC<{ exporter: ExportController }> = ({ expor
         )}
         {showPublish && (
           <ul className="list-disc pl-4 space-y-1 text-[#d4d4d4]">
-            {PUBLISH_STEPS.map((step) => (
+            {PUBLISH_STEPS[summary.format].map((step) => (
               <li key={step}>{step}</li>
             ))}
           </ul>

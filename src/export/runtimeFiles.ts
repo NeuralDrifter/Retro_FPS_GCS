@@ -15,13 +15,17 @@ export interface RuntimeFileEntry {
 
 export interface RuntimeManifest {
   runtimeVersion: string;
+  /** The ES module a zip's index.html loads */
   entry: RuntimeFileEntry;
+  /** The same runtime as a classic script, which the single-HTML export inlines (P3.9) */
+  classic: RuntimeFileEntry;
   draco: RuntimeFileEntry[];
 }
 
 type Json = Record<string, unknown>;
 const isObject = (v: unknown): v is Json => v !== null && typeof v === 'object' && !Array.isArray(v);
 const ENTRY_FILE = /^game\.[0-9a-f]{16}\.js$/;
+const CLASSIC_FILE = /^game-classic\.[0-9a-f]{16}\.js$/;
 const DRACO_FILE = /^draco\/[a-z0-9_]+\.(?:js|wasm)$/;
 
 const isEntry = (v: unknown, file: RegExp): v is RuntimeFileEntry =>
@@ -37,6 +41,7 @@ const isEntry = (v: unknown, file: RegExp): v is RuntimeFileEntry =>
 /** Checks a downloaded runtime manifest; returns null when it is not one */
 export function readRuntimeManifest(raw: unknown): RuntimeManifest | null {
   if (!isObject(raw) || typeof raw.runtimeVersion !== 'string' || !/^\d+\.\d+\.\d+/.test(raw.runtimeVersion)) return null;
-  if (!isEntry(raw.entry, ENTRY_FILE) || !Array.isArray(raw.draco) || !raw.draco.every((d) => isEntry(d, DRACO_FILE))) return null;
-  return { runtimeVersion: raw.runtimeVersion, entry: raw.entry, draco: raw.draco as RuntimeFileEntry[] };
+  if (!isEntry(raw.entry, ENTRY_FILE) || !isEntry(raw.classic, CLASSIC_FILE)) return null;
+  if (!Array.isArray(raw.draco) || !raw.draco.every((d) => isEntry(d, DRACO_FILE))) return null;
+  return { runtimeVersion: raw.runtimeVersion, entry: raw.entry, classic: raw.classic, draco: raw.draco as RuntimeFileEntry[] };
 }

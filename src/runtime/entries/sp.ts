@@ -1,9 +1,13 @@
 /**
- * Single-player entry of an exported game (release plan P3.1). `index.html` loads this module;
- * it boots from the page's `gcs:manifest` link and starts the game. It never imports src/net.
+ * Single-player entry of an exported game (release plan P3.1). A zip's `index.html` loads it as a
+ * module and it fetches the game's files; a single-HTML game (P3.9) inlines it as a classic script
+ * and it reads the files the page carries. Either way it boots from the page's `gcs:manifest` link
+ * and starts the game. It never imports src/net.
  */
 import { createBootScreen } from '../boot/bootScreen';
 import { bootGame } from '../boot/bootGame';
+import { pagePath, readEmbeddedFiles } from '../boot/embedded';
+import type { EmbeddedFiles } from '../boot/embedded';
 import { readManifestPath } from '../boot/urls';
 import { debugReplaySource } from '../debugEvents';
 import { startGame } from '../startGame';
@@ -33,6 +37,16 @@ async function fetchBytes(url: string, onProgress: (loaded: number) => void): Pr
     offset += chunk.length;
   }
   return out;
+}
+
+const objectUrl = (bytes: Uint8Array, mimeType: string) => URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mimeType }));
+
+/** The Draco decoder from the page's own copies, as object URLs */
+function embeddedDracoDecoder(files: EmbeddedFiles): { js: string; wasm: string } {
+  return {
+    js: objectUrl(files.read('draco/draco_wasm_wrapper.js'), 'text/javascript'),
+    wasm: objectUrl(files.read('draco/draco_decoder.wasm'), 'application/wasm'),
+  };
 }
 
 /** The runtime's own manifest shape, with every asset path replaced by its loaded object URL */
@@ -69,11 +83,18 @@ function toRuntimeManifest(manifest: GameManifestV1, urls: Map<string, string>):
 function boot(): void {
   const container = document.getElementById('game') ?? document.body;
   const screen = createBootScreen(container, document.title);
+  const embedded = readEmbeddedFiles(document);
   void bootGame({
     manifestPath: readManifestPath(document),
     baseURI: document.baseURI,
-    fetchBytes,
-    toObjectUrl: (bytes, mimeType) => URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mimeType })),
+    fetchBytes: embedded
+      ? async (url, onProgress) => {
+          const bytes = embedded.read(pagePath(url, document.baseURI));
+          onProgress(bytes.length);
+          return bytes;
+        }
+      : fetchBytes,
+    toObjectUrl: objectUrl,
     screen,
     runtimeVersion: RUNTIME_VERSION,
     start(manifest, urls, dracoPath) {
@@ -87,7 +108,7 @@ function boot(): void {
         hudRoot: container,
         autoLockPointerOnClick: !mainMenuFirst,
         assetBaseUrl: '',
-        ...(dracoPath ? { dracoDecoderPath: dracoPath } : {}),
+        ...(dracoPath ? { dracoDecoderPath: embedded ? embeddedDracoDecoder(embedded) : dracoPath } : {}),
         ...(replay ? { inputSource: replay } : {}),
       });
     },
