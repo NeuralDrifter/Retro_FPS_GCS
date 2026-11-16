@@ -92,12 +92,14 @@ test('a drag of a map tool is one undo step, and play starts from the edited lev
   for (let col = 2; col <= 5; col++) await page.mouse.move(at(7, col).x, at(7, col).y, { steps: 3 });
   await page.mouse.up();
 
-  await expect.poll(undoDepth).toBe(1);
-  const grid = await page.evaluate(() => {
-    const doc = window.__gcsProbes!.projectDocument!() as { levels: { data: { grid: number[][] } }[] };
-    return doc.levels[0].data.grid[7];
-  });
-  expect(grid.slice(1, 6)).toEqual([1, 1, 1, 1, 1]);
+  // Firefox can apply the last moves a moment after mouseup, so wait for the painted row
+  const row7 = () =>
+    page.evaluate(() => {
+      const doc = window.__gcsProbes!.projectDocument!() as { levels: { data: { grid: number[][] } }[] };
+      return doc.levels[0].data.grid[7].slice(1, 6);
+    });
+  await expect.poll(row7).toEqual([1, 1, 1, 1, 1]);
+  expect(await undoDepth()).toBe(1);
 
   await page.keyboard.press('Control+z');
   await expect.poll(() => project(page)).toBe(before);
