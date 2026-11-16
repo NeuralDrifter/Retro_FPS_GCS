@@ -91,12 +91,16 @@ export async function openGame(page: Page, url: string, options: GamePageOptions
   return { game, finish, workers: () => workers };
 }
 
-/** With the level 1 recording playing: waits for the level's exit, then loads level 2 */
+/**
+ * With the level 1 recording playing: waits for the level's exit, then loads level 2. The game
+ * advances at most 0.1 s per drawn frame, and software WebGL on a loaded CI runner can take a
+ * second or more per frame, so the 143-tick route can take minutes there.
+ */
 export async function playLevel1ThroughToLevel2(game: Page, levels: number): Promise<void> {
   const complete = game.locator('[data-field="complete-title"]');
-  await expect(complete).toHaveText(`Level 1 / ${levels} Complete`, { timeout: 60_000 });
+  await expect(complete).toHaveText(`Level 1 / ${levels} Complete`, { timeout: 240_000 });
   const buildsBefore = (await game.evaluate(() => window.__gcsProbes?.runtimeWorldBuilds?.())) as number;
   await game.locator('[data-action="next-level"]').click();
-  await expect.poll(async () => game.evaluate(() => window.__gcsProbes?.runtimeWorldBuilds?.()), { timeout: 60_000 }).toBeGreaterThan(buildsBefore);
+  await expect.poll(async () => game.evaluate(() => window.__gcsProbes?.runtimeWorldBuilds?.()), { timeout: 120_000 }).toBeGreaterThan(buildsBefore);
   await expect(complete).toBeHidden();
 }

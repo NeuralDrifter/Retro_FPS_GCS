@@ -12,7 +12,7 @@ import { serveFolder } from './helpers/static-server';
 // HTTP, makes no request beyond the page itself, loads a Draco model from its own copy of the
 // decoder, and comes out byte-identical when exported again.
 
-test.describe.configure({ timeout: 480_000 });
+test.describe.configure({ timeout: 600_000 });
 
 const DRACO_CUBE = fs.readFileSync(path.join(process.cwd(), 'e2e/assets/draco-cube.glb'));
 

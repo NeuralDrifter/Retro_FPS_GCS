@@ -11,7 +11,7 @@ import { unzipToFolder } from './helpers/unzip';
 // that leaves the game's own origin. The level 1 recording reaches the exit of a three-level
 // campaign, and level 2 loads. Exporting again gives the same bytes.
 
-test.describe.configure({ timeout: 480_000 });
+test.describe.configure({ timeout: 600_000 });
 
 test('the exported sample plays from a subfolder and from a site root, and exports the same bytes twice', async ({ page }) => {
   await page.goto('./');
