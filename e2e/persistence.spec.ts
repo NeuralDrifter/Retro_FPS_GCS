@@ -75,7 +75,9 @@ test('a second tab on the same project opens read-only', async ({ page }) => {
 
 test('a warning appears when browser storage passes 80% of the quota', async ({ page }) => {
   await page.addInitScript(() => {
-    Object.defineProperty(navigator.storage, 'estimate', {
+    // On the prototype: WebKit ignores a property defined on the navigator.storage instance
+    Object.defineProperty(StorageManager.prototype, 'estimate', {
+      configurable: true,
       value: async () => ({ usage: 85_000_000, quota: 100_000_000 }),
     });
   });

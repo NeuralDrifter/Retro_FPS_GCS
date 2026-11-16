@@ -5,7 +5,8 @@ import { expect, test, waitForGcsEvent } from './fixtures';
 // download (release plan P6.1, E-08). The fault is injected through a debug-only flag.
 
 test.describe.configure({ timeout: 180_000 });
-test.use({ expectedProblems: [/E2E fault/] });
+// Firefox logs the injected error as just "Error", without its message
+test.use({ expectedProblems: [/E2E fault|^console\.error: Error$/] });
 
 type Doc = { id: string; levels: { data: { grid: number[][] } }[] };
 const project = (page: Page) => page.evaluate(() => window.__gcsProbes!.projectDocument!() as Doc);
@@ -58,7 +59,8 @@ test('a crashed panel keeps the project, and its recovery file opens again', asy
   await page.getByRole('menuitem', { name: 'New Blank Project' }).click();
   await page.getByLabel('Open project file').setInputFiles(file);
   await expect(page.getByText(/File: Opened '/)).toBeVisible();
-  expect((await project(page)).levels[0].data.grid).toEqual(afterCrash.levels[0].data.grid);
+  // The log line can appear before the opened project replaces the blank one
+  await expect.poll(async () => (await project(page)).levels[0].data.grid).toEqual(afterCrash.levels[0].data.grid);
 });
 
 test('uncaught errors are listed under Problems', async ({ page }) => {
