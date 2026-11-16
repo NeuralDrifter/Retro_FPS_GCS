@@ -5,6 +5,7 @@
 import { createBootScreen } from '../boot/bootScreen';
 import { bootGame } from '../boot/bootGame';
 import { readManifestPath } from '../boot/urls';
+import { debugReplaySource } from '../debugEvents';
 import { startGame } from '../startGame';
 import type { CampaignSettings, GameManifest } from '../types';
 import type { MenuPackSpec } from '../menu/types';
@@ -80,11 +81,14 @@ function boot(): void {
       const menus = runtimeManifest.campaign?.menus;
       const mainMenuFirst = Boolean(menus?.enableMainMenuOnBoot && Array.isArray(menus.screens) && menus.screens.length > 0);
       screen.hide();
-      startGame(runtimeManifest, container, {
+      let game: ReturnType<typeof startGame> | null = null;
+      const replay = debugReplaySource(() => game?.getCurrentLevelIndex() ?? 0);
+      game = startGame(runtimeManifest, container, {
         hudRoot: container,
         autoLockPointerOnClick: !mainMenuFirst,
         assetBaseUrl: '',
         ...(dracoPath ? { dracoDecoderPath: dracoPath } : {}),
+        ...(replay ? { inputSource: replay } : {}),
       });
     },
   });

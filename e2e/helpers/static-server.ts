@@ -1,0 +1,67 @@
+import fs from 'node:fs';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
+import path from 'node:path';
+
+/**
+ * A minimal static file server for the export tests (release plan P3.7), standing in for a
+ * static host: it serves one folder under a path prefix, with the content types such hosts send,
+ * and nothing else. Each call listens on its own port, so each server is its own origin.
+ */
+
+const CONTENT_TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json',
+  '.txt': 'text/plain; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.glb': 'model/gltf-binary',
+  '.wasm': 'application/wasm',
+  '.ogg': 'audio/ogg',
+  '.mp3': 'audio/mpeg',
+};
+
+export interface StaticServer {
+  origin: string;
+  /** The folder's address, ending in `/` */
+  url: string;
+  close(): Promise<void>;
+}
+
+/** Serves `root` at `prefix` (which starts and ends with `/`) on a free local port */
+export async function serveFolder(root: string, prefix = '/'): Promise<StaticServer> {
+  const base = path.resolve(root);
+  const server = http.createServer((req, res) => {
+    const notFound = () => {
+      res.writeHead(404, { 'content-type': 'text/plain' });
+      res.end('not found');
+    };
+    const pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://x').pathname);
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405).end();
+      return;
+    }
+    if (!pathname.startsWith(prefix)) return notFound();
+    const relative = pathname.slice(prefix.length) || 'index.html';
+    const file = path.resolve(base, relative.endsWith('/') ? `${relative}index.html` : relative);
+    if (file !== base && !file.startsWith(base + path.sep)) return notFound();
+    fs.readFile(file, (err, body) => {
+      if (err) return notFound();
+      res.writeHead(200, {
+        'content-type': CONTENT_TYPES[path.extname(file).toLowerCase()] ?? 'application/octet-stream',
+        'content-length': body.length,
+        'cache-control': 'no-store',
+      });
+      res.end(req.method === 'HEAD' ? undefined : body);
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  return {
+    origin,
+    url: `${origin}${prefix}`,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
+}
