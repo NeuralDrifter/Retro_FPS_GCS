@@ -6,6 +6,7 @@ import { useCallback, useRef, useState } from 'react';
 import { ExportError } from '../../export/errors';
 import type { ExportErrorInfo } from '../../export/errors';
 import type { ExportProgress, ExportResult } from '../../export/exportGame';
+import { hostLimitWarnings } from '../../export/hostLimits';
 import type { ProjectDocV4 } from '../../shared/project';
 import { downloadBlob } from '../persistence/download';
 import { buildExportRequest, runExport } from './exportClient';
@@ -56,6 +57,7 @@ export function useExport(getDoc: () => ProjectDocV4, log: (message: string) => 
         downloadBlob(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/zip' }), summary.fileName);
         setState({ phase: 'done', summary });
         log(`Export: downloaded '${summary.fileName}' (${summary.fileCount} files).`);
+        for (const warning of hostLimitWarnings(summary.files)) log(`Export: ${warning}`);
       } catch (err) {
         const error = err instanceof ExportError ? err.toInfo() : { code: 'invalid-project' as const, message: 'The export stopped because of an unexpected error.', detail: String(err) };
         if (error.code === 'cancelled') {

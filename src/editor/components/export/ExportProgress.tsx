@@ -5,6 +5,7 @@
  */
 import React, { useState } from 'react';
 import type { ExportStage } from '../../../export/exportGame';
+import { hostLimitWarnings } from '../../../export/hostLimits';
 import type { ExportController } from '../../export/useExport';
 
 const STAGE_LABELS: Record<ExportStage, string> = {
@@ -97,6 +98,7 @@ export const ExportProgress: React.FC<{ exporter: ExportController }> = ({ expor
   }
 
   const { summary } = state;
+  const hostWarnings = hostLimitWarnings(summary.files);
   return (
     <div role="dialog" aria-labelledby="export-done-title" className={panel}>
       <div className="ide-panel-header">
@@ -114,6 +116,16 @@ export const ExportProgress: React.FC<{ exporter: ExportController }> = ({ expor
             <code className="text-[10px]">{summary.sha256}</code>
           </Row>
         </dl>
+        {hostWarnings.length > 0 && (
+          <div role="alert" aria-label="Host limits" className="border border-[#a16207] bg-[#422006] p-2 space-y-1 text-[#fde68a]">
+            <p className="font-semibold">Some hosts will not accept this game as it is:</p>
+            <ul className="list-disc pl-4 space-y-1">
+              {hostWarnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         {showPublish && (
           <ul className="list-disc pl-4 space-y-1 text-[#d4d4d4]">
             {PUBLISH_STEPS.map((step) => (
