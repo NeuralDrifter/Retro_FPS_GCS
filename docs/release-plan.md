@@ -31,6 +31,7 @@ These could not be settled from the code. The plan proceeds on the stated assump
 | Q13 | Heaviest level the performance targets must hold for | 64x64 cells, 64 enemies, 300 static models. The validator allows more, so that is not the target. | Step 2 |
 | Q14 | Editor fonts | System font stack: no network request and no font license to ship | P0.5 |
 | Q15 | When the Pages editor updates | On version tags, not on every push to `main` | P8.1 |
+| Q16 | How the game shell relates to the Menu Studio (the audit missed that the runtime already renders creator-designed main, options, pause and inventory screens from `campaign.menus`) | Decided 2026-11-16: build on the Menu Studio. One menu system: the default menu pack becomes the shell, gains Credits, Continue, level-complete and defeat screens and keyboard navigation, and its renderer is rebuilt without `innerHTML`. Theme colors and labels come from the menu pack. | P5.1, P5.2, P5.6 |
 
 ---
 
