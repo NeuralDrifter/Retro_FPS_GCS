@@ -51,7 +51,7 @@ test('a Draco model loads its decoder from the base path', async ({ page, baseUR
   );
 
   // Listen from the start: the editor may load a newly registered model before it is placed.
-  const decoderUrl = new URL('draco/draco_decoder.wasm', baseURL).href;
+  const decoderUrl = new URL('runtime/draco/draco_decoder.wasm', baseURL).href;
   const decoderLoaded = page.waitForResponse((response) => response.url() === decoderUrl);
   const manifestLoaded = page.waitForResponse((response) => response.url().endsWith('/assets/manifest.json'));
   await page.goto('./');

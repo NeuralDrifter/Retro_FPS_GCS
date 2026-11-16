@@ -26,6 +26,7 @@ import { detectDracoCompression } from './glb';
 import { contentName, sha256 } from './hash';
 import { buildGameManifest, gameDataFile, renderIndexHtml } from './manifestBuilder';
 import { renderReadme, renderRuntimeLicense, renderThirdPartyNotices } from './notices';
+import { scanExportPayload } from './safetyScanner';
 import { projectAssetIds } from './references';
 import { RUNTIME_MANIFEST_FILE, readRuntimeManifest } from './runtimeFiles';
 import type { RuntimeFileEntry } from './runtimeFiles';
@@ -310,6 +311,18 @@ export async function exportGame(request: ExportRequest, deps: ExportDeps): Prom
   files.set('THIRD_PARTY_NOTICES.txt', text(renderThirdPartyNotices({ runtimeFile: runtime.entry.file, draco: needsDraco })));
   files.set('LICENSE-runtime.txt', text(renderRuntimeLicense()));
   files.set('README.txt', text(renderReadme(doc.meta.title)));
+  // A key or password typed into the project would ship to every player; the text files carry
+  // everything the creator wrote (P3.6)
+  const textFiles = Object.fromEntries([...files].filter(([p]) => /\.(?:html|json|txt)$/.test(p)));
+  const scan = scanExportPayload(textFiles);
+  if (!scan.safe) {
+    const where = [...new Set(scan.violations.map((v) => v.file))].join(', ');
+    throw new ExportError(
+      'invalid-project',
+      `The project contains text that looks like an API key or password (in ${where}). Remove it from the project and export again.`,
+      scan.violations.map((v) => `${v.file}: ${v.pattern}`).join('; ')
+    );
+  }
   report('package', 1, 1);
   throwIfCancelled(deps.signal);
 

@@ -10,11 +10,11 @@ import type { BundledDracoFiles } from '../export/collect';
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const DRACO_FILE_NAMES = ['draco_decoder.js', 'draco_wasm_wrapper.js', 'draco_decoder.wasm'] as const;
 
-/** Reads the Draco decoder files the editor serves from public/draco/. */
+/** Reads the Draco decoder files the runtime build copies from three (P3.6). */
 export function loadDracoFilesFromDisk(): BundledDracoFiles {
   const result: Partial<BundledDracoFiles> = {};
   for (const name of DRACO_FILE_NAMES) {
-    const buf = fs.readFileSync(path.join(projectRoot, 'public/draco', name));
+    const buf = fs.readFileSync(path.join(projectRoot, 'node_modules/three/examples/jsm/libs/draco/gltf', name));
     result[name] = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
   }
   return result as BundledDracoFiles;

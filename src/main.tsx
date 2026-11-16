@@ -10,8 +10,8 @@ import './index.css';
 // Uncaught errors and rejected promises go to the Problems panel (P6.1); nothing is sent anywhere
 installGlobalErrorHandlers();
 
-// Before any model loads: the Draco decoder ships in public/draco/ under the editor's base path.
-EntityLoader.setDracoDecoderPath(publicFileUrl('draco/'));
+// Before any model loads: the editor uses the runtime's copy of the Draco decoder (P3.6), under its base path.
+EntityLoader.setDracoDecoderPath(publicFileUrl('runtime/draco/'));
 
 /** Announces `gcs:editor-ready` after the editor's first commit, for the e2e suite. */
 function EditorReadySignal() {

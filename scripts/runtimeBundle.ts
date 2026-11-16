@@ -12,7 +12,8 @@ import { RUNTIME_MANIFEST_FILE } from '../src/export/runtimeFiles';
 import type { RuntimeFileEntry, RuntimeManifest } from '../src/export/runtimeFiles';
 
 export const RUNTIME_OUT_DIR = 'public/runtime';
-const DRACO_SOURCE_DIR = 'public/draco';
+/** three's glTF build of the Draco decoder, the one its DRACOLoader expects; the build copies it, so the repo keeps no copy (P3.6) */
+const DRACO_SOURCE_DIR = 'node_modules/three/examples/jsm/libs/draco/gltf';
 
 export { RUNTIME_MANIFEST_FILE };
 export type { RuntimeFileEntry, RuntimeManifest };

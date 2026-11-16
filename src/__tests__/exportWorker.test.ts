@@ -316,6 +316,15 @@ describe('export worker pipeline (P3.3)', () => {
     assert.equal(progress.at(-1), 'zip 1/1');
   });
 
+  it('refuses to ship text that looks like an API key (P3.6)', async () => {
+    const request = fixtureRequest();
+    request.doc.meta.description = 'Config: AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6';
+    const err = await expectExportError(exportGame(request, deps(fakeFetch(servedFiles()).fn)), 'invalid-project');
+    assert.match(err.message, /looks like an API key/);
+    assert.match(err.message, /data\/game\.[0-9a-f]{16}\.json/);
+    assert.doesNotMatch(`${err.message} ${err.detail}`, /AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6/, 'the key itself is not repeated');
+  });
+
   it('refuses unsafe zip paths', () => {
     for (const bad of ['../x', '/x', 'a/../b', 'a\\b', 'a/', './x']) {
       assert.throws(() => buildZip(new Map([[bad, new Uint8Array(1)]])), /unsafe zip path/, bad);

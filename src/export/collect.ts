@@ -503,7 +503,7 @@ async function fetchUrlToBytes(
 }
 
 /**
- * Fetches the Draco decoder files the editor serves from its draco/ folder.
+ * Fetches the Draco decoder files the editor serves from its runtime/draco/ folder.
  */
 export async function loadBundledDracoFiles(): Promise<BundledDracoFiles> {
   const fileNames = [
@@ -516,8 +516,8 @@ export async function loadBundledDracoFiles(): Promise<BundledDracoFiles> {
 
   if (typeof fetch === 'function') {
     for (const name of fileNames) {
-      // Relative to the page, so it resolves under the editor's base path (e.g. /Retro_FPS_GCS/draco/)
-      const res = await fetch(`draco/${name}`);
+      // Relative to the page, so it resolves under the editor's base path (e.g. /Retro_FPS_GCS/runtime/draco/)
+      const res = await fetch(`runtime/draco/${name}`);
       if (res.ok) {
         const ab = await res.arrayBuffer();
         result[name] = new Uint8Array(ab);

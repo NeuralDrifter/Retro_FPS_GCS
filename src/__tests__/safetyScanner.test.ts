@@ -6,7 +6,6 @@ import {
   assertExportPayloadIsSafe,
 } from '../export/safetyScanner';
 import { exportSingleHtml } from '../export/singleHtmlExporter';
-import { exportProjectZip } from '../export/projectExporter';
 import { createMinimalArenaTestLevel } from './determinismFixtures';
 
 describe('Phase 6 Acceptance: Export Safety Scanner & Credential Leak Prevention', () => {
@@ -63,24 +62,6 @@ describe('Phase 6 Acceptance: Export Safety Scanner & Credential Leak Prevention
     await assert.rejects(
       async () => {
         await exportSingleHtml(compromisedLevel);
-      },
-      /Security Violation: Export aborted!/
-    );
-  });
-
-  it('ACCEPTANCE: exportProjectZip aborts and throws when an API key is injected into game metadata', async () => {
-    const level = createMinimalArenaTestLevel();
-    const compromisedLevel = {
-      ...level,
-      metadata: {
-        ...level.metadata,
-        title: 'Secret Key AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6 Level',
-      },
-    };
-
-    await assert.rejects(
-      async () => {
-        await exportProjectZip(compromisedLevel);
       },
       /Security Violation: Export aborted!/
     );
