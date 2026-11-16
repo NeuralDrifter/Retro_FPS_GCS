@@ -73,6 +73,12 @@ export async function serveFolder(root: string, prefix = '/', options: { port?: 
   return {
     origin,
     url: `${origin}${prefix}`,
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    // close() alone waits for every open connection, and a browser can keep sockets open after
+    // its pages close; closing them makes shutdown finish at once
+    close: () =>
+      new Promise<void>((resolve) => {
+        server.close(() => resolve());
+        server.closeAllConnections();
+      }),
   };
 }
